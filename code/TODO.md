@@ -76,6 +76,9 @@
   - [x] Mathematical properties tested (linearity, zero input handling)
   - [x] Integration with elementary matrices validated
 
+### 6. Constraint Implementation 
+  - [ ] Check junction condition in T-junction double arc example - results are not convincing
+
 ## Medium Priority
 
 ### 6. Global Assembly System (UPDATED)

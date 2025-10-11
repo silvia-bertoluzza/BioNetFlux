@@ -29,7 +29,7 @@ print("Testing initialization with test_problem2 for MATLAB comparison")
 # STEP 1: Initialize the solver setup
 # =============================================================================
 print("\nStep 1: Initializing solver setup...")
-setup = quick_setup("ooc1d.problems.pure_parabolic", validate=True)
+setup = quick_setup("ooc1d.problems.double_arc_with_TJ", validate=True)
 print("✓ Setup initialized and validated")
 
 # Get problem information

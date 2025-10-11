@@ -328,8 +328,11 @@ class ConstraintManager:
                 u1_value = trace_solutions[domain1_idx][trace_idx1]
                 u2_value = trace_solutions[domain2_idx][trace_idx2]
                 
+                flux1_value = multiplier_values[multiplier_idx]
+                flux2_value = multiplier_values[multiplier_idx + 1]
+
                 residual = u1_value - u2_value
-                residuals.extend([residual, flux1_value+flux2_value])  # Two multipliers for junction condition
+                residuals.extend([residual, flux1_value + flux2_value])  # Two multipliers for junction condition
                 multiplier_idx += 2
                 
             elif constraint.type == ConstraintType.KEDEM_KATCHALSKY:
