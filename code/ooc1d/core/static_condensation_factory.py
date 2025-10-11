@@ -1,6 +1,7 @@
 from typing import Type
 from .static_condensation_base import StaticCondensationBase
 from .static_condensation_keller_segel import KellerSegelStaticCondensation
+from .static_condensation_ooc import StaticCondensationOOC
 from .problem import Problem
 
 class StaticCondensationFactory:
@@ -11,6 +12,7 @@ class StaticCondensationFactory:
     
     _implementations = {
         "keller_segel": KellerSegelStaticCondensation,
+        "organ_on_chip": StaticCondensationOOC,  # Placeholder for actual OrganOnChip implementation
         # Add more implementations here as needed:
         # "reaction_diffusion": ReactionDiffusionStaticCondensation,
         # "advection_diffusion": AdvectionDiffusionStaticCondensation,

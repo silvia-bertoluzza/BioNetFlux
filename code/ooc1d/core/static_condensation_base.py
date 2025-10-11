@@ -18,6 +18,7 @@ class StaticCondensationBase(ABC):
             problem: Problem definition
             global_disc: Global discretization object
             elementary_matrices: Pre-computed elementary matrices
+            ipb: Index of the problem/domain in case of multiple problems/domains
         """
         self.problem = problem
         self.discretization = global_disc.spatial_discretizations[ipb]

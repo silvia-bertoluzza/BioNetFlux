@@ -1,0 +1,8 @@
+matlab_reference/
+*.asv*.png
+*.pyc
+*.pdg
+*.log
+*.toc
+*.synctex.gz
+*.aux
