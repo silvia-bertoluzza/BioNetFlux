@@ -309,8 +309,13 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Final flux jumps
         print(f"DEBUG: B5 = {B5.shape}, dj = {dj.shape}, hB4 = {hB4.shape}")  # Debug print
         
-        hj = B5 * j + B6 @ U + B7 @ hU
-        dhj = B5 * dj + B6 @ JAC + B7
+        B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
+        hj = B5.T @ j + B6 @ U + B7 @ hU
+        print(f"DEBUG: hj = {hj.shape}, j = {j.shape}")  # Debug print
+        print(f"DEBUG: j = {j}, hj = {hj}")  # Debug print
+        
+        dhj = B5 @ R[0] @ dj + B6 @ JAC + B7
+        
         
         hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
         dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2
