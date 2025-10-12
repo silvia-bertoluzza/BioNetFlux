@@ -23,46 +23,6 @@ class StaticCondensationOOC(StaticCondensationBase):
     - v: auxiliary variable (equation 3)
     - phi: primary variable (equation 4)
     
-    
-    def __init__(self, problem, discretization, elementary_matrices):
-  
-        Initialize OrganOnChip static condensation.
-        
-        Args:
-            problem: Problem instance with OrganOnChip parameters
-            discretization: Spatial discretization
-            elementary_matrices: Pre-computed elementary matrices
-  
-        super().__init__(problem, discretization, elementary_matrices)
-        
-        # Extract OrganOnChip parameters following MATLAB order
-        self.nu = problem.parameters[0]      # viscosity
-        self.mu = problem.parameters[1]      # viscosity 
-        self.epsilon = problem.parameters[2] # coupling parameter
-        self.sigma = problem.parameters[3]   # coupling parameter
-        self.a = problem.parameters[4]       # reaction parameter
-        self.b = problem.parameters[5]       # coupling parameter
-        self.c = problem.parameters[6]       # reaction parameter
-        self.d = problem.parameters[7]       # coupling parameter
-        self.chi = problem.parameters[8]     # coupling parameter
-        
-        # Get lambda function and its derivative
-        self.lambda_func = getattr(problem, 'lambda_function', lambda x: np.ones_like(x))
-        self.dlambda_func = getattr(problem, 'dlambda_function', lambda x: np.zeros_like(x))
-        
-        # Get stabilization parameters
-        self.tau = discretization.tau if hasattr(discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
-        self.tu = self.tau[0]    # tau for u
-        self.to = self.tau[1]    # tau for omega  
-        self.tv = self.tau[2]    # tau for v
-        self.tp = self.tau[3]    # tau for phi
-        
-        # Cache frequently used values
-        self.dt = discretization.dt if hasattr(discretization, 'dt') else None
-        self.h = discretization.element_length
-        
-        # Initialize sc_matrices storage
-        self.sc_matrices = {}
     """
     
     def build_matrices(self):
@@ -73,7 +33,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         Returns:
             Dict containing all static condensation matrices
         """
-                # Extract OrganOnChip parameters following MATLAB order
+        # Extract OrganOnChip parameters following MATLAB order
         nu = self.problem.parameters[0]      # viscosity
         mu = self.problem.parameters[1]      # viscosity 
         epsilon = self.problem.parameters[2] # coupling parameter
@@ -84,6 +44,11 @@ class StaticCondensationOOC(StaticCondensationBase):
         d = self.problem.parameters[7]       # coupling parameter
         chi = self.problem.parameters[8]     # coupling parameter
         
+        alpha = 1/nu
+        beta = 1/mu
+        
+        
+        # **TODO: need to check that the lambda functions are correctly defined
         # Get lambda function and its derivative
         self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
         self.dlambda_func = getattr(self.problem, 'dlambda_function', lambda x: np.zeros_like(x))
@@ -98,6 +63,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Cache frequently used values
         dt = self.dt  
         h = self.discretization.element_length
+    
         
         # Initialize sc_matrices storage
         self.sc_matrices = {}
@@ -113,6 +79,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         Av = self.elementary_matrices.get_matrix('Av')
         Ntil = self.elementary_matrices.get_matrix('Ntil')
         Nhat = self.elementary_matrices.get_matrix('Nhat')
+        QUAD = h * self.elementary_matrices.get_matrix('QUAD')
         
         normali = np.array([-1.0, 1.0])
         Z = np.zeros((2, 2))
@@ -125,57 +92,60 @@ class StaticCondensationOOC(StaticCondensationBase):
             'T': T,
             'IM': IM,
             'Av': Av,
-            'QUAD': h * self.elementary_matrices.get_matrix('QUAD')
+            'QUAD': QUAD
         })
         
         # Compute derived matrices
-        R = IM @ D
-        Rhat = IM @ Nhat
+        R = IM @ D # Checked
+        Rhat = IM @ Nhat # Checked
         self.sc_matrices.update({'R': R, 'Rhat': Rhat})
         
         # Step 1: Matrix for u equation
-        A1 = M + dt * tu * Mb
-        L1 = np.linalg.inv(A1)
-        H1 = dt * tu * Gb
+        A1 = M + dt * tu * Mb # type: ignore / Checked
+        L1 = np.linalg.inv(A1) # Checked
+        H1 = dt * tu * Gb # type: ignore / Checked
         B1 = L1 @ H1
         
         self.sc_matrices.update({'L1': L1, 'B1': B1})
         
         # Step 2: Matrices for omega equation  
-        E1 = dt * (Ntil - D) @ R
-        E1hat = dt * (Ntil - D) @ Rhat
-        
-        A2 = M + epsilon * E1 + dt * to * Mb + dt * c * M
-        L2 = np.linalg.inv(A2)
-        H2 = dt * d * M @ B1
-        K2 = epsilon * E1hat + to * dt * Gb
-        B2 = L2 @ K2
-        C2 = L2 @ H2
-        
+        E1 = dt * (Ntil - D) @ R # Checked
+        E1hat = dt * (Ntil - D) @ Rhat # Checked
+
+        A2 = M + epsilon * E1 + dt * to * Mb + dt * c * M # type: ignore / Checked
+        L2 = np.linalg.inv(A2) # Checked
+        H2 = dt * d * M @ B1 # type: ignore / Checked
+        K2 = epsilon * E1hat + to * dt * Gb # type: ignore / Checked
+        # ATTENTION - B2 and C2 were switched with respect to notes / now fixed
+        B2 = L2 @ K2 # Checked
+        C2 = L2 @ H2 # Checked
+
         self.sc_matrices.update({
             'L2': L2, 'B2': B2, 'C2': C2,
             'E1': E1, 'E1hat': E1hat
         })
         
         # Step 3: Matrices for v equation
-        A3 = M + sigma * E1 + dt * tv * Mb
+        A3 = M + sigma * E1 + dt * tv * Mb # type: ignore / Checked
         S3 = dt * M
-        H3 = sigma * E1hat + dt * tv * Gb
+        H3 = sigma * E1hat + dt * tv * Gb # type: ignore / Checked
         
         self.sc_matrices.update({
             'A3': A3, 'S3': S3, 'H3': H3
         })
         
         # Step 4: Matrices for phi equation
-        A4 = M + mu * E1 + dt * tp * Mb + dt * a * M
-        H4 = mu * E1hat + dt * tp * Gb
-        K4 = dt * b * M
-        L4 = np.linalg.inv(A4)
-        B4 = L4 @ H4
-        C4 = L4 @ K4
-        
+        A4 = M + mu * E1 + dt * tp * Mb + dt * a * M # type: ignore / Checked
+        H4 = mu * E1hat + dt * tp * Gb # type: ignore / Checked
+        K4 = dt * b * M # Checked
+        L4 = np.linalg.inv(A4) # Checked
+        # ATTENTION - B4 and C4 were switched with respect to notes / now fixed
+        B4 = L4 @ H4 # Checked
+        C4 = L4 @ K4 # Checked
+        L4tilde = dt * b * L4 @ M # Needed? Do not know if used
+
         self.sc_matrices.update({
-            'L4': L4, 'B4': B4, 'C4': C4
+            'L4': L4, 'B4': B4, 'C4': C4, 'L4tilde': L4tilde
         })
         
         # Matrices for flux jump construction
@@ -183,20 +153,19 @@ class StaticCondensationOOC(StaticCondensationBase):
             [Z, epsilon * R, Z, Z],
             [Z, Z, sigma * R, Z],
             [Z, Z, Z, mu * R]
-        ])
+        ]) # Checked
         
         D2 = np.block([
             [Z, epsilon * Rhat, Z, Z],
             [Z, Z, sigma * Rhat, Z], 
             [Z, Z, Z, mu * Rhat]
-        ])
+        ]) # Checked
         
         self.sc_matrices.update({'D1': D1, 'D2': D2})
         
         # Matrices for j construction
-        hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h
+        hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h # Checked
         
-        beta = 1.0/mu
         Q = -nu * beta * chi * np.block([
             [Z, Z, Z, Z],
             [Z, Z, Z, Z],
@@ -206,6 +175,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         self.sc_matrices.update({'hB4': hB4, 'Q': Q})
         
         # Matrices for final flux jump assembly
+        # B5 = - nu * normali / h
         B5 = normali
         B6 = tu * T @ np.block([np.eye(2), Z, Z, Z])
         B7 = -tu * np.block([np.eye(2), Z, Z, Z])
@@ -323,12 +293,12 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Jacobian for v equation (omega-dependent)
         J0 = L3 @ H3
         J1 = dbar_lambda * L3 @ S3 @ (H3 @ hu[2] + g[2]) @ Av
-        JAC += R[2].T @ (J0 @ R[2] + J1 @ R[1] @ JAC)
+        JAC += R[2].T @ (J0 @ R[2] + J1 @ R[2] @ JAC) # DO CHECK: was R[1] in previous version
         
         JAC += R[3].T @ (B4 @ R[3] + C4 @ R[2] @ JAC)
         
         # Compute flux jumps
-        hU = np.concatenate(hu)
+        hU = local_trace
         tJ = D1 @ U - D2 @ hU
         dtJ = D1 @ JAC - D2
         
@@ -337,6 +307,8 @@ class StaticCondensationOOC(StaticCondensationBase):
         dj = hB4 - tJ.T @ Q @ JAC - U.T @ Q.T @ dtJ
         
         # Final flux jumps
+        print(f"DEBUG: B5 = {B5.shape}, dj = {dj.shape}, hB4 = {hB4.shape}")  # Debug print
+        
         hj = B5 * j + B6 @ U + B7 @ hU
         dhj = B5 * dj + B6 @ JAC + B7
         
