@@ -36,8 +36,8 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Extract OrganOnChip parameters following MATLAB order
         nu = self.problem.parameters[0]      # viscosity
         mu = self.problem.parameters[1]      # viscosity 
-        epsilon = self.problem.parameters[2] # coupling parameter
-        sigma = self.problem.parameters[3]   # coupling parameter
+        epsilon = self.problem.parameters[2] # viscosity
+        sigma = self.problem.parameters[3]   # viscosity
         a = self.problem.parameters[4]       # reaction parameter
         b = self.problem.parameters[5]       # coupling parameter
         c = self.problem.parameters[6]       # reaction parameter
@@ -334,32 +334,51 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Return in expected format
         bulk_solution = U.reshape(-1, 1)
         
-        return bulk_solution, flux_jump, jacobian
+        flux = None  # Placeholder if needed
+        
+        return bulk_solution, flux, flux_jump, jacobian
 
-    def assemble_forcing_term(self, previous_bulk_solution=None, external_force=None, time=None):
+    def assemble_forcing_term(self, 
+                                previous_bulk_solution: np.ndarray, 
+                                external_force: np.ndarray) -> np.ndarray:
         """
-        Assemble forcing term for OrganOnChip problem.
+        Assemble right-hand side for static condensation system.
+    
+        Computes: dt * external_forces + M * previous_bulk_solution
+    Args:
+        previous_bulk_solution: Bulk solution from previous time step
+        external_forces: External force terms (discrete form)
         
-        Args:
-            previous_bulk_solution: Solution from previous time step
-            external_force: External forcing vector
-            time: Current time
-            
-        Returns:
-            Global forcing vector for trace equations
+    Returns:
+        Assembled right-hand side vector
+        
+    Raises:
+        ValueError: If dimensions are incompatible
+        KeyError: If matrices haven't been built
         """
-        forcing = np.zeros(8)  # 4 equations × 2 nodes each
         
-        # Add time-dependent terms from previous solution
-        if previous_bulk_solution is not None and self.dt is not None:
-            for i in range(4):
-                eq_start = 2 * i
-                eq_end = eq_start + 2
-                prev_values = previous_bulk_solution[eq_start:eq_end, 0]
-                forcing[eq_start:eq_end] += (self.sc_matrices['M'] @ prev_values) / self.dt
+  
+        if 'M' not in self.sc_matrices:
+            raise KeyError("Matrices not built. Call build_matrices() first.")
         
-        # Add external forcing if provided
-        if external_force is not None:
-            forcing += external_force
-            
-        return forcing
+          
+        M = self.sc_matrices.get('M', None)
+        
+        # Validate dimensions
+        if previous_bulk_solution.shape[0] !=  4 * M.shape[1]:
+            raise ValueError(f"Incompatible dimensions: M is {M.shape}, "
+                            f"previous_bulk_solution is {previous_bulk_solution.shape}")
+
+        if external_force.shape != previous_bulk_solution.shape:
+            raise ValueError(f"Shape mismatch: external_force {external_force.shape} "
+                            f"!= previous_bulk_solution {previous_bulk_solution.shape}")
+
+             # Method 1: Using np.block (most readable)
+        Z = np.zeros_like(M)
+        M_block = np.block([[M, Z, Z, Z],
+                           [Z, M, Z, Z],
+                           [Z, Z, M, Z],
+                           [Z, Z, Z, M]])
+
+        right_hand_side = self.dt * external_force.copy() + M_block @ previous_bulk_solution
+        return right_hand_side

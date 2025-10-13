@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from setup_solver import quick_setup
 
-filename = "ooc1d.problems.double_arc_with_TJ"  # Test problem for MATLAB comparison
+filename = "ooc1d.problems.ooc_test_problem"  # Test problem for MATLAB comparison
 
 print("="*60)
 print("BIONETFLUX REAL INITIALIZATION TEST")
