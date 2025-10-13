@@ -176,7 +176,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         # Matrices for final flux jump assembly
         # B5 = - nu * normali / h
-        B5 = normali
+        B5 = normali #1 x 2 matrix
         B6 = tu * T @ np.block([np.eye(2), Z, Z, Z])
         B7 = -tu * np.block([np.eye(2), Z, Z, Z])
         
@@ -305,7 +305,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Construction of j and dj
         j = hB4 @ hU + tJ.T @ Q @ U
         dj = hB4 - tJ.T @ Q @ JAC - U.T @ Q.T @ dtJ
-        
+        # dj = R[0] * dj  # Restrict to u equation
         # Final flux jumps
         print(f"DEBUG: B5 = {B5.shape}, dj = {dj.shape}, hB4 = {hB4.shape}")  # Debug print
         
@@ -315,15 +315,21 @@ class StaticCondensationOOC(StaticCondensationBase):
         print(f"DEBUG: j = {j}, hj = {hj}")  # Debug print
         print(f"DEBUG: R0 = {R[0].shape}")  # Debug print
         
-        dhj = B5 @ R[0] @ dj + B6 @ JAC + B7
+        dhj = B5 @ R[0] @ dj.T  + B6 @ JAC + B7
+        print(f"DEBUG: dhj = {dhj.shape}, dj = {dj.shape}")  # Debug print
         
         
         hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
         dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2
-        
+        print(f"DEBUG: hJ_rest = {hJ_rest.shape}, tJ = {tJ.shape}")  # Debug print
+        print(f"DEBUG: dhJ_rest = {dhJ_rest.shape}, dtJ = {dtJ.shape}")  # Debug print
+         
         # Combine flux jumps
         flux_jump = np.concatenate([hj.flatten(), hJ_rest.flatten()])
+        print(f"DEBUG: flux_jump = {flux_jump.shape}")  # Debug print
+        
         jacobian = np.vstack([dhj, dhJ_rest])
+        print(f"DEBUG: jacobian = {jacobian.shape}")  # Debug print
         
         # Return in expected format
         bulk_solution = U.reshape(-1, 1)
