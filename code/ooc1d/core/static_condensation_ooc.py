@@ -67,7 +67,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         # Initialize sc_matrices storage
         self.sc_matrices = {}
-       
+        
         
         # Get elementary matrices
         M = h * self.elementary_matrices.get_matrix('M')
@@ -313,6 +313,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         hj = B5.T @ j + B6 @ U + B7 @ hU
         print(f"DEBUG: hj = {hj.shape}, j = {j.shape}")  # Debug print
         print(f"DEBUG: j = {j}, hj = {hj}")  # Debug print
+        print(f"DEBUG: R0 = {R[0].shape}")  # Debug print
         
         dhj = B5 @ R[0] @ dj + B6 @ JAC + B7
         
