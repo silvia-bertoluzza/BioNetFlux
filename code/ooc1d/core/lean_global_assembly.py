@@ -256,6 +256,7 @@ class GlobalAssembler:
                 static_condensations[i]
             )
             
+            print(f"DEBUG: Domain {i}, U shape = {U.shape}, F shape = {F.shape}, JF shape = {JF.shape}")
             bulk_solution.append(U)
 
         return bulk_solution

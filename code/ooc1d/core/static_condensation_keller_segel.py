@@ -240,7 +240,14 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         # Step 5: Compute Jacobian for Newton's method
         jacobian = self._compute_jacobian(local_trace, local_solution, phi_avg)
         
-        return local_solution, flux, flux_trace, jacobian
+        # Reorganize output: append last two entries of local_solution to flux
+        # and truncate local_solution to remove last two entries
+        neq = 2  # Keller-Segel has 2 equations
+        flux_extension = local_solution[2*neq:]  # Last 2 entries (flux-like)
+        new_flux = np.vstack([flux, flux_extension])  # Append to flux
+        new_local_solution = local_solution[:2*neq]   # Keep first 2*neq entries
+        
+        return new_local_solution, new_flux, flux_trace, jacobian
     
     def _compute_jacobian(self, local_trace, local_solution, phi_avg):
         """
