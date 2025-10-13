@@ -35,8 +35,9 @@ def domain_flux_jump(
     n_nodes = N + 1
     
     # Initialize outputs
-    coeffs_per_element = 2 * (2*neq - 1)  # Flexible: 2*(2*neq - 1) coefficients per element
-    U = np.zeros((coeffs_per_element, N))  # 2*(2*neq - 1) × N matrix of bulk solutions
+    coeffs_per_element_sol = 2*neq  # Flexible: 2*(2*neq - 1) coefficients per element
+    coeffs_per_element_flux = 2*neq - 1  # Flexible: 2*neq flux contributions per element
+    U = np.zeros((coeffs_per_element_sol, N))  # 2*(2*neq - 1) × N matrix of bulk solutions
     F = np.zeros((neq * n_nodes, 1)) # Flexible: neq * (N+1) vector
     JF = np.zeros((neq * n_nodes, neq * n_nodes))
     
@@ -87,6 +88,7 @@ def domain_flux_jump(
         except Exception as e:
             raise RuntimeError(f"Static condensation failed for element {k+1}: {e}")
     
+    print(f"DEBUG flux_jump: Final U shape = {U.shape}, F shape = {F.shape}, JF shape = {JF.shape}")  # Debug print
     return U, F, JF
 
 

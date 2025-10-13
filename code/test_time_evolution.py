@@ -289,16 +289,13 @@ while current_time+dt <= T and time_step <= max_time_steps:
     # bulk_sol contains the actual bulk solution arrays, not BulkData objects
     for i, new_bulk_data in enumerate(bulk_sol):
         # new_bulk_data should be a numpy array with the correct shape
-        print(f"  DEBUG: Domain {i+1} new bulk data shape: {new_bulk_data.shape}")
-        print(f"  DEBUG: Domain {i+1} new bulk data:\n{new_bulk_data}")
-        
+    
         # Extract only the first 2*neq rows (bulk solution part)
-        neq = setup.problems[i].neq
-        bulk_data_only = new_bulk_data[:2*neq, :]
-        print(f"  DEBUG: Domain {i+1} extracted bulk data shape: {bulk_data_only.shape}")
-        
+        # neq = setup.problems[i].neq
+        # bulk_data_only = new_bulk_data[:2*neq, :]
+         
         # Directly set the data array (bypass BulkData.set_data validation)
-        bulk_guess[i].data = bulk_data_only.copy()
+        bulk_guess[i].data = new_bulk_data.copy()
     
     print(f"✓ Bulk solutions updated for next time step")
     for i, bulk in enumerate(bulk_guess):
