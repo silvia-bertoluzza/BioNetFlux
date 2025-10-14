@@ -60,8 +60,7 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-    print(f"  Domain {i+1}: trace {trace}")
+    print(f"  DEBUG: Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
 
 print(f"✓ Initial multipliers: shape {multipliers.shape}, values {multipliers}")
 
@@ -80,8 +79,6 @@ for domain_idx in range(n_domains):
     discretization = setup.global_discretization.spatial_discretizations[domain_idx]
     nodes = discretization.nodes
     n_nodes = len(nodes)
-
-    print(f"DEBUG: Domain {domain_idx+1}: nodes {nodes}")
 
     trace = trace_solutions[domain_idx]
     
@@ -112,6 +109,7 @@ plt.show()
 print("\nStep 3: Assembling global solution vector...")
 global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
 print(f"✓ Global solution vector: shape {global_solution.shape}")
+print(f"  DEBUG: Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
 print(f"  Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
 print(f"  Values: {global_solution}")
 
@@ -138,7 +136,6 @@ bulk_guess = bulk_manager.initialize_all_bulk_data(problems=setup.problems,
 
 for i, bulk in enumerate(bulk_guess):
     print(f"  Domain {i+1} bulk guess: shape {bulk.data.shape}, range [{np.min(bulk.data):.6e}, {np.max(bulk.data):.6e}]")
-    # print(f"  Domain {i+1} bulk guess values: {bulk.data}")
     
     
 
@@ -169,7 +166,7 @@ time_history = [0.0]  # Store time history
 current_time = 0.0
 
 # Newton method parameters
-max_newton_iterations = 20
+max_newton_iterations = 20  # Limit to 20 iterations for debugging
 newton_tolerance = 1e-10
 newton_solution = global_solution.copy()  # Start with initial guess
 
@@ -187,9 +184,15 @@ print(f"    Max iterations: {max_newton_iterations}")
 print(f"    Tolerance: {newton_tolerance:.1e}")
 # Note: residual variable not defined in this scope, would need to use final_residual if available
 
+
+print(f" DEBUG: Starting time evolution loop with initial time {current_time}, dt {dt}, T {T}, max steps {max_time_steps}")
+print(f" DEBUG: Initial bulk solution: {bulk_guess[0].data} ")
+
+
 # Time evolution loop
 while current_time+dt <= T and time_step <= max_time_steps:
     print(f"\n--- Time Step {time_step}: t = {current_time+dt:.6f} ---")
+
 
     current_time += dt
     time_step += 1
@@ -201,7 +204,9 @@ while current_time+dt <= T and time_step <= max_time_steps:
         time=current_time
     )
     
-    
+    print("✓ Source terms computed:")
+    for i, source in enumerate(source_terms):
+        print(f"    Domain {i+1} source:\n {source.data}")
     
     
     
@@ -214,17 +219,18 @@ while current_time+dt <= T and time_step <= max_time_steps:
         
     print("  ✓ Right-hand side assembled for static condensation")
     for i, rhs in enumerate(right_hand_side):
-        # print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
-        print(f"    DEBUG: Domain {i+1} RHS values at time {current_time:.6f}:\n {rhs}")
+        
+        print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
+        print(f"    Domain {i+1} RHS data:\n {rhs}")   
 
-   
     # Newton iteration loop
     newton_converged = False
     
-    
-    
-    
     for newton_iter in range(max_newton_iterations):
+        print(f"\n  --- Newton Iteration {newton_iter + 1} ---")
+        print(f"    Current time: {current_time}, Time step: {time_step}")
+        print(f"    Current Newton solution, {newton_solution.shape}:\n {newton_solution}")
+        
         # Compute residual and Jacobian at current solution
         current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
             global_solution=newton_solution,
@@ -233,9 +239,11 @@ while current_time+dt <= T and time_step <= max_time_steps:
             time=current_time
         )
         
-        print(f" DEBUG:   Newton Iteration {newton_iter + 1}: Residual norm = {np.linalg.norm(current_residual):.6e}")
-        print(f" DEBUG   Jacobian: \n {current_jacobian}")
-        print(f" DEBUG:   Residual: \n {current_residual}")
+        print(f"    ✓ Residual and Jacobian assembled")
+        print(f"    Residual:\n {current_residual}")
+        print(f"    Jacobian:\n {current_jacobian}")
+        
+        print(f"    Newton Iteration {newton_iter + 1}: Residual norm = {np.linalg.norm(current_residual):.6e}")
         
         # Check convergence
         residual_norm = np.linalg.norm(current_residual)

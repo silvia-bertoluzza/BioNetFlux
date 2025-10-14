@@ -58,8 +58,7 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-    print(f"  Domain {i+1}: trace {trace}")
+    print(f" DEBUG: Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
 
 print(f"✓ Initial multipliers: shape {multipliers.shape}, values {multipliers}")
 

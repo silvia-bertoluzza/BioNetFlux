@@ -195,7 +195,7 @@ def test_domain_flux_jump(verbose=True):
                 )
                 
                 # Check output shapes
-                expected_u_shape = (2 * (2 * neq - 1), n_elements)
+                expected_u_shape = (2 * neq, n_elements)
                 expected_f_shape = (neq * n_nodes, 1)
                 expected_jf_shape = (neq * n_nodes, neq * n_nodes)
                 

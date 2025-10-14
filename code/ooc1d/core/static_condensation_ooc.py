@@ -297,40 +297,36 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         JAC += R[3].T @ (B4 @ R[3] + C4 @ R[2] @ JAC)
         
+        
+        print(f" DEBUG: JAC = \n {JAC} ")
         # Compute flux jumps
         hU = local_trace
         tJ = D1 @ U - D2 @ hU
         dtJ = D1 @ JAC - D2
+        print(f" DEBUG: dtJ = \n {dtJ} ")
         
         # Construction of j and dj
         j = hB4 @ hU + tJ.T @ Q @ U
         dj = hB4 - tJ.T @ Q @ JAC - U.T @ Q.T @ dtJ
         # dj = R[0] * dj  # Restrict to u equation
         # Final flux jumps
-        print(f"DEBUG: B5 = {B5.shape}, dj = {dj.shape}, hB4 = {hB4.shape}")  # Debug print
+        
+        print(f" DEBUG: dj = \n {dj} ")
         
         B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
         hj = B5.T @ j + B6 @ U + B7 @ hU
-        print(f"DEBUG: hj = {hj.shape}, j = {j.shape}")  # Debug print
-        print(f"DEBUG: j = {j}, hj = {hj}")  # Debug print
-        print(f"DEBUG: R0 = {R[0].shape}")  # Debug print
         
-        dhj = B5 @ R[0] @ dj.T  + B6 @ JAC + B7
-        print(f"DEBUG: dhj = {dhj.shape}, dj = {dj.shape}")  # Debug print
-        
+        dhj = B5.T @ dj  +  B6 @ JAC + B7
+        print(f" DEBUG: dhj = \n {dhj} ")
         
         hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
         dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2
-        print(f"DEBUG: hJ_rest = {hJ_rest.shape}, tJ = {tJ.shape}")  # Debug print
-        print(f"DEBUG: dhJ_rest = {dhJ_rest.shape}, dtJ = {dtJ.shape}")  # Debug print
          
-        # Combine flux jumps
+        # Combine flux jumps 
         flux_jump = np.concatenate([hj.flatten(), hJ_rest.flatten()])
-        print(f"DEBUG: flux_jump = {flux_jump.shape}")  # Debug print
         
         jacobian = np.vstack([dhj, dhJ_rest])
-        print(f"DEBUG: jacobian = {jacobian.shape}")  # Debug print
-        
+
         # Return in expected format
         bulk_solution = U.reshape(-1, 1)
         
