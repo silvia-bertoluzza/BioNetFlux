@@ -297,13 +297,10 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         JAC += R[3].T @ (B4 @ R[3] + C4 @ R[2] @ JAC)
         
-        
-        print(f" DEBUG: JAC = \n {JAC} ")
         # Compute flux jumps
         hU = local_trace
         tJ = D1 @ U - D2 @ hU
         dtJ = D1 @ JAC - D2
-        print(f" DEBUG: dtJ = \n {dtJ} ")
         
         # Construction of j and dj
         j = hB4 @ hU + tJ.T @ Q @ U
@@ -311,13 +308,10 @@ class StaticCondensationOOC(StaticCondensationBase):
         # dj = R[0] * dj  # Restrict to u equation
         # Final flux jumps
         
-        print(f" DEBUG: dj = \n {dj} ")
-        
         B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
         hj = B5.T @ j + B6 @ U + B7 @ hU
         
         dhj = B5.T @ dj  +  B6 @ JAC + B7
-        print(f" DEBUG: dhj = \n {dhj} ")
         
         hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
         dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2

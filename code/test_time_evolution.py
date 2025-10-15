@@ -61,7 +61,6 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
     print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-    print(f"  Domain {i+1}: trace {trace}")
 
 
 # Plot initial trace solutions
@@ -110,7 +109,6 @@ print("\nStep 3: Assembling global solution vector...")
 global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
 print(f"✓ Global solution vector: shape {global_solution.shape}")
 print(f"  Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
-print(f"  Values: {global_solution}")
 
 # Test round-trip extraction
 extracted_traces, extracted_multipliers = setup.extract_domain_solutions(global_solution)
@@ -184,11 +182,6 @@ print(f"    Tolerance: {newton_tolerance:.1e}")
 # Note: residual variable not defined in this scope, would need to use final_residual if available
 
 
-print(f" DEBUG: Starting time evolution loop with initial time {current_time}, dt {dt}, T {T}, max steps {max_time_steps}")
-print(f" DEBUG: Initial bulk solution: {bulk_guess[0].data} ")
-
-
-max_time_steps = 3  # Safety limit to prevent infinite loops
 # Time evolution loop
 while current_time+dt <= T and time_step <= max_time_steps:
     print(f"\n--- Time Step {time_step}: t = {current_time+dt:.6f} ---")
@@ -216,9 +209,7 @@ while current_time+dt <= T and time_step <= max_time_steps:
         right_hand_side.append(rhs)
         
     print("  ✓ Right-hand side assembled for static condensation")
-    for i, rhs in enumerate(right_hand_side):
-        # print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
-        print(f"    DEBUG: Domain {i+1} RHS values at time {current_time:.6f}:\n {rhs}")
+    
 
    
     # Newton iteration loop
@@ -228,9 +219,6 @@ while current_time+dt <= T and time_step <= max_time_steps:
     
     
     for newton_iter in range(max_newton_iterations):
-        print(f"\n  --- Newton Iteration {newton_iter + 1} ---")
-        print(f"    Current time: {current_time}, Time step: {time_step}")
-        print(f"    Current Newton solution, {newton_solution.shape}:\n {newton_solution}")
         
         # Compute residual and Jacobian at current solution
         current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
@@ -239,10 +227,7 @@ while current_time+dt <= T and time_step <= max_time_steps:
             static_condensations=setup.static_condensations,
             time=current_time
         )
-        
-        print(f" DEBUG:   Newton Iteration {newton_iter + 1}: Residual norm = {np.linalg.norm(current_residual):.6e}")
-        print(f" DEBUG   Jacobian: \n {current_jacobian}")
-        print(f" DEBUG:   Residual: \n {current_residual}")
+    
         
         # Check convergence
         residual_norm = np.linalg.norm(current_residual)
