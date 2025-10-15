@@ -22,7 +22,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 from setup_solver import quick_setup
 
-filename = "ooc1d.problems.double_arc_with_TJ"  # Test problem for MATLAB comparison
+filename = "ooc1d.problems.T_junction"  # Test problem for MATLAB comparison
 
 print("="*60)
 print("BIONETFLUX REAL INITIALIZATION TEST")
@@ -59,11 +59,7 @@ print("\nStep 2: Creating initial conditions...")
 trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
-for i, trace in enumerate(trace_solutions):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-    print(f"  Domain {i+1}: trace {trace}")
 
-print(f"✓ Initial multipliers: shape {multipliers.shape}, values {multipliers}")
 
 # Plot initial trace solutions
 print("\nPlotting initial trace solutions...")
@@ -80,8 +76,6 @@ for domain_idx in range(n_domains):
     discretization = setup.global_discretization.spatial_discretizations[domain_idx]
     nodes = discretization.nodes
     n_nodes = len(nodes)
-
-    print(f"DEBUG: Domain {domain_idx+1}: nodes {nodes}")
 
     trace = trace_solutions[domain_idx]
     
@@ -112,8 +106,7 @@ plt.show()
 print("\nStep 3: Assembling global solution vector...")
 global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
 print(f"✓ Global solution vector: shape {global_solution.shape}")
-print(f"  Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
-print(f"  Values: {global_solution}")
+
 
 # Test round-trip extraction
 extracted_traces, extracted_multipliers = setup.extract_domain_solutions(global_solution)
@@ -187,6 +180,7 @@ print(f"    Max iterations: {max_newton_iterations}")
 print(f"    Tolerance: {newton_tolerance:.1e}")
 # Note: residual variable not defined in this scope, would need to use final_residual if available
 
+max_time_steps = 3  # Safety limit to prevent infinite loops
 # Time evolution loop
 while current_time+dt <= T and time_step <= max_time_steps:
     print(f"\n--- Time Step {time_step}: t = {current_time+dt:.6f} ---")
@@ -200,11 +194,7 @@ while current_time+dt <= T and time_step <= max_time_steps:
         discretizations=setup.global_discretization.spatial_discretizations,
         time=current_time
     )
-    
-    
-    
-    
-    
+      
     # Assemble right-hand side for static condensation
     right_hand_side = []  # For clarity in this step
     for i, (bulk_sol, source, static_cond) in enumerate(zip(bulk_guess, source_terms, setup.static_condensations)):
@@ -214,15 +204,11 @@ while current_time+dt <= T and time_step <= max_time_steps:
         
     print("  ✓ Right-hand side assembled for static condensation")
     for i, rhs in enumerate(right_hand_side):
-        # print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
-        print(f"    DEBUG: Domain {i+1} RHS values at time {current_time:.6f}:\n {rhs}")
+        print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
 
-   
     # Newton iteration loop
     newton_converged = False
-    
-    
-    
+
     
     for newton_iter in range(max_newton_iterations):
         # Compute residual and Jacobian at current solution
@@ -233,10 +219,7 @@ while current_time+dt <= T and time_step <= max_time_steps:
             time=current_time
         )
         
-        print(f" DEBUG:   Newton Iteration {newton_iter + 1}: Residual norm = {np.linalg.norm(current_residual):.6e}")
-        print(f" DEBUG   Jacobian: \n {current_jacobian}")
-        print(f" DEBUG:   Residual: \n {current_residual}")
-        
+
         # Check convergence
         residual_norm = np.linalg.norm(current_residual)
         
@@ -321,7 +304,7 @@ print("✓ Final trace solutions extracted:")
 for i, trace in enumerate(final_traces):
     print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
 
-print(f"✓ Final multipliers: shape {final_multipliers.shape}, values {final_multipliers}")
+print(f"✓ Final multipliers: shape {final_multipliers.shape}, range [{np.min(final_multipliers):.6e}, {np.max(final_multipliers):.6e}]")
 
 # Create plots of the final solution
 print("\nCreating plots of final solution...")

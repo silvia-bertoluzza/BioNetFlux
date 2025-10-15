@@ -359,7 +359,7 @@ class ConstraintManager:
                 
                 # KK condition: flux1 + flux2 = -P * (u1 - u2)
                 u_jump = u1_value - u2_value
-                expected_flux_sum = -permeability * u_jump
+                expected_flux_sum = permeability * u_jump
                 
                 # Placeholder residuals (would need actual flux values)
                 residuals.extend([flux1_value - expected_flux_sum, flux2_value + expected_flux_sum])
