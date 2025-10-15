@@ -60,9 +60,9 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
-    print(f"  DEBUG: Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
+    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
+    print(f"  Domain {i+1}: trace {trace}")
 
-print(f"✓ Initial multipliers: shape {multipliers.shape}, values {multipliers}")
 
 # Plot initial trace solutions
 print("\nPlotting initial trace solutions...")
@@ -109,7 +109,6 @@ plt.show()
 print("\nStep 3: Assembling global solution vector...")
 global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
 print(f"✓ Global solution vector: shape {global_solution.shape}")
-print(f"  DEBUG: Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
 print(f"  Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
 print(f"  Values: {global_solution}")
 
@@ -189,6 +188,7 @@ print(f" DEBUG: Starting time evolution loop with initial time {current_time}, d
 print(f" DEBUG: Initial bulk solution: {bulk_guess[0].data} ")
 
 
+max_time_steps = 3  # Safety limit to prevent infinite loops
 # Time evolution loop
 while current_time+dt <= T and time_step <= max_time_steps:
     print(f"\n--- Time Step {time_step}: t = {current_time+dt:.6f} ---")
@@ -204,9 +204,7 @@ while current_time+dt <= T and time_step <= max_time_steps:
         time=current_time
     )
     
-    print("✓ Source terms computed:")
-    for i, source in enumerate(source_terms):
-        print(f"    Domain {i+1} source:\n {source.data}")
+    
     
     
     
@@ -219,12 +217,15 @@ while current_time+dt <= T and time_step <= max_time_steps:
         
     print("  ✓ Right-hand side assembled for static condensation")
     for i, rhs in enumerate(right_hand_side):
-        
-        print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
-        print(f"    Domain {i+1} RHS data:\n {rhs}")   
+        # print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
+        print(f"    DEBUG: Domain {i+1} RHS values at time {current_time:.6f}:\n {rhs}")
 
+   
     # Newton iteration loop
     newton_converged = False
+    
+    
+    
     
     for newton_iter in range(max_newton_iterations):
         print(f"\n  --- Newton Iteration {newton_iter + 1} ---")
@@ -239,11 +240,9 @@ while current_time+dt <= T and time_step <= max_time_steps:
             time=current_time
         )
         
-        print(f"    ✓ Residual and Jacobian assembled")
-        print(f"    Residual:\n {current_residual}")
-        print(f"    Jacobian:\n {current_jacobian}")
-        
-        print(f"    Newton Iteration {newton_iter + 1}: Residual norm = {np.linalg.norm(current_residual):.6e}")
+        print(f" DEBUG:   Newton Iteration {newton_iter + 1}: Residual norm = {np.linalg.norm(current_residual):.6e}")
+        print(f" DEBUG   Jacobian: \n {current_jacobian}")
+        print(f" DEBUG:   Residual: \n {current_residual}")
         
         # Check convergence
         residual_norm = np.linalg.norm(current_residual)
@@ -329,7 +328,7 @@ print("✓ Final trace solutions extracted:")
 for i, trace in enumerate(final_traces):
     print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
 
-print(f"✓ Final multipliers: shape {final_multipliers.shape}, values {final_multipliers}")
+print(f"✓ Final multipliers: shape {final_multipliers.shape}, range [{np.min(final_multipliers):.6e}, {np.max(final_multipliers):.6e}]")
 
 # Create plots of the final solution
 print("\nCreating plots of final solution...")

@@ -88,7 +88,6 @@ def domain_flux_jump(
         except Exception as e:
             raise RuntimeError(f"Static condensation failed for element {k+1}: {e}")
     
-    print(f"DEBUG flux_jump: Final U shape = {U.shape}, F shape = {F.shape}, JF shape = {JF.shape}")  # Debug print
     return U, F, JF
 
 
