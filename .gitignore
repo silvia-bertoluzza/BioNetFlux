@@ -1,6 +1,7 @@
 matlab_reference/
 *.asv
 *.png
+__pycache__/
 *.pyc
 *.pdg
 *.log
