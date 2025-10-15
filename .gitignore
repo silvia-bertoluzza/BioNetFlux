@@ -22,4 +22,6 @@ __pycache__/
 *.run.xml
 *.spl
 *.pyg
-*.idx.DS_Store
+*.idx
+.DS_Store
+
