@@ -1,5 +1,6 @@
 matlab_reference/
-*.asv*.png
+*.asv
+*.png
 *.pyc
 *.pdg
 *.log
