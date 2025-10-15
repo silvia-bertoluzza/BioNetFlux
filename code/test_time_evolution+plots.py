@@ -59,6 +59,8 @@ print("\nStep 2: Creating initial conditions...")
 trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
+for i, trace in enumerate(trace_solutions):
+    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
 
 
 # Plot initial trace solutions
@@ -106,7 +108,7 @@ plt.show()
 print("\nStep 3: Assembling global solution vector...")
 global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
 print(f"✓ Global solution vector: shape {global_solution.shape}")
-
+print(f"  Range: [{np.min(global_solution):.6e}, {np.max(global_solution):.6e}]")
 
 # Test round-trip extraction
 extracted_traces, extracted_multipliers = setup.extract_domain_solutions(global_solution)
@@ -131,7 +133,6 @@ bulk_guess = bulk_manager.initialize_all_bulk_data(problems=setup.problems,
 
 for i, bulk in enumerate(bulk_guess):
     print(f"  Domain {i+1} bulk guess: shape {bulk.data.shape}, range [{np.min(bulk.data):.6e}, {np.max(bulk.data):.6e}]")
-    # print(f"  Domain {i+1} bulk guess values: {bulk.data}")
     
     
 
@@ -162,7 +163,7 @@ time_history = [0.0]  # Store time history
 current_time = 0.0
 
 # Newton method parameters
-max_newton_iterations = 20
+max_newton_iterations = 20  # Limit to 20 iterations for debugging
 newton_tolerance = 1e-10
 newton_solution = global_solution.copy()  # Start with initial guess
 
@@ -180,10 +181,11 @@ print(f"    Max iterations: {max_newton_iterations}")
 print(f"    Tolerance: {newton_tolerance:.1e}")
 # Note: residual variable not defined in this scope, would need to use final_residual if available
 
-max_time_steps = 3  # Safety limit to prevent infinite loops
+
 # Time evolution loop
 while current_time+dt <= T and time_step <= max_time_steps:
     print(f"\n--- Time Step {time_step}: t = {current_time+dt:.6f} ---")
+
 
     current_time += dt
     time_step += 1
@@ -194,7 +196,11 @@ while current_time+dt <= T and time_step <= max_time_steps:
         discretizations=setup.global_discretization.spatial_discretizations,
         time=current_time
     )
-      
+    
+    
+    
+    
+    
     # Assemble right-hand side for static condensation
     right_hand_side = []  # For clarity in this step
     for i, (bulk_sol, source, static_cond) in enumerate(zip(bulk_guess, source_terms, setup.static_condensations)):
@@ -203,14 +209,17 @@ while current_time+dt <= T and time_step <= max_time_steps:
         right_hand_side.append(rhs)
         
     print("  ✓ Right-hand side assembled for static condensation")
-    for i, rhs in enumerate(right_hand_side):
-        print(f"    Domain {i+1} RHS: shape {rhs.shape}, range [{np.min(rhs):.6e}, {np.max(rhs):.6e}]")
+    
 
+   
     # Newton iteration loop
     newton_converged = False
-
+    
+    
+    
     
     for newton_iter in range(max_newton_iterations):
+        
         # Compute residual and Jacobian at current solution
         current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
             global_solution=newton_solution,
@@ -218,8 +227,8 @@ while current_time+dt <= T and time_step <= max_time_steps:
             static_condensations=setup.static_condensations,
             time=current_time
         )
+    
         
-
         # Check convergence
         residual_norm = np.linalg.norm(current_residual)
         
@@ -459,5 +468,207 @@ for domain_idx in range(n_domains):
 
 print(f"\n✓ Final solution analysis completed!")
 print(f"✓ Plots saved and displayed")
+
+# =============================================================================
+# STEP 7: MultiDomainPlotter Demonstration
+# =============================================================================
+print("\n" + "="*60)
+print("MULTIDOMAIN PLOTTER DEMONSTRATION")
+print("="*60)
+
+# Import the MultiDomainPlotter
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'ooc1d', 'visualization'))
+from multi_domain_plotter import MultiDomainPlotter
+
+# Initialize MultiDomainPlotter
+print("\nInitializing MultiDomainPlotter...")
+plotter = MultiDomainPlotter(
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations,
+    equation_names=['u', 'ω', 'v', 'φ'] if n_equations == 4 else ['u', 'φ'],
+    max_figure_width=14.0,  # Limit width to fit most screens
+    max_figure_height=10.0,  # Limit height to fit most screens
+    subplot_aspect_ratio=0.6  # Slightly more compact subplots
+)
+print("✓ MultiDomainPlotter initialized with screen-optimized settings")
+
+# Example 1: Continuous Multi-Domain Plot
+print("\nExample 1: Creating continuous multi-domain solution plot...")
+continuous_fig = plotter.plot_continuous_solution(
+    trace_solutions=final_traces,
+    time=current_time-dt,
+    title_prefix="BioNetFlux Continuous Solution",
+    save_filename="bionetflux_continuous_solution.png",
+    show_domain_boundaries=True,
+    show_domain_labels=True
+    # figsize automatically optimized for screen
+)
+plt.show()
+
+# Example 2: Domain-wise Comparison
+if n_domains > 1:
+    print("\nExample 2: Creating domain-wise comparison plot...")
+    domain_fig = plotter.plot_domain_comparison(
+        trace_solutions=final_traces,
+        time=current_time-dt,
+        title_prefix="BioNetFlux Domain Comparison"
+        # figsize automatically optimized
+    )
+    plt.show()
+else:
+    print("\nExample 2: Skipped (single domain only)")
+
+# Example 3: Solution Evolution Comparison
+print("\nExample 3: Creating solution evolution comparison...")
+evolution_fig = plotter.plot_solution_evolution(
+    initial_traces=trace_solutions,
+    final_traces=final_traces,
+    initial_time=0.0,
+    final_time=current_time-dt,
+    title_prefix="BioNetFlux Solution Evolution"
+    # figsize automatically optimized
+)
+plt.show()
+
+# Example 4: Advanced Analysis - Equation-specific Statistics
+print("\nExample 4: Equation-specific analysis...")
+print("Per-equation statistics across all domains:")
+
+for eq_idx in range(n_equations):
+    eq_name = plotter.equation_names[eq_idx]
+    
+    # Collect data for this equation across all domains
+    all_values = []
+    domain_ranges = []
+    
+    for domain_idx in range(n_domains):
+        discretization = setup.global_discretization.spatial_discretizations[domain_idx]
+        n_nodes = len(discretization.nodes)
+        
+        eq_start = eq_idx * n_nodes
+        eq_end = eq_start + n_nodes
+        
+        initial_vals = trace_solutions[domain_idx][eq_start:eq_end]
+        final_vals = final_traces[domain_idx][eq_start:eq_end]
+        
+        all_values.extend(final_vals)
+        domain_ranges.append((np.min(final_vals), np.max(final_vals)))
+    
+    all_values = np.array(all_values)
+    global_min, global_max = np.min(all_values), np.max(all_values)
+    global_mean = np.mean(all_values)
+    global_std = np.std(all_values)
+    
+    print(f"\n  {eq_name} (Equation {eq_idx + 1}):")
+    print(f"    Global range: [{global_min:.6e}, {global_max:.6e}]")
+    print(f"    Global mean: {global_mean:.6e} ± {global_std:.6e}")
+    
+    for domain_idx, (d_min, d_max) in enumerate(domain_ranges):
+        print(f"    Domain {domain_idx + 1}: [{d_min:.6e}, {d_max:.6e}]")
+
+# Example 5: Custom Visualization - Flux Analysis (if applicable)  
+if hasattr(setup, 'static_condensations') and len(setup.static_condensations) > 0:
+    print("\nExample 5: Custom flux analysis visualization...")
+    
+    # Create custom plot showing domain interfaces with controlled size
+    optimal_width, optimal_height = plotter._compute_optimal_figure_size(1, 1, "wide")
+    fig, ax = plt.subplots(1, 1, figsize=(optimal_width, optimal_height))
+    
+    # Plot all equations with emphasis on domain boundaries
+    global_solutions = plotter._extract_global_solution(final_traces)
+    
+    for eq_idx in range(n_equations):
+        style = plotter.equation_colors.get(eq_idx, {'color': 'black'})
+        ax.plot(plotter.global_x, global_solutions[eq_idx], 
+               color=style['color'], linewidth=2, 
+               label=plotter.equation_names[eq_idx])
+    
+    # Highlight domain boundaries with enhanced visualization
+    for i, boundary in enumerate(plotter.domain_boundaries):
+        ax.axvline(x=boundary, color='red', linestyle='-', linewidth=2, alpha=0.8)
+        ax.text(boundary, ax.get_ylim()[1], f'Interface {i+1}', 
+               ha='center', va='bottom', fontweight='bold',
+               bbox=dict(boxstyle='round', facecolor='yellow', alpha=0.8))
+    
+    ax.grid(True, alpha=0.3)
+    ax.set_xlabel('Position')
+    ax.set_ylabel('Solution Value')
+    ax.set_title('Domain Interface Analysis\n(Red lines show domain boundaries)')
+    ax.legend()
+    
+    plt.tight_layout()
+    plt.savefig("bionetflux_interface_analysis.png", dpi=300, bbox_inches='tight')
+    plt.show()
+    print("✓ Interface analysis plot saved as: bionetflux_interface_analysis.png")
+
+# Example 6: Demonstrate figure size control
+print("\nExample 6: Demonstrating figure size control...")
+
+# Show current settings
+print(f"Current max figure size: {plotter.max_figure_width}×{plotter.max_figure_height} inches")
+print(f"Current aspect ratio: {plotter.subplot_aspect_ratio}")
+
+# Create a compact version for small screens
+print("\nCreating compact version for small screens...")
+plotter.set_figure_size_limits(max_width=10.0, max_height=8.0, aspect_ratio=0.5)
+
+compact_fig = plotter.plot_continuous_solution(
+    trace_solutions=final_traces,
+    time=current_time-dt,
+    title_prefix="BioNetFlux Compact View",
+    save_filename="bionetflux_compact_solution.png"
+)
+plt.show()
+
+# Reset to larger size for presentation
+print("\nCreating presentation version for large screens...")
+plotter.set_figure_size_limits(max_width=20.0, max_height=15.0, aspect_ratio=0.8)
+
+presentation_fig = plotter.plot_continuous_solution(
+    trace_solutions=final_traces,
+    time=current_time-dt,
+    title_prefix="BioNetFlux Presentation View",
+    save_filename="bionetflux_presentation_solution.png"
+)
+plt.show()
+
+# Summary of MultiDomainPlotter capabilities
+print("\n" + "="*60)
+print("MULTIDOMAIN PLOTTER SUMMARY")
+print("="*60)
+print("✓ Demonstrated capabilities:")
+print("  • Continuous multi-domain solution visualization")
+print("  • Domain-wise comparison plots")
+print("  • Solution evolution tracking")
+print("  • Equation-specific statistical analysis")
+print("  • Domain boundary and interface highlighting")
+print("  • Flexible color schemes and styling")
+print("  • Export capabilities (PNG format)")
+
+print("\n📊 Available visualization methods:")
+print("  • plot_continuous_solution(): Main continuous view across domains")
+print("  • plot_domain_comparison(): Side-by-side domain analysis")
+print("  • plot_solution_evolution(): Initial vs final comparison")
+print("  • create_time_animation(): Time evolution animation (requires full history)")
+
+print("\n🎨 Customization features:")
+print("  • Equation-specific colors and line styles")
+print("  • Domain boundary highlighting")
+print("  • Analytical solution overlay")
+print("  • Statistical information display")
+print("  • Flexible save formats and resolution")
+print("  • Automatic figure size optimization for screen fitting")
+print("  • Manual figure size override options")
+print("  • Adaptive subplot aspect ratios")
+
+print("\n📏 Figure size control features:")
+print("  • Automatic size optimization based on subplot count")
+print("  • Screen-aware maximum dimensions")
+print("  • Customizable aspect ratios")
+print("  • Layout-specific sizing (wide, tall, standard)")
+print("  • Manual size override capability")
+print("  • Real-time size limit updates")
+
+print("\n✅ MultiDomainPlotter demonstration completed!")
 
 
