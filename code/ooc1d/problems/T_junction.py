@@ -93,16 +93,16 @@ def create_global_framework():
         # Initial conditions (different for each domain)
         if ipb == 0:
             # High initial concentration in inlet
-            def initial_u(s):
+            def initial_u(s, t=0.0):
                 return 0.2 * np.ones_like(s)
-            def initial_phi(s):
+            def initial_phi(s, t=0.0):
                 return 0.1 * np.exp(-((s - 200.0) / 100.0)**2)
         
         else:
             # Low concentration in outlet
-            def initial_u(s):
+            def initial_u(s, t=0.0):
                 return 0.05 * np.ones_like(s)
-            def initial_phi(s):
+            def initial_phi(s, t=0.0):
                 return np.zeros_like(s)
         
         problem.set_initial_condition(0, initial_u)

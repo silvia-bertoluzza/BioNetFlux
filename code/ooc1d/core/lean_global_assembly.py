@@ -162,8 +162,7 @@ class GlobalAssembler:
                     domain_data = self.bulk_manager.domain_data_list[domain_idx]
                     n_nodes = domain_data.n_elements + 1
                     trace_idx = domain_offset + eq_idx * n_nodes + node_idx
-
-                    print(f"DEBUG: Index of trace dof {trace_idx}, index of multiplier dof {multiplier_idx}") 
+                    
                     # Add multiplier value to trace residual
                     residual[trace_idx] += multipliers[multiplier_idx]
                     multiplier_idx += 1
@@ -256,7 +255,6 @@ class GlobalAssembler:
                 static_condensations[i]
             )
             
-            print(f"DEBUG: Domain {i}, U shape = {U.shape}, F shape = {F.shape}, JF shape = {JF.shape}")
             bulk_solution.append(U)
 
         return bulk_solution
