@@ -1,9 +1,10 @@
 """
-Visualization module for HDG system.
+BioNetFlux Visualization Module
 
-This module provides plotting and visualization capabilities for HDG solutions.
+This module provides comprehensive visualization tools for multi-domain,
+multi-equation problems in the BioNetFlux framework.
 """
 
-from .solution_plotter import SolutionPlotter
+from .multi_domain_plotter import MultiDomainPlotter
 
-__all__ = ['SolutionPlotter']
+__all__ = ['MultiDomainPlotter']
