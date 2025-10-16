@@ -77,7 +77,7 @@ class MockStaticCondensation:  # FIXED: Removed extra indentation
         M = self.elementary_matrices.get_matrix('M')  # Mass matrix
         
         # Mock local solution using trace matrix
-        coeffs_per_element = 2 * (2 * neq - 1)
+        coeffs_per_element = 2 * neq
         local_solution = np.zeros(coeffs_per_element)
         
         # Simple reconstruction for each equation
