@@ -223,9 +223,10 @@ def create_global_framework():
         left_junction_param = left_vert.domain_start + y_coord * left_vert.domain_length
         right_junction_param = right_vert.domain_start + y_coord * right_vert.domain_length
         
+        permeability = 1.0  # Perfect junction
         # Left junction: horizontal start connects to left vertical
-        constraint_manager.add_trace_continuity(0, 0, horizontal_id, 
-                                               left_junction_param, horizontal.domain_start)
+        constraint_manager.add_kedem_katchalsky(0, 0, horizontal_id, 
+                                               left_junction_param, horizontal.domain_start, permeability)
         constraint_manager.add_trace_continuity(1, 0, horizontal_id, 
                                                left_junction_param, horizontal.domain_start)
         

@@ -1,0 +1,618 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tocloft}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{mathtools}
+\usepackage{bm}
+
+% Page setup
+\geometry{margin=2.5cm}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textsc{Mathematical Background}}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{\textit{BioNetFlux Applications}}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Mathematical Background for BioNetFlux Applications},
+    pdfauthor={BioNetFlux Development Team},
+}
+
+% Code listing setup
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+% Custom commands
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\bionetflux}{\textsc{BioNetFlux}}
+
+% Title page customization
+\title{\Huge \textbf{Mathematical Background} \\[0.5cm]
+       \Large for \bionetflux{} Applications}
+\author{BioNetFlux Development Team}
+\date{\today}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+    \centering
+    
+    % BioNetFlux Logo
+    \includegraphics[width=0.6\textwidth]{../Logos/BioNetFlux.png}\\[1cm]
+    
+    {\Huge \textbf{Mathematical Background} \\[0.5cm]}
+    {\Large \textbf{for \bionetflux{} Applications} \\[1cm]}
+    
+    {\large Comprehensive Mathematical Foundation \\[0.5cm]}
+    {\large Keller-Segel Chemotaxis and Organ-on-Chip Systems \\[2cm]}
+    
+    {\Large BioNetFlux Development Team \\[0.5cm]}
+    {\large \today}
+    
+    \vfill
+    
+    {\footnotesize 
+    \textit{Mathematical theory and numerical methods} \\
+    \textit{for multi-domain biological transport simulations}
+    }
+        
+    \vskip3cm
+        
+    % Barra bar
+    \includegraphics[width=0.8\textwidth]{../Logos/Barra.png}\\[2cm]
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+
+This document provides comprehensive mathematical background for the two primary application domains of \bionetflux{}: Keller-Segel chemotaxis models and organ-on-chip transport systems. The mathematical formulations, physical interpretations, and numerical methods presented here form the theoretical foundation for understanding and implementing these models in the \bionetflux{} framework.
+
+\section{Keller-Segel Chemotaxis Model}
+
+\subsection{Overview}
+
+The Keller-Segel model describes the movement of cells in response to chemical gradients, a phenomenon known as chemotaxis. First proposed by Keller and Segel in 1970, this system has become fundamental in mathematical biology for modeling bacterial aggregation, tumor invasion, and immune cell migration.
+
+\subsection{Governing Equations}
+
+The classical Keller-Segel system in one dimension consists of two coupled partial differential equations:
+
+\begin{align}
+\frac{\partial u}{\partial t} &= D_u \frac{\partial^2 u}{\partial x^2} - \frac{\partial}{\partial x}\left[\chi(u,\varphi) u \frac{\partial \varphi}{\partial x}\right] + f_u(u,\varphi,x,t) \label{eq:ks_cell}\\
+\frac{\partial \varphi}{\partial t} &= D_\varphi \frac{\partial^2 \varphi}{\partial x^2} + g(u,\varphi) - \delta\varphi + f_\varphi(u,\varphi,x,t) \label{eq:ks_chemical}
+\end{align}
+
+where:
+\begin{itemize}
+    \item $u(x,t)$ is the cell density
+    \item $\varphi(x,t)$ is the chemoattractant concentration
+    \item $D_u, D_\varphi > 0$ are diffusion coefficients
+    \item $\chi(u,\varphi)$ is the chemotaxis sensitivity function
+    \item $g(u,\varphi)$ represents chemoattractant production by cells
+    \item $\delta \geq 0$ is the chemoattractant decay rate
+    \item $f_u, f_\varphi$ are external source terms
+\end{itemize}
+
+\subsection{Physical Interpretation}
+
+\subsubsection{Cell Equation \eqref{eq:ks_cell}}
+
+\begin{itemize}
+    \item \textbf{Diffusion term}: $D_u \frac{\partial^2 u}{\partial x^2}$ represents random cell movement (Brownian motion)
+    \item \textbf{Chemotactic flux}: $-\frac{\partial}{\partial x}\left[\chi(u,\varphi) u \frac{\partial \varphi}{\partial x}\right]$ describes directed movement along chemical gradients
+    \item \textbf{Source term}: $f_u(u,\varphi,x,t)$ accounts for cell proliferation, death, or external injection
+\end{itemize}
+
+\subsubsection{Chemical Equation \eqref{eq:ks_chemical}}
+
+\begin{itemize}
+    \item \textbf{Diffusion term}: $D_\varphi \frac{\partial^2 \varphi}{\partial x^2}$ represents molecular diffusion of the chemoattractant
+    \item \textbf{Production term}: $g(u,\varphi)$ typically linear $g(u,\varphi) = \alpha u$ or saturated $g(u,\varphi) = \frac{\alpha u}{1+\beta u}$
+    \item \textbf{Decay term}: $-\delta\varphi$ represents natural degradation
+    \item \textbf{Source term}: $f_\varphi(u,\varphi,x,t)$ accounts for external chemical sources
+\end{itemize}
+
+\subsection{Chemotaxis Sensitivity Functions}
+
+The chemotaxis sensitivity function $\chi(u,\varphi)$ is crucial for model behavior:
+
+\subsubsection{Constant Sensitivity}
+\begin{equation}
+\chi(u,\varphi) = \chi_0 = \text{constant}
+\end{equation}
+
+\subsubsection{Signal-Dependent Sensitivity}
+\begin{equation}
+\chi(u,\varphi) = \frac{\chi_0}{(K + \varphi)^n}
+\end{equation}
+where $\chi_0, K > 0$ and $n \geq 0$ control sensitivity strength and saturation.
+
+\subsubsection{Receptor Kinetics Model}
+\begin{equation}
+\chi(u,\varphi) = \chi_0 \frac{K}{(K + \varphi)^2}
+\end{equation}
+derived from receptor binding kinetics, where $K$ is the dissociation constant.
+
+\subsubsection{Log-Sensing Model}
+\begin{equation}
+\chi(u,\varphi) = \frac{\chi_0}{1 + \varphi}
+\end{equation}
+captures logarithmic sensing behavior observed in bacterial chemotaxis.
+
+\subsection{Boundary Conditions}
+
+\subsubsection{No-Flux Conditions (Closed System)}
+\begin{align}
+D_u \frac{\partial u}{\partial x} - \chi(u,\varphi) u \frac{\partial \varphi}{\partial x} &= 0 \quad \text{at boundaries}\\
+D_\varphi \frac{\partial \varphi}{\partial x} &= 0 \quad \text{at boundaries}
+\end{align}
+
+\subsubsection{Prescribed Flux Conditions}
+\begin{align}
+D_u \frac{\partial u}{\partial x} - \chi(u,\varphi) u \frac{\partial \varphi}{\partial x} &= j_u(t)\\
+D_\varphi \frac{\partial \varphi}{\partial x} &= j_\varphi(t)
+\end{align}
+
+\subsubsection{Mixed Conditions}
+\begin{align}
+u &= u_0(t) \quad \text{at inlet}\\
+\frac{\partial u}{\partial x} &= 0 \quad \text{at outlet}\\
+\varphi &= \varphi_0(t) \quad \text{at inlet}\\
+\frac{\partial \varphi}{\partial x} &= 0 \quad \text{at outlet}
+\end{align}
+
+\subsection{Analytical Solutions}
+
+For specific parameter choices, traveling wave solutions exist. Consider:
+\begin{itemize}
+    \item Constant chemotaxis: $\chi(u,\varphi) = \chi_0$
+    \item Linear chemical production: $g(u,\varphi) = \alpha u$
+    \item No decay: $\delta = 0$
+\end{itemize}
+
+\subsubsection{Traveling Wave Ansatz}
+\begin{align}
+u(x,t) &= U(\xi), \quad \xi = x - ct\\
+\varphi(x,t) &= \Phi(\xi), \quad \xi = x - ct
+\end{align}
+
+For the parameter set $D_u = \nu$, $D_\varphi = \mu$, $\chi_0 = 1/\nu$, and wave speed $c = 1/2$, analytical solutions are:
+
+\begin{align}
+U(\xi) &= \frac{5e^{\xi/2}}{e^{\xi/2} - 1} - \frac{4e^\xi}{(e^{\xi/2} - 1)^2} - \frac{5}{8}\\
+\Phi(\xi) &= \frac{5\xi}{4} - 2\ln(e^{\xi/2} - 1)
+\end{align}
+
+These solutions are used in \bionetflux{} for validation and testing.
+
+\subsection{Dimensionless Analysis}
+
+\subsubsection{Characteristic Scales}
+\begin{itemize}
+    \item Length: $L$ (domain size)
+    \item Time: $T = L^2/D_u$ (diffusion time)
+    \item Cell density: $U_0$ (initial density)
+    \item Chemical concentration: $\Phi_0$ (reference concentration)
+\end{itemize}
+
+\subsubsection{Dimensionless Variables}
+\begin{equation}
+x^* = \frac{x}{L}, \quad t^* = \frac{t}{T}, \quad u^* = \frac{u}{U_0}, \quad \varphi^* = \frac{\varphi}{\Phi_0}
+\end{equation}
+
+\subsubsection{Dimensionless Parameters}
+\begin{align}
+\text{Pe}_c &= \frac{\chi_0 \Phi_0 L}{D_u} \quad \text{(chemotactic Péclet number)}\\
+D &= \frac{D_\varphi}{D_u} \quad \text{(diffusivity ratio)}\\
+\alpha^* &= \frac{\alpha U_0 T}{\Phi_0} \quad \text{(production parameter)}\\
+\delta^* &= \delta T \quad \text{(decay parameter)}
+\end{align}
+
+\subsubsection{Dimensionless Equations}
+\begin{align}
+\frac{\partial u^*}{\partial t^*} &= \frac{\partial^2 u^*}{\partial x^{*2}} - \text{Pe}_c \frac{\partial}{\partial x^*}\left[\chi^*(u^*,\varphi^*) u^* \frac{\partial \varphi^*}{\partial x^*}\right] + f_u^*\\
+\frac{\partial \varphi^*}{\partial t^*} &= D \frac{\partial^2 \varphi^*}{\partial x^{*2}} + \alpha^* g^*(u^*,\varphi^*) - \delta^* \varphi^* + f_\varphi^*
+\end{align}
+
+\subsection{Model Variants}
+
+\subsubsection{Volume-Filling Effect}
+\begin{equation}
+\frac{\partial u}{\partial t} = \nabla \cdot \left[D_u\left(1-\frac{u}{u_{\max}}\right)\nabla u - \chi(\varphi)u\left(1-\frac{u}{u_{\max}}\right)\nabla\varphi\right] + f_u
+\end{equation}
+
+\subsubsection{Cross-Diffusion}
+\begin{equation}
+\frac{\partial u}{\partial t} = \nabla \cdot \left[D_u\nabla u + D_{u\varphi}u\nabla\varphi - \chi(\varphi)u\nabla\varphi\right] + f_u
+\end{equation}
+
+\subsubsection{Multiple Species}
+\begin{align}
+\frac{\partial u_i}{\partial t} &= D_i\nabla^2 u_i - \nabla \cdot [\chi_i(\varphi)u_i\nabla\varphi] + R_i(u_1,\ldots,u_n,\varphi)\\
+\frac{\partial \varphi}{\partial t} &= D_\varphi\nabla^2\varphi + \sum_i g_i(u_i,\varphi) - \delta\varphi
+\end{align}
+
+\section{Organ-on-Chip Transport Model}
+
+\subsection{Overview}
+
+Organ-on-chip (OoC) systems are microfluidic devices that simulate human organ functions. The mathematical model combines fluid flow, species transport, and cellular interactions within multi-compartment geometries.
+
+\subsection{Governing Equations}
+
+The OoC transport model consists of coupled advection-diffusion-reaction equations:
+
+\begin{align}
+\frac{\partial c_i}{\partial t} + \bm{v} \cdot \nabla c_i &= D_i \nabla^2 c_i + R_i(\bm{c},\bm{\varphi}) + S_i(\bm{x},t) \label{eq:ooc_transport}\\
+\frac{\partial \varphi_j}{\partial t} &= D_{\varphi_j} \nabla^2 \varphi_j + P_j(\bm{c},\bm{\varphi}) - \delta_j \varphi_j + Q_j(\bm{x},t) \label{eq:ooc_signaling}
+\end{align}
+
+where:
+\begin{itemize}
+    \item $c_i(\bm{x},t)$ represents concentration of species $i$ (nutrients, drugs, metabolites)
+    \item $\varphi_j(\bm{x},t)$ represents signaling molecules or cellular markers
+    \item $\bm{v}(\bm{x})$ is the fluid velocity field
+    \item $D_i, D_{\varphi_j}$ are diffusion coefficients
+    \item $R_i(\bm{c},\bm{\varphi})$ represents reaction kinetics for species $i$
+    \item $P_j(\bm{c},\bm{\varphi})$ represents production of signaling molecules
+    \item $\delta_j$ is degradation rate of signaling molecule $j$
+    \item $S_i, Q_j$ are external source/sink terms
+\end{itemize}
+
+\subsection{Multi-Compartment Structure}
+
+OoC devices typically consist of multiple interconnected compartments:
+
+\subsubsection{Flow Channel (High Flow Rate, Advection-Dominated)}
+\begin{equation}
+\frac{\partial c}{\partial t} + v \frac{\partial c}{\partial x} = D \frac{\partial^2 c}{\partial x^2} + S(x,t)
+\end{equation}
+
+Péclet number: $\text{Pe} = \frac{vL}{D} \gg 1$
+
+\subsubsection{Cell Culture Chamber (Low Flow, Reaction-Dominated)}
+\begin{equation}
+\frac{\partial c}{\partial t} = D \frac{\partial^2 c}{\partial x^2} + R(c,\varphi) + S(x,t)
+\end{equation}
+
+Damköhler number: $\text{Da} = \frac{kL^2}{D} \gg 1$
+
+\subsubsection{Membrane Interface (Selective Permeability)}
+\begin{equation}
+J = P(c_1 - c_2) + \sigma\varphi \frac{\partial c}{\partial x}
+\end{equation}
+where $P$ is permeability and $\sigma$ is reflection coefficient.
+
+\subsection{Cellular Reaction Kinetics}
+
+\subsubsection{Michaelis-Menten Kinetics}
+\begin{equation}
+R(c) = -\frac{V_{\max} c}{K_m + c}
+\end{equation}
+Parameters: $V_{\max}$ (maximum rate), $K_m$ (Michaelis constant)
+
+\subsubsection{Hill Kinetics (Cooperative Binding)}
+\begin{equation}
+R(c) = -\frac{V_{\max} c^n}{K^n + c^n}
+\end{equation}
+Parameters: $n$ (Hill coefficient), $K$ (half-saturation constant)
+
+\subsubsection{Competitive Inhibition}
+\begin{equation}
+R(c,I) = -\frac{V_{\max} c}{(K_m + c)\left(1 + \frac{I}{K_i}\right)}
+\end{equation}
+Parameters: $I$ (inhibitor concentration), $K_i$ (inhibition constant)
+
+\subsubsection{Non-Competitive Inhibition}
+\begin{equation}
+R(c,I) = -\frac{V_{\max} c}{(K_m + c)\left(1 + \frac{I}{K_i}\right)}
+\end{equation}
+
+\subsubsection{Substrate Inhibition}
+\begin{equation}
+R(c) = -\frac{V_{\max} c}{K_m + c + \frac{c^2}{K_i}}
+\end{equation}
+
+\subsection{Interface Conditions}
+
+At compartment interfaces, various junction conditions are implemented:
+
+\subsubsection{Kedem-Katchalsky Equations (Membrane Transport)}
+\begin{align}
+J_v &= L_p(\Delta P - \sigma \Delta \pi) \quad \text{(volume flux)}\\
+J_s &= \omega \Delta \pi + (1-\sigma) \bar{c} J_v \quad \text{(solute flux)}
+\end{align}
+where:
+\begin{itemize}
+    \item $L_p$ is hydraulic permeability
+    \item $\omega$ is solute permeability
+    \item $\sigma$ is reflection coefficient
+    \item $\Delta P, \Delta \pi$ are pressure and osmotic pressure differences
+    \item $\bar{c}$ is mean concentration
+\end{itemize}
+
+\subsubsection{Simplified Interface Conditions}
+\begin{equation}
+J_i = P_i(c_{i,1} - c_{i,2}) + \sigma_i \varphi \frac{\partial c_i}{\partial n}
+\end{equation}
+
+\subsubsection{Trace Continuity (Perfect Mixing)}
+\begin{equation}
+c_1 = c_2 \quad \text{at interface}
+\end{equation}
+
+\subsubsection{Flux Continuity}
+\begin{equation}
+D_1 \frac{\partial c_1}{\partial n} = D_2 \frac{\partial c_2}{\partial n} \quad \text{at interface}
+\end{equation}
+
+\subsection{Dimensionless Analysis}
+
+\subsubsection{Characteristic Scales}
+\begin{itemize}
+    \item Length: $L$ (channel length)
+    \item Velocity: $V$ (average flow velocity)
+    \item Time: $T = L/V$ (convection time)
+    \item Concentration: $C_0$ (inlet concentration)
+\end{itemize}
+
+\subsubsection{Dimensionless Variables}
+\begin{equation}
+x^* = \frac{x}{L}, \quad t^* = \frac{t}{T}, \quad c^* = \frac{c}{C_0}, \quad v^* = \frac{v}{V}
+\end{equation}
+
+\subsubsection{Dimensionless Parameters}
+\begin{align}
+\text{Pe} &= \frac{VL}{D} \quad \text{(Péclet number - advection vs diffusion)}\\
+\text{Da} &= \frac{kL}{V} \quad \text{(Damköhler number - reaction vs advection)}\\
+\text{Re} &= \frac{\rho VL}{\mu} \quad \text{(Reynolds number - inertia vs viscosity)}\\
+\text{Sc} &= \frac{\mu}{\rho D} \quad \text{(Schmidt number - momentum vs mass diffusion)}
+\end{align}
+
+\subsubsection{Dimensionless Equation}
+\begin{equation}
+\frac{\partial c^*}{\partial t^*} + \text{Pe} \, \bm{v}^* \cdot \nabla^* c^* = \nabla^{*2} c^* + \text{Da} \, R^*(c^*) + S^*
+\end{equation}
+
+\subsection{Typical Parameter Ranges}
+
+\begin{table}[H]
+\centering
+\begin{tabular}{@{}llll@{}}
+\toprule
+Parameter & Range & Units & Application \\
+\midrule
+Channel length & 1--10 & mm & Flow channels \\
+Channel width & 10--1000 & μm & Microchannels \\
+Cell chamber size & 100--5000 & μm & Culture chambers \\
+Flow velocity & 0.1--10 & mm/s & Physiological flow \\
+Diffusion coefficient & $10^{-11}$--$10^{-9}$ & m²/s & Small molecules \\
+Permeability & $10^{-8}$--$10^{-4}$ & m/s & Membrane transport \\
+Reaction rate & $10^{-6}$--$10^{-2}$ & s⁻¹ & Enzymatic reactions \\
+Cell density & $10^6$--$10^8$ & cells/mL & Typical cultures \\
+\bottomrule
+\end{tabular}
+\caption{Typical parameter ranges for organ-on-chip systems}
+\end{table}
+
+\subsection{Common OoC Applications}
+
+\subsubsection{Drug Screening}
+\begin{align}
+\frac{\partial c_{\text{drug}}}{\partial t} + \bm{v} \cdot \nabla c_{\text{drug}} &= D\nabla^2 c_{\text{drug}} - k_{\text{uptake}} c_{\text{drug}} + S_{\text{inlet}}\\
+\frac{\partial c_{\text{metabolite}}}{\partial t} &= D_m\nabla^2 c_{\text{metabolite}} + k_{\text{metabolism}} c_{\text{drug}} - k_{\text{clearance}} c_{\text{metabolite}}
+\end{align}
+
+\subsubsection{Barrier Function Studies}
+\begin{align}
+\frac{\partial c}{\partial t} &= D\nabla^2 c + R(c,\text{TEER})\\
+\frac{d\text{TEER}}{dt} &= f(c_{\text{inflammatory}}, c_{\text{protective}})
+\end{align}
+
+\subsubsection{Angiogenesis Models}
+\begin{align}
+\frac{\partial c_{\text{VEGF}}}{\partial t} &= D\nabla^2 c_{\text{VEGF}} + \alpha_{\text{production}} - \delta c_{\text{VEGF}}\\
+\frac{\partial \rho_{\text{vessel}}}{\partial t} &= k_{\text{sprouting}} \nabla \cdot (\rho_{\text{vessel}} \nabla c_{\text{VEGF}}) + k_{\text{growth}} \rho_{\text{vessel}}
+\end{align}
+
+\section{Numerical Methods}
+
+\subsection{Finite Element Discretization}
+
+\bionetflux{} employs linear finite elements for spatial discretization. For a generic transport equation:
+\begin{equation}
+\frac{\partial u}{\partial t} = \nabla \cdot (D\nabla u) + \bm{v} \cdot \nabla u + R(u) + S
+\end{equation}
+
+\subsubsection{Weak Form}
+\begin{equation}
+\int_\Omega \frac{\partial u}{\partial t} w \, d\Omega = -\int_\Omega D\nabla u \cdot \nabla w \, d\Omega + \int_\Omega (\bm{v} \cdot \nabla u + R + S) w \, d\Omega + \int_{\partial\Omega} \text{flux} \cdot w \, d\Gamma
+\end{equation}
+
+\subsubsection{Matrix Form}
+\begin{equation}
+\bm{M} \frac{d\bm{u}}{dt} + \bm{K} \bm{u} = \bm{f}
+\end{equation}
+where $\bm{M}$ is mass matrix, $\bm{K}$ is stiffness matrix, $\bm{f}$ is load vector.
+
+\subsection{Time Integration}
+
+\subsubsection{Backward Euler (Implicit)}
+\begin{equation}
+\bm{M} \frac{\bm{u}^{n+1} - \bm{u}^n}{\Delta t} + \bm{K} \bm{u}^{n+1} = \bm{f}^{n+1}
+\end{equation}
+
+\textbf{Advantages:}
+\begin{itemize}
+    \item Unconditionally stable
+    \item Suitable for stiff problems
+    \item Handles large time steps
+\end{itemize}
+
+\subsubsection{Crank-Nicolson (Semi-Implicit)}
+\begin{equation}
+\bm{M} \frac{\bm{u}^{n+1} - \bm{u}^n}{\Delta t} + \bm{K} \frac{\bm{u}^{n+1} + \bm{u}^n}{2} = \frac{\bm{f}^{n+1} + \bm{f}^n}{2}
+\end{equation}
+
+\subsection{Newton-Raphson Method}
+
+For nonlinear problems, Newton-Raphson iteration:
+\begin{align}
+\bm{R}(\bm{u}) &= \bm{M} \frac{\bm{u} - \bm{u}^n}{\Delta t} + \bm{K} \bm{u} - \bm{f} = \bm{0}\\
+\bm{J} \Delta \bm{u} &= -\bm{R}(\bm{u}^k)\\
+\bm{u}^{k+1} &= \bm{u}^k + \Delta \bm{u}
+\end{align}
+where $\bm{J} = \frac{\partial \bm{R}}{\partial \bm{u}}$ is the Jacobian matrix.
+
+\subsubsection{Convergence Criteria}
+\begin{align}
+\|\bm{R}(\bm{u}^k)\| &< \text{tol}_{\text{abs}}\\
+\frac{\|\Delta \bm{u}\|}{\|\bm{u}^k\|} &< \text{tol}_{\text{rel}}
+\end{align}
+
+\subsection{Static Condensation}
+
+To reduce computational cost, interior degrees of freedom are eliminated:
+\begin{equation}
+\begin{pmatrix}
+\bm{K}_{ii} & \bm{K}_{ib} \\
+\bm{K}_{bi} & \bm{K}_{bb}
+\end{pmatrix}
+\begin{pmatrix}
+\bm{u}_i \\
+\bm{u}_b
+\end{pmatrix}
+=
+\begin{pmatrix}
+\bm{f}_i \\
+\bm{f}_b
+\end{pmatrix}
+\end{equation}
+
+\subsubsection{After Condensation}
+\begin{align}
+\tilde{\bm{K}}_{bb} \bm{u}_b &= \tilde{\bm{f}}_b\\
+\tilde{\bm{K}}_{bb} &= \bm{K}_{bb} - \bm{K}_{bi} \bm{K}_{ii}^{-1} \bm{K}_{ib}\\
+\tilde{\bm{f}}_b &= \bm{f}_b - \bm{K}_{bi} \bm{K}_{ii}^{-1} \bm{f}_i
+\end{align}
+
+\subsubsection{Recovery}
+\begin{equation}
+\bm{u}_i = \bm{K}_{ii}^{-1}(\bm{f}_i - \bm{K}_{ib} \bm{u}_b)
+\end{equation}
+
+\section{Implementation Notes}
+
+\subsection{Stability Considerations}
+
+\subsubsection{CFL Condition for Advection}
+\begin{equation}
+\Delta t \leq \frac{\Delta x}{|\bm{v}|}
+\end{equation}
+
+\subsubsection{Diffusion Stability}
+\begin{equation}
+\Delta t \leq \frac{\Delta x^2}{2D}
+\end{equation}
+
+\subsubsection{Chemotaxis Stability}
+\begin{equation}
+\Delta t \leq \frac{\Delta x^2}{2\chi\varphi_{\max}}
+\end{equation}
+
+\subsection{Mesh Requirements}
+
+\subsubsection{Boundary Layers}
+\begin{equation}
+\Delta x_{\text{boundary}} \leq \sqrt{\frac{D}{v}} \quad \text{(for advection-diffusion)}
+\end{equation}
+
+\subsubsection{Reaction Zones}
+\begin{equation}
+\Delta x_{\text{reaction}} \leq \sqrt{\frac{D}{k}} \quad \text{(for reaction-diffusion)}
+\end{equation}
+
+\subsubsection{Chemotactic Focusing}
+\begin{equation}
+\Delta x \leq \frac{1}{\sqrt{\chi|\nabla\varphi|}}
+\end{equation}
+
+\subsection{Parameter Estimation}
+
+\textbf{Typical workflows:}
+\begin{enumerate}
+    \item \textbf{Literature values}: Start with published parameters
+    \item \textbf{Dimensional analysis}: Ensure parameter scaling is correct
+    \item \textbf{Sensitivity analysis}: Identify critical parameters
+    \item \textbf{Calibration}: Fit to experimental data
+    \item \textbf{Validation}: Test on independent data sets
+\end{enumerate}
+
+\subsection{Common Pitfalls}
+
+\begin{enumerate}
+    \item \textbf{Units consistency}: Always check dimensional analysis
+    \item \textbf{Mesh resolution}: Insufficient resolution can cause instabilities
+    \item \textbf{Time step size}: Too large steps can cause convergence issues
+    \item \textbf{Boundary conditions}: Incorrect BCs can dominate solution
+    \item \textbf{Parameter ranges}: Unphysical values can cause numerical issues
+\end{enumerate}
+
+\section{Conclusion}
+
+This mathematical background provides the theoretical foundation for understanding and implementing Keller-Segel chemotaxis and organ-on-chip transport models in \bionetflux{}. The comprehensive coverage of governing equations, physical interpretations, analytical solutions, dimensionless analysis, and numerical methods enables users to properly configure, validate, and interpret their simulations.
+
+For specific implementation details and example problems, refer to the main \bionetflux{} documentation and the provided problem templates in the framework.
+
+\vspace{2cm}
+
+\begin{center}
+\textbf{\bionetflux{} Development Team} \\
+\textit{Mathematical Foundation for Multi-Domain Biological Transport Simulations}
+\end{center}
+
+\end{document}

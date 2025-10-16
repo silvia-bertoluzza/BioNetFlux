@@ -1,0 +1,828 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage{geometry}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{tocloft}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+
+% Page setup
+\geometry{margin=2.5cm}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textsc{BioNetFlux Documentation}}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{\textit{Multi-Domain Biological Network Flow Simulation}}
+
+% Hyperlink setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={BioNetFlux Documentation},
+    pdfauthor={BioNetFlux Development Team},
+}
+
+% Code listing setup
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+% Custom commands
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\bionetflux}{\textsc{BioNetFlux}}
+
+% Title page customization
+\title{\Huge {\textbf{\bionetflux{} Documentation}} \\[0.5cm]
+       \Large Multi-Domain Biological Network Flow Simulation}
+\author{BioNetFlux Development Team}
+\date{\today}
+
+\begin{document}
+
+% Title page
+\begin{titlepage}
+    \centering
+    
+    % BioNetFlux Logo
+    \includegraphics[width=0.6\textwidth]{../Logos/BioNetFlux.png}\\[1cm]
+    
+    {\Huge \textbf{\bionetflux{}} \\[0.5cm]}
+    {\Large \textbf{Documentation} \\[1cm]}
+    
+    {\large Multi-Domain Biological Network Flow Simulation \\[0.5cm]}
+    {\large A Python Framework for Complex Network Geometries \\[2cm]}
+
+    
+    {\Large BioNetFlux Development Team \\[0.5cm]}
+    {\large \today}
+    
+    \vfill
+    
+    {\footnotesize 
+    \textit{Comprehensive guide to multi-domain biological transport simulations} \\
+    \textit{including Keller-Segel chemotaxis and organ-on-chip modeling}
+    }
+        
+        \vskip3cm
+        
+    % Barra bar
+    \includegraphics[width=\textwidth]{../Logos/Barra.png}\\[2cm]
+\end{titlepage}
+
+% Table of contents
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+
+\bionetflux{} is a computational framework designed for simulating biological transport phenomena on complex network geometries. The framework specializes in solving coupled partial differential equations (PDEs) on multi-domain networks, with particular focus on:
+
+\begin{itemize}
+    \item \textbf{Keller-Segel chemotaxis models}: Cell migration driven by chemical gradients
+    \item \textbf{Organ-on-Chip systems}: Microfluidic device simulations with multiple compartments
+    \item \textbf{Multi-domain networks}: Complex geometries with junction conditions and interface constraints
+\end{itemize}
+
+\subsection{Key Features}
+
+\begin{itemize}
+    \item \textbf{Multi-Domain Support}: Handle complex network topologies with arbitrary domain connections
+    \item \textbf{Geometry Management}: Intuitive geometry definition using the \code{DomainGeometry} class
+    \item \textbf{Flexible Constraints}: Support for Neumann, Dirichlet, and Kedem-Katchalsky junction conditions
+    \item \textbf{Advanced Visualization}: 2D curve plots, 3D flat views, and bird's eye network visualization
+    \item \textbf{Time Evolution}: Implicit time stepping with Newton-Raphson nonlinear solver
+    \item \textbf{Static Condensation}: Efficient element-level solution elimination
+\end{itemize}
+
+\section{Architecture Overview}
+
+The \bionetflux{} framework is organized into several interconnected modules:
+
+\begin{lstlisting}[language=bash, caption={BioNetFlux Directory Structure}]
+BioNetFlux/
+├── code/
+│   ├── ooc1d/
+│   │   ├── core/           # Core mathematical components
+│   │   ├── geometry/       # Geometry management
+│   │   ├── problems/       # Problem definitions
+│   │   ├── solver/         # Numerical solvers
+│   │   └── visualization/  # Plotting and visualization
+│   ├── setup_solver.py    # Main setup interface
+│   └── test_*.py          # Example test files
+└── docs/                  # Documentation
+\end{lstlisting}
+
+\subsection{Core Components}
+
+\begin{enumerate}
+    \item \textbf{Problem Definition}: Physical parameters, equations, and boundary conditions
+    \item \textbf{Geometry Management}: Domain layout and network topology
+    \item \textbf{Discretization}: Finite element spatial discretization
+    \item \textbf{Constraint System}: Interface conditions and boundary constraints
+    \item \textbf{Time Evolution}: Implicit time stepping with Newton solver
+    \item \textbf{Visualization}: Multi-mode plotting system
+\end{enumerate}
+
+\section{Module Documentation}
+
+\subsection{Core Module (\code{ooc1d.core})}
+
+\subsubsection{Problem Class (\code{problem.py})}
+
+The \code{Problem} class encapsulates the physics of a single domain:
+
+\begin{lstlisting}[language=Python, caption={Problem Class Structure}]
+class Problem:
+    def __init__(self, neq, domain_start, domain_length, 
+                 parameters, problem_type, name):
+        # Physical domain definition
+        # Equation parameters
+        # Problem identification
+\end{lstlisting}
+
+\textbf{Key Methods:}
+\begin{itemize}
+    \item \code{set\_chemotaxis(chi, dchi)}: Define chemotaxis functions
+    \item \code{set\_force(eq\_idx, force\_func)}: Set source terms
+    \item \code{set\_solution(eq\_idx, sol\_func)}: Set analytical solutions
+    \item \code{set\_initial\_condition(eq\_idx, ic\_func)}: Define initial conditions
+    \item \code{set\_extrema(start\_point, end\_point)}: Set 2D spatial coordinates
+\end{itemize}
+
+\subsubsection{Discretization Classes (\code{discretization.py})}
+
+\begin{lstlisting}[language=Python, caption={Discretization Classes}]
+class Discretization:
+    # Single domain spatial discretization
+    # Finite element nodes and connectivity
+    
+class GlobalDiscretization:
+    # Multi-domain discretization management
+    # Time stepping parameters
+\end{lstlisting}
+
+\subsubsection{Constraint Management (\code{constraints.py})}
+
+\begin{lstlisting}[language=Python, caption={Constraint Manager Methods}]
+class ConstraintManager:
+    # Interface and boundary condition management
+    def add_neumann(eq_idx, domain_idx, coordinate, flux_func)
+    def add_trace_continuity(eq_idx, dom1_idx, dom2_idx, coord1, coord2)
+    def add_kedem_katchalsky(eq_idx, dom1_idx, dom2_idx, 
+                            coord1, coord2, perm)
+\end{lstlisting}
+
+\subsection{Geometry Module (\code{ooc1d.geometry})}
+
+\subsubsection{DomainGeometry Class (\code{domain\_geometry.py})}
+
+The geometry module provides intuitive tools for defining complex network topologies:
+
+\begin{lstlisting}[language=Python, caption={DomainGeometry Class}]
+class DomainGeometry:
+    def __init__(self, name="unnamed_geometry"):
+        # Initialize empty geometry
+    
+    def add_domain(self, extrema_start, extrema_end, 
+                   domain_start=None, domain_length=None, 
+                   name=None, **metadata):
+        # Add a domain segment to the network
+        
+    def get_domain(self, domain_id):
+        # Retrieve domain information
+        
+    def get_bounding_box(self):
+        # Calculate network bounding box
+\end{lstlisting}
+
+\textbf{Domain Information Structure:}
+\begin{lstlisting}[language=Python, caption={Domain Information Dataclass}]
+@dataclass
+class DomainInfo:
+    domain_id: int
+    extrema_start: Tuple[float, float]  # Physical coordinates
+    extrema_end: Tuple[float, float]
+    domain_start: float                 # Parameter space
+    domain_length: float
+    name: str
+    metadata: Dict[str, Any]
+\end{lstlisting}
+
+\subsection{Solver Module (\code{ooc1d.solver})}
+
+\subsubsection{Setup Interface (\code{setup\_solver.py})}
+
+\begin{lstlisting}[language=Python, caption={Setup Interface}]
+def quick_setup(problem_module, validate=True):
+    # Automatic problem setup from module
+    # Returns configured solver setup
+    
+class SolverSetup:
+    # Complete solver configuration
+    def create_initial_conditions()
+    def create_global_solution_vector()
+    def extract_domain_solutions()
+\end{lstlisting}
+
+\subsection{Visualization Module (\code{ooc1d.visualization})}
+
+\subsubsection{LeanMatplotlibPlotter (\code{lean\_matplotlib\_plotter.py})}
+
+Three complementary visualization modes:
+
+\begin{enumerate}
+    \item \textbf{2D Curve Plots}: Traditional solution vs. position plots (separate subplot per domain)
+    \item \textbf{Flat 3D View}: Network segments with solution-colored scatter points above
+    \item \textbf{Bird's Eye View}: Top-down network view with color-coded segments
+\end{enumerate}
+
+\begin{lstlisting}[language=Python, caption={Visualization Methods}]
+class LeanMatplotlibPlotter:
+    def plot_2d_curves(trace_solutions, title, 
+                       show_mesh_points, save_filename)
+    def plot_flat_3d(trace_solutions, equation_idx, 
+                     view_angle, save_filename)
+    def plot_birdview(trace_solutions, equation_idx, 
+                      time, save_filename)
+\end{lstlisting}
+
+\section{Getting Started}
+
+\subsection{Installation}
+
+\begin{enumerate}
+    \item Clone the repository:
+    \begin{lstlisting}[language=bash]
+git clone <repository-url>
+cd BioNetFlux
+    \end{lstlisting}
+    
+    \item Set up Python path:
+    \begin{lstlisting}[language=Python]
+import sys
+sys.path.insert(0, '/path/to/BioNetFlux/code')
+    \end{lstlisting}
+\end{enumerate}
+
+\subsection{Basic Usage}
+
+\begin{lstlisting}[language=Python, caption={Basic Usage Example}]
+from setup_solver import quick_setup
+from ooc1d.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+# Load a problem
+setup = quick_setup("ooc1d.problems.my_problem", validate=True)
+
+# Create initial conditions
+trace_solutions, multipliers = setup.create_initial_conditions()
+
+# Initialize visualization
+plotter = LeanMatplotlibPlotter(
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations
+)
+
+# Plot initial conditions
+plotter.plot_2d_curves(trace_solutions, title="Initial Conditions")
+plotter.plot_birdview(trace_solutions, equation_idx=0, time=0.0)
+\end{lstlisting}
+
+\section{Creating New Problems}
+
+\subsection{Problem Structure Template}
+
+Create a new file in \code{ooc1d/problems/} following this structure:
+
+\begin{lstlisting}[language=Python, caption={Problem Template Structure}]
+# File: ooc1d/problems/my_new_problem.py
+import numpy as np
+from ..core.problem import Problem
+from ..core.discretization import Discretization, GlobalDiscretization
+from ..core.constraints import ConstraintManager
+from ..geometry import DomainGeometry
+
+def create_global_framework():
+    """
+    Create a new multi-domain problem.
+    Returns: problems, global_discretization, 
+             constraint_manager, problem_name
+    """
+    # 1. Global parameters
+    neq = 2  # Number of equations
+    T = 1.0  # Final time
+    dt = 0.1  # Time step
+    problem_name = "My New Problem"
+    
+    # 2. Physical parameters
+    parameters = np.array([param1, param2, param3, param4])
+    
+    # 3. Define functions (chemotaxis, sources, solutions, etc.)
+    def chi(x): return np.ones_like(x)
+    def dchi(x): return np.zeros_like(x)
+    def source_u(s, t): return 0.0 * s
+    def source_phi(s, t): return 0.0 * s
+    def initial_u(s, t=0.0): return np.ones_like(s)
+    def initial_phi(s, t=0.0): return np.zeros_like(s)
+    
+    # 4. Create geometry
+    geometry = DomainGeometry("my_geometry")
+    # Add domains using geometry.add_domain(...)
+    
+    # 5. Create problems from geometry
+    problems = []
+    discretizations = []
+    for domain_id in range(geometry.num_domains()):
+        domain_info = geometry.get_domain(domain_id)
+        # Create Problem and Discretization objects
+    
+    # 6. Set up constraints
+    constraint_manager = ConstraintManager()
+    # Add boundary and interface constraints
+    
+    # 7. Return framework components
+    return problems, global_discretization, constraint_manager, problem_name
+\end{lstlisting}
+
+\subsection{Keller-Segel Problems}
+
+For chemotaxis problems, include:
+
+\begin{lstlisting}[language=Python, caption={Keller-Segel Problem Setup}]
+# Chemotaxis sensitivity function
+def chi(x):
+    k1, k2 = 3.9e-9, 5.e-6
+    return k1 / (k2 + x)**2
+
+def dchi(x):
+    k1, k2 = 3.9e-9, 5.e-6
+    return -k1 * 2 / (k2 + x)**3
+
+# Set chemotaxis for all problems
+for problem in problems:
+    problem.set_chemotaxis(chi, dchi)
+    problem.set_force(0, source_u)      # Cell equation source
+    problem.set_force(1, source_phi)    # Chemical equation source
+\end{lstlisting}
+
+\subsection{Organ-on-Chip Problems}
+
+For microfluidic systems, focus on:
+
+\begin{lstlisting}[language=Python, caption={Organ-on-Chip Problem Setup}]
+# Multi-compartment setup
+compartments = ["inlet", "cell_chamber", "outlet", "waste"]
+
+# Different parameters per compartment
+parameters_list = [
+    np.array([D1, v1, k1, 0.0]),     # Inlet: high flow
+    np.array([D2, v2, k2, k_cell]),  # Cell chamber: cell interaction
+    np.array([D3, v3, k3, 0.0]),     # Outlet: medium flow
+    np.array([D4, v4, k4, 0.0])      # Waste: low flow
+]
+
+# Junction conditions with permeabilities
+permeabilities = [0.8, 1.0, 0.9]  # Between compartments
+\end{lstlisting}
+
+\section{Geometry Module Guide}
+
+\subsection{Simple Linear Network}
+
+\begin{lstlisting}[language=Python, caption={Linear Network Geometry}]
+geometry = DomainGeometry("linear_chain")
+
+# Add sequential domains
+geometry.add_domain(
+    extrema_start=(0.0, 0.0),
+    extrema_end=(1.0, 0.0),
+    name="segment1"
+)
+
+geometry.add_domain(
+    extrema_start=(1.0, 0.0),
+    extrema_end=(2.0, 0.0),
+    name="segment2"
+)
+\end{lstlisting}
+
+\subsection{T-Junction Network}
+
+\begin{lstlisting}[language=Python, caption={T-Junction Geometry}]
+geometry = DomainGeometry("t_junction")
+
+# Main channel
+geometry.add_domain(
+    extrema_start=(0.0, -1.0),
+    extrema_end=(0.0, 1.0),
+    name="main_channel"
+)
+
+# Side branch
+geometry.add_domain(
+    extrema_start=(0.0, 0.0),
+    extrema_end=(1.0, 0.0),
+    name="side_branch"
+)
+\end{lstlisting}
+
+\subsection{Grid Network}
+
+\begin{lstlisting}[language=Python, caption={Grid Network Geometry}]
+geometry = DomainGeometry("grid_network")
+
+# Vertical segments
+for i, x_pos in enumerate([-0.5, 0.5]):
+    geometry.add_domain(
+        extrema_start=(x_pos, 0.0),
+        extrema_end=(x_pos, 1.0),
+        name=f"vertical_{i}"
+    )
+
+# Horizontal connectors
+for i, y_pos in enumerate([0.2, 0.4, 0.6, 0.8]):
+    geometry.add_domain(
+        extrema_start=(-0.5, y_pos),
+        extrema_end=(0.5, y_pos),
+        name=f"horizontal_{i}"
+    )
+\end{lstlisting}
+
+\subsection{Complex Branching Network}
+
+\begin{lstlisting}[language=Python, caption={Branching Network Geometry}]
+geometry = DomainGeometry("branching_network")
+
+# Main trunk
+geometry.add_domain(
+    extrema_start=(0.0, 0.0),
+    extrema_end=(0.0, 2.0),
+    name="trunk"
+)
+
+# Branches at different levels
+branch_angles = [30, 60, 120, 150]  # degrees
+for i, angle in enumerate(branch_angles):
+    angle_rad = np.radians(angle)
+    length = 1.0
+    end_x = length * np.cos(angle_rad)
+    end_y = 1.0 + length * np.sin(angle_rad)
+    
+    geometry.add_domain(
+        extrema_start=(0.0, 1.0),
+        extrema_end=(end_x, end_y),
+        name=f"branch_{i}"
+    )
+\end{lstlisting}
+
+\section{Visualization System}
+
+\subsection{2D Curve Plots}
+
+Best for analyzing solution profiles along individual domains:
+
+\begin{lstlisting}[language=Python, caption={2D Curve Plotting}]
+plotter.plot_2d_curves(
+    trace_solutions=solutions,
+    title="Solution Profiles",
+    show_mesh_points=True,
+    save_filename="solution_curves.png"
+)
+\end{lstlisting}
+
+\textbf{Features:}
+\begin{itemize}
+    \item Separate subplot per domain
+    \item All equations shown in each domain
+    \item Mesh point markers
+    \item Domain boundary indicators
+\end{itemize}
+
+\subsection{Flat 3D View}
+
+Ideal for understanding network topology with solution values:
+
+\begin{lstlisting}[language=Python, caption={Flat 3D Visualization}]
+plotter.plot_flat_3d(
+    trace_solutions=solutions,
+    equation_idx=0,
+    view_angle=(30, 45),
+    save_filename="network_3d.png"
+)
+\end{lstlisting}
+
+\textbf{Features:}
+\begin{itemize}
+    \item Network segments in xy-plane
+    \item Solution values as colored scatter points above
+    \item Connecting lines from segments to solution points
+    \item Rotatable 3D view
+\end{itemize}
+
+\subsection{Bird's Eye View}
+
+Perfect for network-level solution analysis:
+
+\begin{lstlisting}[language=Python, caption={Bird's Eye View Plotting}]
+plotter.plot_birdview(
+    trace_solutions=solutions,
+    equation_idx=0,
+    time=current_time,
+    save_filename="network_overview.png"
+)
+\end{lstlisting}
+
+\textbf{Features:}
+\begin{itemize}
+    \item Top-down network view
+    \item Color-coded segment thickness
+    \item Solution point markers
+    \item Clean network overview
+\end{itemize}
+
+\section{Example Applications}
+
+\subsection{Example 1: Simple Keller-Segel Chain}
+
+\begin{lstlisting}[language=Python, caption={Simple Keller-Segel Example}]
+# File: examples/simple_keller_segel.py
+import sys
+sys.path.insert(0, '../code')
+
+from setup_solver import quick_setup
+from ooc1d.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+def main():
+    # Setup problem
+    setup = quick_setup("ooc1d.problems.KS_with_geometry", validate=True)
+    
+    # Get initial conditions
+    trace_solutions, multipliers = setup.create_initial_conditions()
+    
+    # Initialize plotter
+    plotter = LeanMatplotlibPlotter(
+        problems=setup.problems,
+        discretizations=setup.global_discretization.spatial_discretizations
+    )
+    
+    # Plot initial state
+    plotter.plot_2d_curves(trace_solutions, title="Initial State")
+    plotter.plot_birdview(trace_solutions, equation_idx=0, time=0.0)
+    
+    # Time evolution
+    dt = setup.global_discretization.dt
+    T = 0.5
+    current_time = 0.0
+    global_solution = setup.create_global_solution_vector(
+        trace_solutions, multipliers)
+    
+    while current_time < T:
+        # Newton iteration (simplified)
+        current_time += dt
+        # ... solver steps ...
+        
+        # Extract solutions
+        final_traces, _ = setup.extract_domain_solutions(global_solution)
+        
+        # Visualize
+        plotter.plot_birdview(final_traces, equation_idx=0, 
+                             time=current_time)
+    
+    plotter.show_all()
+
+if __name__ == "__main__":
+    main()
+\end{lstlisting}
+
+\subsection{Example 2: Complex Grid Network}
+
+\begin{lstlisting}[language=Python, caption={Grid Network Example}]
+# File: examples/grid_network_example.py
+import sys
+sys.path.insert(0, '../code')
+
+from setup_solver import quick_setup
+from ooc1d.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+def main():
+    # Load complex grid problem
+    setup = quick_setup("ooc1d.problems.KS_grid_geometry", validate=True)
+    
+    print(f"Problem: {setup.get_problem_info()['problem_name']}")
+    print(f"Domains: {setup.get_problem_info()['num_domains']}")
+    
+    # Initial conditions
+    trace_solutions, multipliers = setup.create_initial_conditions()
+    
+    # Visualization
+    plotter = LeanMatplotlibPlotter(
+        problems=setup.problems,
+        discretizations=setup.global_discretization.spatial_discretizations,
+        figsize=(15, 10)
+    )
+    
+    # Multiple views of initial state
+    plotter.plot_2d_curves(
+        trace_solutions, 
+        title="Grid Network - Domain Profiles",
+        save_filename="grid_profiles.png"
+    )
+    
+    for eq_idx in range(2):  # Both equations
+        plotter.plot_flat_3d(
+            trace_solutions,
+            equation_idx=eq_idx,
+            title=f"Grid Network - {plotter.equation_names[eq_idx]} (3D)",
+            save_filename=f"grid_3d_eq{eq_idx}.png"
+        )
+        
+        plotter.plot_birdview(
+            trace_solutions,
+            equation_idx=eq_idx,
+            time=0.0,
+            save_filename=f"grid_birdview_eq{eq_idx}.png"
+        )
+    
+    plotter.show_all()
+
+if __name__ == "__main__":
+    main()
+\end{lstlisting}
+
+\section{API Reference}
+
+\subsection{Quick Setup Function}
+
+\begin{lstlisting}[language=Python, caption={Quick Setup API}]
+setup_solver.quick_setup(problem_module: str, 
+                         validate: bool = True) -> SolverSetup
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \code{problem\_module}: Import path to problem definition (e.g., "ooc1d.problems.my\_problem")
+    \item \code{validate}: Whether to validate setup after creation
+\end{itemize}
+
+\textbf{Returns:} Configured \code{SolverSetup} object
+
+\subsection{SolverSetup Class}
+
+\begin{lstlisting}[language=Python, caption={SolverSetup API}]
+class SolverSetup:
+    def get_problem_info() -> Dict[str, Any]
+    def create_initial_conditions() -> Tuple[List[np.ndarray], np.ndarray]
+    def create_global_solution_vector(traces, multipliers) -> np.ndarray
+    def extract_domain_solutions(global_solution) -> Tuple[List[np.ndarray], 
+                                                           np.ndarray]
+\end{lstlisting}
+
+\subsection{DomainGeometry Class}
+
+\begin{lstlisting}[language=Python, caption={DomainGeometry API}]
+class DomainGeometry:
+    def add_domain(extrema_start: Tuple[float, float],
+                   extrema_end: Tuple[float, float],
+                   domain_start: float = None,
+                   domain_length: float = None,
+                   name: str = None,
+                   **metadata) -> int
+    
+    def get_domain(domain_id: int) -> DomainInfo
+    def get_bounding_box() -> Dict[str, float]
+    def num_domains() -> int
+    def summary() -> str
+\end{lstlisting}
+
+\subsection{LeanMatplotlibPlotter Class}
+
+\begin{lstlisting}[language=Python, caption={Plotter API}]
+class LeanMatplotlibPlotter:
+    def __init__(problems, discretizations, 
+                 equation_names=None, figsize=(12,8))
+    
+    def plot_2d_curves(trace_solutions, title, 
+                       show_mesh_points=True,
+                       save_filename=None) -> plt.Figure
+    
+    def plot_flat_3d(trace_solutions, equation_idx=0, 
+                     view_angle=(30,45),
+                     save_filename=None) -> plt.Figure
+    
+    def plot_birdview(trace_solutions, equation_idx=0, 
+                      time=0.0,
+                      save_filename=None) -> plt.Figure
+    
+    def plot_comparison(initial_traces, final_traces, 
+                        initial_time=0.0,
+                        final_time=1.0, 
+                        save_filename=None) -> plt.Figure
+\end{lstlisting}
+
+\section{Troubleshooting}
+
+\subsection{Common Issues}
+
+\subsubsection{Import Errors}
+\begin{lstlisting}[language=Python, caption={Path Setup}]
+# Ensure correct path setup
+import sys
+sys.path.insert(0, '/path/to/BioNetFlux/code')
+\end{lstlisting}
+
+\subsubsection{Geometry Validation}
+\begin{lstlisting}[language=Python, caption={Geometry Debugging}]
+# Check geometry before problem creation
+geometry = DomainGeometry("test")
+# ... add domains ...
+print(geometry.summary())  # Verify domain layout
+print(geometry.get_bounding_box())  # Check coordinates
+\end{lstlisting}
+
+\subsubsection{Constraint Setup}
+\begin{lstlisting}[language=Python, caption={Constraint Verification}]
+# Verify constraint mapping
+constraint_manager.map_to_discretizations(discretizations)
+print(f"Total constraints: {constraint_manager.n_multipliers}")
+\end{lstlisting}
+
+\subsubsection{Solution Convergence}
+\begin{lstlisting}[language=Python, caption={Convergence Monitoring}]
+# Monitor Newton iteration
+newton_tolerance = 1e-10
+max_newton_iterations = 20
+
+# Check residual norms during iteration
+if residual_norm > newton_tolerance:
+    print(f"Convergence issue: residual = {residual_norm:.2e}")
+\end{lstlisting}
+
+\subsection{Performance Optimization}
+
+\begin{enumerate}
+    \item \textbf{Mesh Resolution}: Balance accuracy vs. computational cost
+    \item \textbf{Time Step Size}: Use adaptive time stepping for stability
+    \item \textbf{Newton Tolerance}: Adjust based on problem requirements
+    \item \textbf{Domain Decomposition}: Optimize domain sizes for load balancing
+\end{enumerate}
+
+\subsection{Debugging Tips}
+
+\begin{enumerate}
+    \item \textbf{Visualization}: Use all three plot types to understand solution behavior
+    \item \textbf{Parameter Validation}: Check physical parameter ranges
+    \item \textbf{Constraint Verification}: Ensure proper interface connectivity
+    \item \textbf{Solution Monitoring}: Track solution norms and residuals
+\end{enumerate}
+
+\section{Contact and Support}
+
+For questions, issues, or contributions:
+
+\begin{itemize}
+    \item \textbf{Repository}: [\bionetflux{} GitHub]
+    \item \textbf{Documentation}: See \code{docs/} directory
+    \item \textbf{Examples}: See \code{examples/} directory
+    \item \textbf{Issues}: Submit via GitHub Issues
+\end{itemize}
+
+\vspace{2cm}
+
+\begin{center}
+\textbf{\bionetflux{} Development Team} \\
+\textit{Multi-Domain Biological Network Flow Simulation Framework}
+\end{center}
+
+\end{document}

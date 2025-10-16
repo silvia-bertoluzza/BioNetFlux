@@ -23,5 +23,7 @@ __pycache__/
 *.spl
 *.pyg
 *.idx
+*.pdf
+*.sh
 .DS_Store
 
