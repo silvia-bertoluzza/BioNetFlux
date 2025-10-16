@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from setup_solver import quick_setup
 from ooc1d.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 
-filename = "ooc1d.problems.ooc_test_problem"  # Test problem for MATLAB comparison
+filename = "ooc1d.problems.KS_grid_geometry"  # New geometry-based problem
 
 print("="*60)
 print("BIONETFLUX REAL INITIALIZATION TEST")
@@ -86,6 +86,7 @@ plotter = LeanMatplotlibPlotter(
 )
 
 # Plot initial trace solutions
+
 print("Plotting initial trace solutions...")
 
 # 2D curve visualization (all equations together)
@@ -113,10 +114,10 @@ for eq_idx in range(setup.problems[0].neq):
     birdview_fig = plotter.plot_birdview(
         trace_solutions=trace_solutions,
         equation_idx=eq_idx,
-        title=f"Initial {plotter.equation_names[eq_idx]} Solution - Bird's Eye View",
         segment_width=0.15,
         save_filename=f"bionetflux_initial_{plotter.equation_names[eq_idx]}_birdview.png",
-        show_colorbar=True
+        show_colorbar=True,
+        time=0.0
     )
 
 
@@ -362,10 +363,10 @@ for eq_idx in range(n_equations):
     final_birdview_fig = plotter.plot_birdview(
         trace_solutions=final_traces,
         equation_idx=eq_idx,
-        title=f"Final {plotter.equation_names[eq_idx]} Solution - Bird's Eye View at t={current_time:.4f}",
         segment_width=0.15,
         save_filename=f"bionetflux_final_{plotter.equation_names[eq_idx]}_birdview_t{current_time-dt:.4f}.png",
-        show_colorbar=True
+        show_colorbar=True,
+        time=current_time-dt
     )
 
 # Solution evolution comparison

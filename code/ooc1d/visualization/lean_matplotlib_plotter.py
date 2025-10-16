@@ -200,7 +200,7 @@ class LeanMatplotlibPlotter:
                 all_domain_values.extend(domain_solutions[eq_idx])
             z_min, z_max = np.min(all_domain_values), np.max(all_domain_values)
             z_range = z_max - z_min
-            z_padding = z_range * 0.1 if z_range > 0 else 1.0
+            z_padding = z_range * 0.1 if z_range > 0 else 1.0;
             
             # Plot each equation for this domain
             for eq_idx in range(self.neq):
@@ -372,7 +372,8 @@ class LeanMatplotlibPlotter:
                      segment_width: float = 0.1,
                      save_filename: Optional[str] = None,
                      show_colorbar: bool = True,
-                     show_bounding_box: bool = True) -> plt.Figure:
+                     show_bounding_box: bool = True,
+                     time: float = 0.0) -> plt.Figure:
         """
         Plot solution as thick color-coded segments in 2D xy plane (bird's eye view).
         
@@ -384,6 +385,7 @@ class LeanMatplotlibPlotter:
             save_filename: Optional filename for saving
             show_colorbar: Whether to show colorbar
             show_bounding_box: Whether to show bounding box
+            time: Current time for title
             
         Returns:
             Matplotlib Figure object
@@ -439,11 +441,7 @@ class LeanMatplotlibPlotter:
                       vmin=vmin, vmax=vmax, alpha=0.9, 
                       edgecolors='black', linewidth=0.5, zorder=5)
             
-            # Add domain label
-            domain_center_x = domain_info['center_x']
-            domain_center_y = domain_info['center_y']
-            ax.text(domain_center_x, domain_center_y + segment_width*2, f'Domain {domain_idx+1}',
-                   ha='center', va='bottom', fontsize=10, fontweight='bold')
+            # Domain labels removed as requested
 
         # Add colorbar if requested
         if show_colorbar:
@@ -471,8 +469,9 @@ class LeanMatplotlibPlotter:
         ax.set_ylabel('y', fontsize=12)
         ax.set_aspect('equal', adjustable='box')
         
+        # New title format: "Solution (name) at time t = ..."
         if title is None:
-            title = f'{eq_name} Solution - Bird\'s Eye View'
+            title = f'Solution {eq_name} at time t = {time:.3f}'
         ax.set_title(title, fontsize=14, fontweight='bold')
         
         # Set nice limits based on bounding box
