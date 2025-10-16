@@ -118,3 +118,27 @@ class Problem:
             List of two tuples [(x1, y1), (x2, y2)] representing domain endpoints
         """
         return self.extrema
+    
+    def set_function(self, function_name: str, function: Callable):
+        """
+        Generic method to set any function as an attribute of the problem.
+        
+        This provides maximum flexibility for adding custom functions to problems
+        while maintaining backward compatibility with existing specific methods.
+        
+        Args:
+            function_name (str): Name of the attribute to create
+            function (callable): Function to assign to the attribute
+            
+        Example:
+            problem.set_function('lambda_function', lambda x: np.ones_like(x))
+            problem.set_function('custom_source', lambda x, t: x**2 * t)
+        """
+        if not isinstance(function_name, str):
+            raise TypeError(f"function_name must be a string, got {type(function_name)}")
+        
+        if not callable(function):
+            raise TypeError(f"function must be callable, got {type(function)}")
+        
+        # Set the attribute dynamically
+        setattr(self, function_name, function)

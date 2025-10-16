@@ -122,10 +122,14 @@ def create_global_framework():
 
         discretizations.append(discretization)
     
-    # Create global discretization with time parameters
+    problems[0].set_extrema([0.0, -500.0],[0.0, 500.0])  # Domain 1 from -500 to 0
+    problems[1].set_extrema([0.0,-200.0],[500.0,-200.0])  # Domain 2 from 0 to 500
+    
     global_discretization = GlobalDiscretization(discretizations)
     dt = 8.0  # 10 seconds
     global_discretization.set_time_parameters(dt, T)
+    
+    
     
 # Setup constraints - Neumann boundary conditions
     constraint_manager = ConstraintManager()

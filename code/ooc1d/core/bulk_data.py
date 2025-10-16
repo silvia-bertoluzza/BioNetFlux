@@ -88,7 +88,6 @@ class BulkData:
         
     def _integrate_from_functions(self, functions: List[Callable], time: float, quad_matrix: np.ndarray, quad_nodes: np.ndarray):
         """Integrate from a list of functions using quadrature."""
-        print("Integrating from functions using quadrature...")
         
         for k in range(self.n_elements):  
             

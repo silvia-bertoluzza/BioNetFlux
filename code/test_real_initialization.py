@@ -29,7 +29,7 @@ print("Testing initialization with test_problem2 for MATLAB comparison")
 # STEP 1: Initialize the solver setup
 # =============================================================================
 print("\nStep 1: Initializing solver setup...")
-setup = quick_setup("ooc1d.problems.double_arc_with_TJ", validate=True)
+setup = quick_setup("ooc1d.problems.ooc_test_problem", validate=True)
 print("✓ Setup initialized and validated")
 
 # Get problem information
@@ -48,6 +48,8 @@ else:
 print(f"  Time discretization: dt={info['time_discretization']['dt']}, T={info['time_discretization']['T']}")
 
 
+
+
 # =============================================================================
 # STEP 2: Create initial conditions
 # =============================================================================
@@ -56,11 +58,25 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-    print(f"  Domain {i+1}: trace {trace}")
+    print(f" DEBUG: Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
 
 print(f"✓ Initial multipliers: shape {multipliers.shape}, values {multipliers}")
 
+# =============================================================================
+# DEBUG: Print static condensation matrices
+# =============================================================================
+print("\nDEBUG: Static condensation matrices:")
+for i, static_cond in enumerate(setup.static_condensations):
+    print(f"\nDomain {i+1} static condensation matrices:")
+    if hasattr(static_cond, 'sc_matrices') and static_cond.sc_matrices:
+        for matrix_name, matrix_value in static_cond.sc_matrices.items():
+            print(f"  {matrix_name}: shape {matrix_value.shape}")
+            print(f"    Range: [{np.min(matrix_value):.6e}, {np.max(matrix_value):.6e}]")
+            print(f"    Values:\n{matrix_value}")
+    else:
+        print(f"  No sc_matrices found for domain {i+1}")
+
+exit(0)  # Remove or comment out this line to proceed with the rest of the script
 
 # =============================================================================
 # STEP 3: Create global solution vector

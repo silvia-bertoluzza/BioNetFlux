@@ -21,8 +21,9 @@ plt.close('all')
 sys.path.insert(0, os.path.dirname(__file__))
 
 from setup_solver import quick_setup
+from ooc1d.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 
-filename = "ooc1d.problems.ooc_test_problem"  # Test problem for MATLAB comparison
+filename = "ooc1d.problems.KS_grid_geometry"  # New geometry-based problem
 
 print("="*60)
 print("BIONETFLUX REAL INITIALIZATION TEST")
@@ -61,46 +62,64 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
     print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-
-
-# Plot initial trace solutions
-print("\nPlotting initial trace solutions...")
-n_domains = len(trace_solutions)
-n_equations = setup.problems[0].neq if setup.problems else 2
-
-fig, axes = plt.subplots(n_equations, n_domains, figsize=(6*n_domains, 4*n_equations))
-if n_domains == 1:
-    axes = axes.reshape(-1, 1)
-if n_equations == 1:
-    axes = axes.reshape(1, -1)
-
-for domain_idx in range(n_domains):
-    discretization = setup.global_discretization.spatial_discretizations[domain_idx]
-    nodes = discretization.nodes
-    n_nodes = len(nodes)
-
-    trace = trace_solutions[domain_idx]
     
-    for eq_idx in range(n_equations):
+    # Debug: Print solution values for each equation
+    discretization = setup.global_discretization.spatial_discretizations[i]
+    n_nodes = len(discretization.nodes)
+    for eq_idx in range(setup.problems[0].neq):
         eq_start = eq_idx * n_nodes
         eq_end = eq_start + n_nodes
-        trace_values = trace[eq_start:eq_end]
-        
-        ax = axes[eq_idx, domain_idx]
-        ax.plot(nodes, trace_values, 'g-o', linewidth=2, markersize=4, label='Initial')
-        ax.grid(True, alpha=0.3)
-        ax.set_xlabel('Position')
-        ax.set_ylabel(f'Equation {eq_idx + 1}')
-        ax.set_title(f'Domain {domain_idx + 1}, Eq {eq_idx + 1} - Initial (t=0)')
-        
-        trace_min, trace_max = np.min(trace_values), np.max(trace_values)
-        ax.text(0.02, 0.96, f'Range: [{trace_min:.3e}, {trace_max:.3e}]', 
-                transform=ax.transAxes, verticalalignment='top', fontsize=8,
-                bbox=dict(boxstyle='round', facecolor='lightgreen', alpha=0.8))
+        eq_values = trace[eq_start:eq_end]
+        eq_name = plotter.equation_names[eq_idx] if 'plotter' in locals() else f'Eq{eq_idx}'
+        print(f"    {eq_name}: range [{np.min(eq_values):.6f}, {np.max(eq_values):.6f}]")
+        if eq_idx == 1:  # omega should be sinusoidal
+            print(f"    {eq_name} values (first 10): {eq_values[:10]}")
 
-plt.suptitle('BioNetFlux Initial Trace Solutions', y=0.93, fontsize=12, fontweight='bold')
-plt.tight_layout(rect=[0, 0, 1, 0.88])
-plt.show()
+# Initialize the lean matplotlib plotter
+print("\nInitializing LeanMatplotlibPlotter...")
+
+plotter = LeanMatplotlibPlotter(
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations,
+    equation_names=None,  # Will auto-detect based on problem type
+    figsize=(12, 8)
+)
+
+# Plot initial trace solutions
+
+print("Plotting initial trace solutions...")
+
+# 2D curve visualization (all equations together)
+print("Creating 2D curve visualization...")
+curves_2d_fig = plotter.plot_2d_curves(
+    trace_solutions=trace_solutions,
+    title="Initial Solutions - 2D Curves",
+    show_bounding_box=True,
+    show_mesh_points=True,
+    save_filename="bionetflux_initial_2d_curves.png"
+)
+
+# Flat 3D visualization for each equation
+for eq_idx in range(setup.problems[0].neq):
+    flat_3d_fig = plotter.plot_flat_3d(
+        trace_solutions=trace_solutions,
+        equation_idx=eq_idx,
+        title=f"Initial {plotter.equation_names[eq_idx]} Solution - Flat 3D",
+        segment_width=0.1,
+        save_filename=f"bionetflux_initial_{plotter.equation_names[eq_idx]}_flat3d.png",
+        view_angle=(30, 45)
+    )
+    
+    # Bird's eye view visualization
+    birdview_fig = plotter.plot_birdview(
+        trace_solutions=trace_solutions,
+        equation_idx=eq_idx,
+        segment_width=0.15,
+        save_filename=f"bionetflux_initial_{plotter.equation_names[eq_idx]}_birdview.png",
+        show_colorbar=True,
+        time=0.0
+    )
+
 
 # =============================================================================
 # STEP 3: Create global solution vector
@@ -315,132 +334,58 @@ for i, trace in enumerate(final_traces):
 
 print(f"✓ Final multipliers: shape {final_multipliers.shape}, range [{np.min(final_multipliers):.6e}, {np.max(final_multipliers):.6e}]")
 
-# Create plots of the final solution
+# Create plots of the final solution using LeanMatplotlibPlotter
 print("\nCreating plots of final solution...")
+n_equations = setup.problems[0].neq
 
-# Determine number of equations and domains
-n_domains = len(final_traces)
-n_equations = setup.problems[0].neq if setup.problems else 2  # Default to 2 for Keller-Segel
+# 2D curve visualization for final solutions
+print("Creating 2D curve visualization for final solutions...")
+final_curves_2d_fig = plotter.plot_2d_curves(
+    trace_solutions=final_traces,
+    title=f"Final Solutions - 2D Curves at t={current_time:.4f}",
+    show_bounding_box=True,
+    show_mesh_points=True,
+    save_filename=f"bionetflux_final_2d_curves_t{current_time-dt:.4f}.png"
+)
 
-# Create figure with subplots
-fig, axes = plt.subplots(n_equations, n_domains, figsize=(6*n_domains, 4*n_equations))
-if n_domains == 1:
-    axes = axes.reshape(-1, 1)
-if n_equations == 1:
-    axes = axes.reshape(1, -1)
-
-# Plot each equation for each domain
-for domain_idx in range(n_domains):
-    discretization = setup.global_discretization.spatial_discretizations[domain_idx]
-    nodes = discretization.nodes
-    n_nodes = len(nodes)
+# Flat 3D visualization for final solutions
+for eq_idx in range(n_equations):
+    final_flat_3d_fig = plotter.plot_flat_3d(
+        trace_solutions=final_traces,
+        equation_idx=eq_idx,
+        title=f"Final {plotter.equation_names[eq_idx]} Solution - Flat 3D at t={current_time:.4f}",
+        segment_width=0.1,
+        save_filename=f"bionetflux_final_{plotter.equation_names[eq_idx]}_flat3d_t{current_time-dt:.4f}.png",
+        view_angle=(30, 45)
+    )
     
-    # Extract trace solution for this domain
-    trace = final_traces[domain_idx]
-    
-    for eq_idx in range(n_equations):
-        # Extract trace values for this equation
-        eq_start = eq_idx * n_nodes
-        eq_end = eq_start + n_nodes
-        trace_values = trace[eq_start:eq_end]
-        
-        # Plot
-        ax = axes[eq_idx, domain_idx]
-        ax.plot(nodes, trace_values, 'b-o', linewidth=2, markersize=4, label='Discrete')
-        
-        # Plot analytical solution if available
-        problem = setup.problems[domain_idx]
-        if hasattr(problem, 'solution') and problem.solution is not None:
-            try:
-                solution = problem.solution[eq_idx]
-                analytical_values = solution(nodes, current_time)
-                ax.plot(nodes, analytical_values, 'r--', linewidth=2, label='Analytical')
-                ax.legend(fontsize=8)
-            except Exception as e:
-                print(f"Warning: Could not plot analytical solution for domain {domain_idx+1}, eq {eq_idx+1}: {e}")
-        
-        ax.grid(True, alpha=0.3)
-        ax.set_xlabel('Position')
-        ax.set_ylabel(f'Equation {eq_idx + 1}')
-        ax.set_title(f'Domain {domain_idx + 1}, Eq {eq_idx + 1} - Final Time t={current_time:.4f}')
-        
-        
-        
-        
-        # Add value range to title
-        trace_min, trace_max = np.min(trace_values), np.max(trace_values)
-        ax.text(0.02, 0.96, f'Range: [{trace_min:.3e}, {trace_max:.3e}]', 
-                transform=ax.transAxes, verticalalignment='top', fontsize=8,
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+    # Bird's eye view visualization for final solutions
+    final_birdview_fig = plotter.plot_birdview(
+        trace_solutions=final_traces,
+        equation_idx=eq_idx,
+        segment_width=0.15,
+        save_filename=f"bionetflux_final_{plotter.equation_names[eq_idx]}_birdview_t{current_time-dt:.4f}.png",
+        show_colorbar=True,
+        time=current_time-dt
+    )
 
-plt.suptitle('BioNetFlux Final Solution - Time Evolution Results', 
-             y=0.88, fontsize=12, fontweight='bold')  # Increased from 0.93 to 0.95
-plt.tight_layout(rect=[0, 0, 1, 0.88])  # Changed from 0.85 to 0.88 to reduce space
+# Solution evolution comparison
+print("Creating solution evolution comparison...")
+comparison_fig = plotter.plot_comparison(
+    initial_traces=trace_solutions,
+    final_traces=final_traces,
+    initial_time=0.0,
+    final_time=current_time-dt,
+    save_filename=f"bionetflux_solution_comparison_t{current_time-dt:.4f}.png"
+)
 
-# Save plot
-plot_filename = f"bionetflux_final_solution_t{current_time-dt:.4f}.png"
-plt.savefig(plot_filename, dpi=300, bbox_inches='tight')
-print(f"✓ Plot saved as: {plot_filename}")
-
-# Show plot
-plt.show()
-
+# Show all plots
+plotter.show_all()
 
 # =============================================================================
-# STEP 6.7: Solution Comparison (Initial vs Final)
+# STEP 6.7: Solution Summary (removed old matplotlib plotting)
 # =============================================================================
-print("\nStep 6.7: Comparing initial vs final solutions...")
-
-# Create comparison plot
-fig, axes = plt.subplots(n_equations, n_domains, figsize=(6*n_domains, 4*n_equations))
-if n_domains == 1:
-    axes = axes.reshape(-1, 1)
-if n_equations == 1:
-    axes = axes.reshape(1, -1)
-
-for domain_idx in range(n_domains):
-    discretization = setup.global_discretization.spatial_discretizations[domain_idx]
-    nodes = discretization.nodes
-    n_nodes = len(nodes)
-    
-    # Get initial and final traces
-    initial_trace = trace_solutions[domain_idx]
-    final_trace = final_traces[domain_idx]
-    
-    for eq_idx in range(n_equations):
-        # Extract trace values for this equation
-        eq_start = eq_idx * n_nodes
-        eq_end = eq_start + n_nodes
-        initial_values = initial_trace[eq_start:eq_end]
-        final_values = final_trace[eq_start:eq_end]
-        
-        # Plot comparison
-        ax = axes[eq_idx, domain_idx]
-        ax.plot(nodes, initial_values, 'b-o', linewidth=2, markersize=4, label='Initial (t=0)')
-        ax.plot(nodes, final_values, 'r-s', linewidth=2, markersize=4, label=f'Final (t={current_time-dt:.4f})')
-        ax.grid(True, alpha=0.3)
-        ax.set_xlabel('Position')
-        ax.set_ylabel(f'Equation {eq_idx + 1}')
-        ax.set_title(f'Domain {domain_idx + 1}, Eq {eq_idx + 1}')
-        ax.legend(fontsize=8)
-        
-        # Calculate and display change
-        max_change = np.max(np.abs(final_values - initial_values))
-        ax.text(0.02, 0.02, f'Max Change: {max_change:.3e}', 
-                transform=ax.transAxes, verticalalignment='bottom', fontsize=8,
-                bbox=dict(boxstyle='round', facecolor='lightblue', alpha=0.8))
-
-plt.suptitle(f'BioNetFlux Solution Evolution - Initial vs Final\nTime Evolution: t = 0 → {current_time-dt:.4f}', 
-             y=0.93, fontsize=10, fontweight='bold')  # Increased from 0.93 to 0.95
-plt.tight_layout(rect=[0, 0, 1, 0.80])  # Changed from 0.85 to 0.88 to reduce space
-
-# Save comparison plot
-comparison_filename = f"bionetflux_solution_comparison_t{current_time-dt:.4f}.png"
-plt.savefig(comparison_filename, dpi=300, bbox_inches='tight')
-print(f"✓ Comparison plot saved as: {comparison_filename}")
-
-# Show comparison plot
-plt.show()
+print("\nStep 6.7: Solution analysis summary...")
 
 # Print summary statistics
 print("\nSolution Evolution Summary:")
@@ -448,6 +393,7 @@ print(f"  Time evolution: t = 0 → {current_time-dt:.4f}")
 print(f"  Number of time steps completed: {time_step-1}")
 print(f"  Final global solution norm: {np.linalg.norm(global_solution):.6e}")
 
+n_domains = len(setup.problems)  # Define n_domains here
 for domain_idx in range(n_domains):
     print(f"\n  Domain {domain_idx + 1}:")
     n_nodes = len(setup.global_discretization.spatial_discretizations[domain_idx].nodes)
@@ -467,6 +413,6 @@ for domain_idx in range(n_domains):
         print(f"                      Max change: {max_change:.6e}, Relative change: {relative_change:.6e}")
 
 print(f"\n✓ Final solution analysis completed!")
-print(f"✓ Plots saved and displayed")
+print(f"✓ Matplotlib plots saved and displayed")
 
 
