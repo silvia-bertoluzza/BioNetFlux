@@ -1,0 +1,297 @@
+% filepath: /Users/silviabertoluzza/GIT/BioNetFlux/docs/discretization_module.tex
+
+\section{Discretization Module}
+\label{sec:discretization_module}
+
+The discretization module in BioNetFlux handles the spatial and temporal discretization of network domains. Based on the framework architecture, discretization is integrated into the global assembly process rather than being a standalone comprehensive finite element library.
+
+\subsection{Overview}
+\label{subsec:discretization_overview}
+
+The discretization approach in BioNetFlux is designed for networks of 1D segments where:
+
+\begin{itemize}
+	\item Each domain represents a single 1D segment (vessel, channel, etc.)
+	\item Domains are discretized independently using simple 1D meshes
+	\item Inter-domain coupling occurs through trace variables at boundaries
+	\item Global assembly coordinates multiple domains through the \texttt{GlobalAssembler}
+	\item Time discretization is handled through implicit/explicit schemes in the Newton solver
+\end{itemize}
+
+\subsection{Domain Discretization Structure}
+\label{subsec:domain_discretization}
+
+From the \texttt{lean\_global\_assembly.py} implementation, we can see that discretization information is managed through domain data structures:
+
+\subsubsection{Domain Data Management}
+
+\begin{lstlisting}[language=Python, caption=Domain Discretization from Global Assembly]
+	class GlobalAssembler:
+	def __init__(self, domain_data_list: List, constraint_manager=None):
+	self.bulk_manager = BulkDataManager(domain_data_list)
+	self.n_domains = len(domain_data_list)
+	
+	# Each domain_data contains discretization information:
+	# - n_elements: Number of finite elements
+	# - neq: Number of equations per domain
+	# - nodes: Mesh node information
+	
+	self._compute_dof_structure()
+	
+	def _compute_dof_structure(self):
+	"""Compute DOF structure from domain data."""
+	self.domain_trace_sizes = []
+	self.domain_trace_offsets = []
+	
+	total_trace_dofs = 0
+	for domain_data in self.bulk_manager.domain_data_list:
+	# Nodes = elements + 1 for 1D linear elements
+	n_nodes = domain_data.n_elements + 1
+	# Trace size = equations × nodes
+	trace_size = domain_data.neq * n_nodes
+	
+	self.domain_trace_sizes.append(trace_size)
+	self.domain_trace_offsets.append(total_trace_dofs)
+	total_trace_dofs += trace_size
+\end{lstlisting}
+
+Key observations:
+\begin{itemize}
+	\item \textbf{1D Linear Elements}: The framework uses $n\_nodes = n\_elements + 1$, indicating linear finite elements
+	\item \textbf{Multi-equation Systems}: Each domain supports \texttt{neq} equations
+	\item \textbf{Trace-based Coupling}: Primary DOFs are trace variables on domain boundaries
+	\item \textbf{Global DOF Management}: Automatic assignment of global DOF indices
+\end{itemize}
+
+\subsubsection{Global Discretization Management}
+
+The framework manages discretization across multiple domains:
+
+\begin{lstlisting}[language=Python, caption=Global Discretization Coordination]
+	# From the factory method in GlobalAssembler
+	@classmethod
+	def from_framework_objects(cls, problems: List, global_discretization, 
+	static_condensations: List, constraint_manager=None):
+	"""Create assembler from framework objects."""
+	
+	# Extract domain data from framework objects
+	domain_data_list = BulkDataManager.extract_domain_data_list(
+	problems, 
+	global_discretization.spatial_discretizations, 
+	static_condensations
+	)
+	
+	return cls(domain_data_list, constraint_manager)
+\end{lstlisting}
+
+This indicates:
+\begin{itemize}
+	\item \textbf{GlobalDiscretization class}: Exists and contains \texttt{spatial\_discretizations}
+	\item \textbf{Framework integration}: Problems, discretizations, and static condensations work together
+	\item \textbf{Data extraction}: Domain data is extracted from discretization objects
+\end{itemize}
+
+\subsection{Spatial Discretization Features}
+\label{subsec:spatial_features}
+
+Based on the code structure, the spatial discretization supports:
+
+\subsubsection{1D Finite Element Discretization}
+
+\begin{lstlisting}[language=Python, caption=1D Element Structure (inferred)]
+	# Each spatial discretization likely contains:
+	class SpatialDiscretization:
+	def __init__(self, domain_start, domain_end, n_elements):
+	self.n_elements = n_elements
+	self.nodes = self._generate_nodes(domain_start, domain_end, n_elements)
+	# Linear elements: n_nodes = n_elements + 1
+	
+	def _generate_nodes(self, start, end, n_elements):
+	"""Generate uniform node distribution."""
+	return np.linspace(start, end, n_elements + 1)
+\end{lstlisting}
+
+\subsubsection{Multi-Equation Support}
+
+From the DOF structure computation, each domain supports multiple equations:
+
+\begin{lstlisting}[language=Python, caption=Multi-Equation DOF Layout]
+	# For a domain with neq equations and n_nodes:
+	# DOF layout: [eq0_node0, eq0_node1, ..., eq0_nodeN, 
+	#              eq1_node0, eq1_node1, ..., eq1_nodeN,
+	#              ...]
+	# Total DOFs per domain = neq * n_nodes
+	
+	def extract_equation_dofs(trace_solution, equation_idx, n_nodes):
+	"""Extract DOFs for specific equation."""
+	eq_start = equation_idx * n_nodes
+	eq_end = eq_start + n_nodes
+	return trace_solution[eq_start:eq_end]
+\end{lstlisting}
+
+\subsection{Constraint-Based Inter-Domain Coupling}
+\label{subsec:interdomain_coupling}
+
+The discretization integrates with the constraint system for domain coupling:
+
+\subsubsection{Trace Space Coupling}
+
+\begin{lstlisting}[language=Python, caption=Constraint-Based Coupling]
+	# From constraint Jacobian contributions in GlobalAssembler
+	def _add_constraint_jacobian_contributions(self, jacobian, trace_solutions, 
+	multipliers, time):
+	"""Add constraint coupling terms."""
+	
+	for constraint in self.constraint_manager.constraints:
+	if constraint.is_boundary_condition:
+	# Single domain constraint
+	domain_idx = constraint.domains[0]
+	# Calculate global trace index
+	domain_data = self.bulk_manager.domain_data_list[domain_idx]
+	n_nodes = domain_data.n_elements + 1
+	trace_idx = (domain_offset + 
+	constraint.equation_index * n_nodes + 
+	node_idx)
+	else:
+	# Junction constraint - couples two domains
+	domain1_idx, domain2_idx = constraint.domains
+	# Calculate trace indices for both domains
+	# Add coupling terms to Jacobian
+\end{lstlisting}
+
+Key coupling features:
+\begin{itemize}
+	\item \textbf{Boundary Conditions}: Dirichlet, Neumann, Robin conditions on domain boundaries
+	\item \textbf{Junction Conditions}: Trace continuity and Kedem-Katchalsky conditions between domains
+	\item \textbf{Lagrange Multipliers}: Used for constraint enforcement
+	\item \textbf{Automatic Indexing}: Global DOF indices computed automatically
+\end{itemize}
+
+\subsection{Temporal Discretization}
+\label{subsec:temporal_discretization}
+
+While not explicitly shown in the assembly code, temporal discretization is handled through:
+
+\subsubsection{Implicit Time Integration}
+
+\begin{lstlisting}[language=Python, caption=Time Integration Framework]
+	# From the Newton solver approach in examples
+	def advance_solution(current_solution, dt, time):
+	"""Advance solution by one time step."""
+	
+	# Newton iteration for implicit time step
+	newton_solution = current_solution.copy()
+	
+	for newton_iter in range(max_newton_iterations):
+	# Assemble residual and Jacobian at current time
+	residual, jacobian = global_assembler.assemble_residual_and_jacobian(
+	global_solution=newton_solution,
+	forcing_terms=forcing_terms,
+	static_condensations=static_condensations,
+	time=time
+	)
+	
+	# Check convergence
+	if np.linalg.norm(residual) < tolerance:
+	break
+	
+	# Newton update
+	delta = np.linalg.solve(jacobian, -residual)
+	newton_solution += delta
+	
+	return newton_solution
+\end{lstlisting}
+
+\subsubsection{Static Condensation Integration}
+
+The framework uses static condensation to eliminate bulk DOFs:
+
+\begin{lstlisting}[language=Python, caption=Static Condensation for Time Integration]
+	# From bulk_by_static_condensation method
+	def bulk_by_static_condensation(self, global_solution, forcing_terms, 
+	static_condensations, time):
+	"""Recover bulk solution from trace solution."""
+	
+	trace_solutions = self._extract_trace_solutions(global_solution)
+	bulk_solution = []
+	
+	for i in range(self.n_domains):
+	# Use static condensation to compute bulk from trace
+	U, F, JF = domain_flux_jump(
+	trace_solutions[i].reshape(-1, 1),
+	forcing_terms[i],
+	None, None,
+	static_condensations[i]
+	)
+	bulk_solution.append(U)
+	
+	return bulk_solution
+\end{lstlisting}
+
+\subsection{Integration with Framework Components}
+\label{subsec:framework_integration}
+
+The discretization integrates with other framework components:
+
+\subsubsection{Problem Module Integration}
+
+\begin{lstlisting}[language=Python, caption=Problem-Discretization Interface]
+	# Problems provide equation count and parameters
+	def create_initial_guess_from_problems(self, problems, discretizations, time=0.0):
+	"""Create initial conditions from problem definitions."""
+	
+	for i in range(self.n_domains):
+	problem = problems[i]
+	discretization = discretizations[i]
+	
+	# Use problem.neq to determine equation count
+	for eq in range(problem.neq):
+	# Use problem initial conditions if available
+	if hasattr(domain_data, 'initial_conditions'):
+	initial_values = domain_data.initial_conditions[eq](nodes, time)
+\end{lstlisting}
+
+\subsubsection{Bulk Data Manager Integration}
+
+\begin{lstlisting}[language=Python, caption=Bulk Data Integration]
+	# BulkDataManager handles discretization data
+	def initialize_bulk_data(self, problems, discretizations, time=0.0):
+	"""Initialize bulk data using discretization information."""
+	return self.bulk_manager.initialize_all_bulk_data(
+	problems, discretizations, time
+	)
+	
+	def compute_forcing_terms(self, bulk_data_list, problems, 
+	discretizations, time, dt):
+	"""Compute forcing terms using discretization."""
+	return self.bulk_manager.compute_forcing_terms(
+	bulk_data_list, problems, discretizations, time, dt
+	)
+\end{lstlisting}
+
+\subsection{Limitations and Extensions}
+\label{subsec:limitations}
+
+Based on the current implementation:
+
+\subsubsection{Current Limitations}
+
+\begin{itemize}
+	\item \textbf{Linear Elements Only}: The $n\_nodes = n\_elements + 1$ relationship suggests only linear elements
+	\item \textbf{Uniform Meshes}: No evidence of adaptive mesh refinement
+	\item \textbf{Simple 1D}: Limited to one-dimensional segments
+	\item \textbf{No Higher-Order}: No quadratic or higher-order elements visible
+\end{itemize}
+
+\subsubsection{Extension Points}
+
+The framework architecture allows for extensions:
+
+\begin{itemize}
+	\item \textbf{Domain Data Structure}: Can be extended with more discretization information
+	\item \textbf{Constraint System}: Already supports complex coupling conditions
+	\item \textbf{Static Condensation}: Framework for eliminating internal DOFs
+	\item \textbf{Modular Assembly}: Components can be replaced or extended
+\end{itemize}
+
+The discretization module in BioNetFlux provides a focused, efficient approach to handling 1D network problems with multi-equation systems and complex inter-domain coupling through constraints and static condensation.

@@ -1,0 +1,834 @@
+% filepath: /Users/silviabertoluzza/GIT/BioNetFlux/docs/geometry_module.tex
+
+\section{Geometry Module}
+\label{sec:geometry_module}
+
+The geometry module provides the foundation for defining and managing complex network structures in BioNetFlux. It enables the specification of multi-domain geometries representing biological networks such as vascular systems, microfluidic devices, neural networks, and other branched or interconnected structures.
+
+\subsection{Overview}
+\label{subsec:geometry_overview}
+
+The geometry module supports:
+
+\begin{itemize}
+	\item Network topology definition through nodes and edges
+	\item Domain-based decomposition of complex geometries
+	\item Junction handling for connecting multiple domains
+	\item Geometric parameter specification (lengths, cross-sections, orientations)
+	\item Grid-based regular network generation
+	\item Tree-like branching structures
+	\item Custom network topologies
+	\item Boundary identification and labeling
+\end{itemize}
+
+\subsection{Network Representation}
+\label{subsec:network_representation}
+
+BioNetFlux represents biological networks as collections of one-dimensional domains connected at junction points. This approach is particularly suitable for:
+
+\subsubsection{Vascular Networks}
+
+Blood vessel networks where each vessel segment is treated as a separate domain:
+
+\begin{lstlisting}[language=Python, caption=Vascular Network Definition]
+	# Define a simple vascular bifurcation
+	network = NetworkGeometry()
+	
+	# Main vessel (parent)
+	network.add_domain(
+	domain_id=0,
+	length=2.0,
+	cross_section=np.pi * (0.1)**2,  # Circular cross-section
+	start_node=(0.0, 0.0),
+	end_node=(2.0, 0.0)
+	)
+	
+	# Left branch (daughter 1)
+	network.add_domain(
+	domain_id=1,
+	length=1.5,
+	cross_section=np.pi * (0.07)**2,
+	start_node=(2.0, 0.0),
+	end_node=(3.0, 1.0)
+	)
+	
+	# Right branch (daughter 2)
+	network.add_domain(
+	domain_id=2,
+	length=1.5,
+	cross_section=np.pi * (0.07)**2,
+	start_node=(2.0, 0.0),
+	end_node=(3.0, -1.0)
+	)
+	
+	# Define bifurcation junction
+	network.add_junction(
+	junction_id=0,
+	connected_domains=[0, 1, 2],
+	position=(2.0, 0.0),
+	junction_type="bifurcation"
+	)
+\end{lstlisting}
+
+\subsubsection{Microfluidic Devices}
+
+Organ-on-chip and lab-on-chip geometries with specific channel configurations:
+
+\begin{lstlisting}[language=Python, caption=Microfluidic Grid Network]
+	# Create a 3x3 grid network for organ-on-chip
+	def create_ooc_grid(nx=3, ny=3, channel_length=1.0, channel_width=0.1):
+	network = GridNetworkGeometry(nx, ny)
+	
+	# Set uniform channel properties
+	network.set_domain_properties(
+	length=channel_length,
+	cross_section=channel_width,
+	roughness=0.01  # Surface roughness for flow calculations
+	)
+	
+	# Add inlet and outlet
+	network.add_inlet(domain_id=0, flow_rate=1e-6)  # m³/s
+	network.add_outlet(domain_id=8, pressure=0.0)   # Pa
+	
+	return network
+	
+	# Usage
+	ooc_network = create_ooc_grid(nx=4, ny=4, channel_length=2.0)
+\end{lstlisting}
+
+\subsubsection{Neural Networks}
+
+Dendritic tree structures with branching patterns:
+
+\begin{lstlisting}[language=Python, caption=Neural Dendritic Tree]
+	def create_dendritic_tree(levels=3, branching_factor=2):
+	network = TreeNetworkGeometry()
+	
+	# Soma (cell body)
+	network.add_domain(
+	domain_id=0,
+	length=0.05,  # 50 μm
+	diameter=0.02,  # 20 μm
+	domain_type="soma"
+	)
+	
+	# Generate dendrites recursively
+	domain_id = 1
+	for level in range(levels):
+	parent_domains = network.get_domains_at_level(level)
+	
+	for parent_id in parent_domains:
+	for branch in range(branching_factor):
+	# Decreasing diameter with branching level
+	diameter = 0.01 / (level + 1)
+	length = 0.1 / (level + 1)
+	
+	network.add_domain(
+	domain_id=domain_id,
+	length=length,
+	diameter=diameter,
+	parent_id=parent_id,
+	branch_angle=branch * np.pi/branching_factor
+	)
+	domain_id += 1
+	
+	return network
+\end{lstlisting}
+
+\subsection{Grid Network Geometries}
+\label{subsec:grid_geometries}
+
+The module provides specialized support for regular grid networks commonly used in microfluidics and tissue modeling:
+
+\subsubsection{Rectangular Grids}
+
+\begin{lstlisting}[language=Python, caption=Rectangular Grid Network]
+	class GridNetworkGeometry:
+	def __init__(self, nx, ny, Lx=1.0, Ly=1.0):
+	"""
+	Create rectangular grid network.
+	
+	Args:
+	nx, ny: Number of domains in x, y directions
+	Lx, Ly: Physical dimensions
+	"""
+	self.nx = nx
+	self.ny = ny
+	self.Lx = Lx
+	self.Ly = Ly
+	
+	self.domains = []
+	self.junctions = []
+	
+	self._generate_grid()
+	
+	def _generate_grid(self):
+	"""Generate grid topology automatically."""
+	# Horizontal domains
+	for i in range(self.ny):
+	for j in range(self.nx):
+	domain_id = i * self.nx + j
+	
+	x_start = j * self.Lx / self.nx
+	x_end = (j + 1) * self.Lx / self.nx
+	y = i * self.Ly / self.ny
+	
+	self.add_domain(
+	domain_id=domain_id,
+	length=self.Lx / self.nx,
+	start_node=(x_start, y),
+	end_node=(x_end, y),
+	orientation="horizontal"
+	)
+	
+	# Vertical domains
+	for i in range(self.ny - 1):
+	for j in range(self.nx + 1):
+	domain_id = self.nx * self.ny + i * (self.nx + 1) + j
+	
+	x = j * self.Lx / self.nx
+	y_start = i * self.Ly / self.ny
+	y_end = (i + 1) * self.Ly / self.ny
+	
+	self.add_domain(
+	domain_id=domain_id,
+	length=self.Ly / self.ny,
+	start_node=(x, y_start),
+	end_node=(x, y_end),
+	orientation="vertical"
+	)
+	
+	# Generate junctions automatically
+	self._generate_junctions()
+\end{lstlisting}
+
+\subsubsection{Hexagonal Grids}
+
+For more isotropic transport properties:
+
+\begin{lstlisting}[language=Python, caption=Hexagonal Grid Network]
+	class HexagonalNetworkGeometry:
+	def __init__(self, n_rings, lattice_spacing=1.0):
+	"""
+	Create hexagonal lattice network.
+	
+	Args:
+	n_rings: Number of hexagonal rings
+	lattice_spacing: Distance between adjacent nodes
+	"""
+	self.n_rings = n_rings
+	self.spacing = lattice_spacing
+	
+	self._generate_hexagonal_lattice()
+	
+	def _generate_hexagonal_lattice(self):
+	"""Generate hexagonal lattice with 6-fold coordination."""
+	# Hexagonal lattice vectors
+	a1 = np.array([self.spacing, 0.0])
+	a2 = np.array([self.spacing/2, self.spacing*np.sqrt(3)/2])
+	
+	nodes = []
+	domains = []
+	
+	# Generate nodes in hexagonal pattern
+	for i in range(-self.n_rings, self.n_rings + 1):
+	for j in range(-self.n_rings, self.n_rings + 1):
+	if abs(i - j) <= self.n_rings:
+	node_pos = i * a1 + j * a2
+	nodes.append(node_pos)
+	
+	# Generate domains connecting nearest neighbors
+	domain_id = 0
+	for i, node1 in enumerate(nodes):
+	for j, node2 in enumerate(nodes[i+1:], i+1):
+	distance = np.linalg.norm(node2 - node1)
+	
+	# Connect if within nearest neighbor distance
+	if abs(distance - self.spacing) < 1e-10:
+	self.add_domain(
+	domain_id=domain_id,
+	length=distance,
+	start_node=tuple(node1),
+	end_node=tuple(node2)
+	)
+	domain_id += 1
+\end{lstlisting}
+
+\subsection{Junction Management}
+\label{subsec:junction_management}
+
+Junctions are critical points where multiple domains connect and require special treatment for mass and momentum conservation:
+
+\subsubsection{Junction Types}
+
+\begin{lstlisting}[language=Python, caption=Junction Type Definitions]
+	class JunctionType(Enum):
+	"""Types of network junctions."""
+	BIFURCATION = "bifurcation"      # 1 inlet, 2 outlets
+	CONFLUENCE = "confluence"        # 2 inlets, 1 outlet  
+	TRIFURCATION = "trifurcation"   # 1 inlet, 3 outlets
+	CROSS = "cross"                  # 4-way intersection
+	TERMINAL = "terminal"            # Dead end
+	INLET = "inlet"                  # Network inlet
+	OUTLET = "outlet"               # Network outlet
+	
+	class Junction:
+	def __init__(self, junction_id, connected_domains, position, junction_type):
+	self.id = junction_id
+	self.connected_domains = connected_domains
+	self.position = np.array(position)
+	self.type = JunctionType(junction_type)
+	
+	# Physical properties
+	self.volume = 0.0  # Junction volume for capacitance
+	self.resistance = 0.0  # Additional pressure drop
+	
+	# Constraint specifications
+	self.continuity_equations = []
+	self.conservation_equations = []
+\end{lstlisting}
+
+\subsubsection{Automatic Junction Detection}
+
+\begin{lstlisting}[language=Python, caption=Junction Detection Algorithm]
+	def detect_junctions(self):
+	"""Automatically detect junctions from domain connectivity."""
+	# Build node-to-domain mapping
+	node_domains = {}
+	
+	for domain in self.domains:
+	start_node = tuple(domain.start_node)
+	end_node = tuple(domain.end_node)
+	
+	# Add domain to start node
+	if start_node not in node_domains:
+	node_domains[start_node] = []
+	node_domains[start_node].append(domain.id)
+	
+	# Add domain to end node  
+	if end_node not in node_domains:
+	node_domains[end_node] = []
+	node_domains[end_node].append(domain.id)
+	
+	# Create junctions for nodes with multiple domains
+	junction_id = 0
+	for position, connected_domains in node_domains.items():
+	if len(connected_domains) > 1:
+	# Determine junction type from connectivity
+	junction_type = self._classify_junction(connected_domains, position)
+	
+	self.add_junction(
+	junction_id=junction_id,
+	connected_domains=connected_domains,
+	position=position,
+	junction_type=junction_type
+	)
+	junction_id += 1
+	
+	def _classify_junction(self, connected_domains, position):
+	"""Classify junction type based on domain connectivity."""
+	n_connected = len(connected_domains)
+	
+	if n_connected == 1:
+	return JunctionType.TERMINAL
+	elif n_connected == 2:
+	# Check if this is actually a straight segment
+	return JunctionType.CONFLUENCE  # Default for 2 domains
+	elif n_connected == 3:
+	return JunctionType.BIFURCATION
+	elif n_connected == 4:
+	return JunctionType.CROSS
+	else:
+	return JunctionType.CROSS  # General multi-way junction
+\end{lstlisting}
+
+\subsection{Domain Properties}
+\label{subsec:domain_properties}
+
+Each domain in the network can have specific geometric and physical properties:
+
+\subsubsection{Geometric Properties}
+
+\begin{lstlisting}[language=Python, caption=Domain Geometric Properties]
+	class Domain:
+	def __init__(self, domain_id, length, start_node, end_node):
+	self.id = domain_id
+	self.length = length
+	self.start_node = np.array(start_node)
+	self.end_node = np.array(end_node)
+	
+	# Cross-sectional properties
+	self.cross_section = 1.0  # Cross-sectional area
+	self.perimeter = 4.0      # Wetted perimeter
+	self.hydraulic_diameter = 4 * self.cross_section / self.perimeter
+	
+	# Geometric parameters
+	self.tortuosity = 1.0     # Path length / straight-line distance
+	self.roughness = 0.0      # Surface roughness
+	self.curvature = 0.0      # Local curvature
+	
+	# Orientation and direction
+	self.direction = self.end_node - self.start_node
+	self.unit_direction = self.direction / np.linalg.norm(self.direction)
+	
+	def set_circular_cross_section(self, radius):
+	"""Set circular cross-section from radius."""
+	self.cross_section = np.pi * radius**2
+	self.perimeter = 2 * np.pi * radius
+	self.hydraulic_diameter = 2 * radius
+	
+	def set_rectangular_cross_section(self, width, height):
+	"""Set rectangular cross-section from dimensions."""
+	self.cross_section = width * height
+	self.perimeter = 2 * (width + height)
+	self.hydraulic_diameter = 4 * width * height / (2 * (width + height))
+	
+	def compute_resistance(self, viscosity):
+	"""Compute hydraulic resistance for Poiseuille flow."""
+	if self.cross_section == np.pi * (self.hydraulic_diameter/2)**2:
+	# Circular cross-section
+	radius = self.hydraulic_diameter / 2
+	return 8 * viscosity * self.length / (np.pi * radius**4)
+	else:
+	# General cross-section (approximate)
+	return 32 * viscosity * self.length / self.hydraulic_diameter**2
+\end{lstlisting}
+
+\subsubsection{Physical Properties}
+
+\begin{lstlisting}[language=Python, caption=Domain Physical Properties]
+	# Material properties
+	class DomainMaterial:
+	def __init__(self, name="default"):
+	self.name = name
+	
+	# Transport properties
+	self.diffusivity = 1e-9     # m²/s
+	self.permeability = 1e-12   # m²
+	self.porosity = 1.0         # Dimensionless
+	
+	# Mechanical properties
+	self.elasticity = 1e6       # Pa
+	self.viscosity = 1e-3       # Pa·s
+	
+	# Chemical properties
+	self.adsorption_coeff = 0.0 # Dimensionless
+	self.reaction_rate = 0.0    # 1/s
+	
+	# Assign materials to domains
+	domain.material = DomainMaterial("blood_vessel")
+	domain.material.viscosity = 3e-3  # Blood viscosity
+	domain.material.elasticity = 1e5  # Vessel wall elasticity
+	
+	# Boundary conditions
+	class DomainBoundaryConditions:
+	def __init__(self):
+	self.inlet_conditions = {}   # {equation_id: (type, value)}
+	self.outlet_conditions = {}  # {equation_id: (type, value)}
+	self.wall_conditions = {}    # {equation_id: (type, value)}
+	
+	def set_inlet_dirichlet(self, equation_id, value):
+	"""Set Dirichlet condition at domain inlet."""
+	self.inlet_conditions[equation_id] = ("dirichlet", value)
+	
+	def set_outlet_neumann(self, equation_id, flux):
+	"""Set Neumann condition at domain outlet."""
+	self.outlet_conditions[equation_id] = ("neumann", flux)
+	
+	def set_wall_robin(self, equation_id, alpha, beta, data):
+	"""Set Robin condition at domain walls."""
+	self.wall_conditions[equation_id] = ("robin", (alpha, beta, data))
+\end{lstlisting}
+
+\subsection{Geometry Factories}
+\label{subsec:geometry_factories}
+
+Factory methods simplify the creation of common network geometries:
+
+\subsubsection{Standard Geometries}
+
+\begin{lstlisting}[language=Python, caption=Geometry Factory Methods]
+	class GeometryFactory:
+	"""Factory for creating standard network geometries."""
+	
+	@staticmethod
+	def create_linear_chain(n_domains, total_length=1.0):
+	"""Create linear chain of connected domains."""
+	geometry = NetworkGeometry()
+	
+	domain_length = total_length / n_domains
+	
+	for i in range(n_domains):
+	start_x = i * domain_length
+	end_x = (i + 1) * domain_length
+	
+	geometry.add_domain(
+	domain_id=i,
+	length=domain_length,
+	start_node=(start_x, 0.0),
+	end_node=(end_x, 0.0)
+	)
+	
+	# Add junction between consecutive domains
+	if i > 0:
+	geometry.add_junction(
+	junction_id=i-1,
+	connected_domains=[i-1, i],
+	position=(start_x, 0.0),
+	junction_type="confluence"
+	)
+	
+	return geometry
+	
+	@staticmethod
+	def create_y_bifurcation(main_length=1.0, branch_length=0.8, 
+	branch_angle=np.pi/4):
+	"""Create Y-shaped bifurcation."""
+	geometry = NetworkGeometry()
+	
+	# Main branch
+	geometry.add_domain(
+	domain_id=0,
+	length=main_length,
+	start_node=(0.0, 0.0),
+	end_node=(main_length, 0.0)
+	)
+	
+	# Left branch
+	end_x1 = main_length + branch_length * np.cos(branch_angle)
+	end_y1 = branch_length * np.sin(branch_angle)
+	geometry.add_domain(
+	domain_id=1,
+	length=branch_length,
+	start_node=(main_length, 0.0),
+	end_node=(end_x1, end_y1)
+	)
+	
+	# Right branch
+	end_x2 = main_length + branch_length * np.cos(-branch_angle)
+	end_y2 = branch_length * np.sin(-branch_angle)
+	geometry.add_domain(
+	domain_id=2,
+	length=branch_length,
+	start_node=(main_length, 0.0),
+	end_node=(end_x2, end_y2)
+	)
+	
+	# Bifurcation junction
+	geometry.add_junction(
+	junction_id=0,
+	connected_domains=[0, 1, 2],
+	position=(main_length, 0.0),
+	junction_type="bifurcation"
+	)
+	
+	return geometry
+	
+	@staticmethod
+	def create_arterial_tree(generations=4, asymmetry_ratio=0.8):
+	"""Create asymmetric arterial tree with Murray's law scaling."""
+	geometry = NetworkGeometry()
+	
+	domain_id = 0
+	junction_id = 0
+	
+	# Root vessel
+	root_diameter = 1.0
+	root_length = 2.0
+	
+	geometry.add_domain(
+	domain_id=domain_id,
+	length=root_length,
+	start_node=(0.0, 0.0),
+	end_node=(root_length, 0.0)
+	)
+	domain_id += 1
+	
+	# Generate branches recursively
+	active_terminals = [(0, (root_length, 0.0), root_diameter)]
+	
+	for gen in range(generations):
+	new_terminals = []
+	
+	for parent_id, parent_end, parent_diameter in active_terminals:
+	# Murray's law: d₁³ + d₂³ = d₀³
+	d1 = parent_diameter * (asymmetry_ratio**3 / (1 + asymmetry_ratio**3))**(1/3)
+	d2 = parent_diameter * (1 / (1 + asymmetry_ratio**3))**(1/3)
+	
+	branch_length = root_length / (2**gen)
+	branch_angle = np.pi/6  # 30 degrees
+	
+	# Left branch
+	end_x1 = parent_end[0] + branch_length * np.cos(branch_angle)
+	end_y1 = parent_end[1] + branch_length * np.sin(branch_angle)
+	
+	geometry.add_domain(
+	domain_id=domain_id,
+	length=branch_length,
+	start_node=parent_end,
+	end_node=(end_x1, end_y1)
+	)
+	geometry.domains[-1].set_circular_cross_section(d1/2)
+	
+	new_terminals.append((domain_id, (end_x1, end_y1), d1))
+	domain_id += 1
+	
+	# Right branch
+	end_x2 = parent_end[0] + branch_length * np.cos(-branch_angle)
+	end_y2 = parent_end[1] + branch_length * np.sin(-branch_angle)
+	
+	geometry.add_domain(
+	domain_id=domain_id,
+	length=branch_length,
+	start_node=parent_end,
+	end_node=(end_x2, end_y2)
+	)
+	geometry.domains[-1].set_circular_cross_section(d2/2)
+	
+	new_terminals.append((domain_id, (end_x2, end_y2), d2))
+	domain_id += 1
+	
+	# Add bifurcation junction
+	geometry.add_junction(
+	junction_id=junction_id,
+	connected_domains=[parent_id, domain_id-2, domain_id-1],
+	position=parent_end,
+	junction_type="bifurcation"
+	)
+	junction_id += 1
+	
+	active_terminals = new_terminals
+	
+	return geometry
+\end{lstlisting}
+
+\subsection{Geometric Analysis}
+\label{subsec:geometric_analysis}
+
+The geometry module provides analysis tools for network characterization:
+
+\subsubsection{Network Statistics}
+
+\begin{lstlisting}[language=Python, caption=Network Analysis Methods]
+	class NetworkAnalyzer:
+	def __init__(self, geometry):
+	self.geometry = geometry
+	
+	def compute_network_statistics(self):
+	"""Compute comprehensive network statistics."""
+	stats = {
+		'total_length': self.total_length(),
+		'total_volume': self.total_volume(),
+		'average_segment_length': self.average_segment_length(),
+		'connectivity_distribution': self.connectivity_distribution(),
+		'tortuosity_factor': self.tortuosity_factor(),
+		'bifurcation_angles': self.bifurcation_angles(),
+		'generation_statistics': self.generation_statistics()
+	}
+	return stats
+	
+	def total_length(self):
+	"""Compute total network length."""
+	return sum(domain.length for domain in self.geometry.domains)
+	
+	def total_volume(self):
+	"""Compute total network volume."""
+	return sum(domain.length * domain.cross_section 
+	for domain in self.geometry.domains)
+	
+	def connectivity_distribution(self):
+	"""Analyze junction connectivity distribution."""
+	connectivities = {}
+	for junction in self.geometry.junctions:
+	n_conn = len(junction.connected_domains)
+	connectivities[n_conn] = connectivities.get(n_conn, 0) + 1
+	return connectivities
+	
+	def tortuosity_factor(self):
+	"""Compute network tortuosity (actual length / straight-line distance)."""
+	if len(self.geometry.domains) == 0:
+	return 1.0
+	
+	# Find network endpoints
+	start_points = [domain.start_node for domain in self.geometry.domains]
+	end_points = [domain.end_node for domain in self.geometry.domains]
+	
+	# Compute bounding box
+	all_points = start_points + end_points
+	min_coords = np.min(all_points, axis=0)
+	max_coords = np.max(all_points, axis=0)
+	
+	straight_distance = np.linalg.norm(max_coords - min_coords)
+	actual_length = self.total_length()
+	
+	return actual_length / straight_distance if straight_distance > 0 else 1.0
+	
+	def bifurcation_angles(self):
+	"""Compute angles at bifurcation junctions."""
+	angles = []
+	
+	for junction in self.geometry.junctions:
+	if junction.type == JunctionType.BIFURCATION and len(junction.connected_domains) == 3:
+	# Get domain directions at junction
+	directions = []
+	for domain_id in junction.connected_domains:
+	domain = self.geometry.get_domain(domain_id)
+	
+	# Determine direction relative to junction
+	if np.allclose(domain.start_node, junction.position):
+	direction = domain.unit_direction
+	else:
+	direction = -domain.unit_direction
+	
+	directions.append(direction)
+	
+	# Compute angles between branches
+	if len(directions) == 3:
+	angle1 = np.arccos(np.clip(np.dot(directions[1], directions[2]), -1, 1))
+	angles.append(angle1)
+	
+	return angles
+\end{lstlisting}
+
+\subsubsection{Mesh Generation}
+
+\begin{lstlisting}[language=Python, caption=Mesh Generation for Domains]
+	def generate_domain_mesh(self, domain, n_elements):
+	"""Generate 1D mesh for a domain."""
+	# Linear spacing along domain
+	xi = np.linspace(0.0, 1.0, n_elements + 1)
+	
+	# Map to physical coordinates
+	physical_coords = []
+	for x in xi:
+	point = (1 - x) * domain.start_node + x * domain.end_node
+	physical_coords.append(point)
+	
+	# Create mesh structure
+	mesh = {
+		'nodes': physical_coords,
+		'elements': [(i, i+1) for i in range(n_elements)],
+		'domain_id': domain.id,
+		'element_size': domain.length / n_elements
+	}
+	
+	return mesh
+	
+	def generate_network_mesh(self, elements_per_domain=10):
+	"""Generate mesh for entire network."""
+	network_mesh = {
+		'domain_meshes': {},
+		'junction_nodes': {},
+		'global_node_map': {},
+		'total_nodes': 0
+	}
+	
+	global_node_id = 0
+	
+	# Generate mesh for each domain
+	for domain in self.geometry.domains:
+	domain_mesh = self.generate_domain_mesh(domain, elements_per_domain)
+	
+	# Assign global node IDs
+	domain_global_ids = []
+	for local_node in domain_mesh['nodes']:
+	# Check if node already exists at junction
+	existing_id = None
+	for junction in self.geometry.junctions:
+	if np.allclose(local_node, junction.position, rtol=1e-10):
+	if junction.id in network_mesh['junction_nodes']:
+	existing_id = network_mesh['junction_nodes'][junction.id]
+	break
+	
+	if existing_id is not None:
+	domain_global_ids.append(existing_id)
+	else:
+	domain_global_ids.append(global_node_id)
+	global_node_id += 1
+	
+	domain_mesh['global_node_ids'] = domain_global_ids
+	network_mesh['domain_meshes'][domain.id] = domain_mesh
+	
+	network_mesh['total_nodes'] = global_node_id
+	return network_mesh
+\end{lstlisting}
+
+\subsection{Visualization Support}
+\label{subsec:geometry_visualization}
+
+The geometry module provides methods for network visualization:
+
+\begin{lstlisting}[language=Python, caption=Geometry Visualization Methods]
+	def plot_network_topology(self, ax=None, show_junctions=True, 
+	show_labels=True, color_by_property=None):
+	"""Plot 2D network topology."""
+	if ax is None:
+	fig, ax = plt.subplots(figsize=(10, 8))
+	
+	# Plot domains
+	for domain in self.geometry.domains:
+	start = domain.start_node[:2]  # Take only x, y coordinates
+	end = domain.end_node[:2]
+	
+	# Color by property if specified
+	if color_by_property:
+	color = self._get_property_color(domain, color_by_property)
+	else:
+	color = 'blue'
+	
+	# Line width proportional to cross-section
+	linewidth = np.sqrt(domain.cross_section) * 5
+	
+	ax.plot([start[0], end[0]], [start[1], end[1]], 
+	color=color, linewidth=linewidth, alpha=0.7)
+	
+	# Add domain labels
+	if show_labels:
+	mid_point = (start + end) / 2
+	ax.text(mid_point[0], mid_point[1], str(domain.id), 
+	fontsize=8, ha='center', va='center',
+	bbox=dict(boxstyle='circle', facecolor='white', alpha=0.8))
+	
+	# Plot junctions
+	if show_junctions:
+	for junction in self.geometry.junctions:
+	pos = junction.position[:2]
+	
+	# Junction marker style by type
+	if junction.type == JunctionType.BIFURCATION:
+	marker, color = 'o', 'red'
+	elif junction.type == JunctionType.CONFLUENCE:
+	marker, color = 's', 'green'
+	elif junction.type == JunctionType.TERMINAL:
+	marker, color = '^', 'orange'
+	else:
+	marker, color = 'D', 'purple'
+	
+	ax.scatter(pos[0], pos[1], marker=marker, color=color, 
+	s=100, zorder=5, edgecolors='black')
+	
+	if show_labels:
+	ax.text(pos[0], pos[1] + 0.1, f'J{junction.id}', 
+	fontsize=8, ha='center', va='bottom')
+	
+	ax.set_xlabel('X coordinate')
+	ax.set_ylabel('Y coordinate')
+	ax.set_title('Network Topology')
+	ax.grid(True, alpha=0.3)
+	ax.set_aspect('equal')
+	
+	return ax
+	
+	def export_geometry(self, filename, format='vtk'):
+	"""Export geometry for external visualization."""
+	if format == 'vtk':
+	self._export_vtk(filename)
+	elif format == 'graphml':
+	self._export_graphml(filename)
+	elif format == 'json':
+	self._export_json(filename)
+	else:
+	raise ValueError(f"Unsupported export format: {format}")
+\end{lstlisting}
+
+The geometry module forms the structural foundation of BioNetFlux, enabling the representation of complex biological networks while maintaining the flexibility needed for diverse applications in computational biology and biomedical engineering.

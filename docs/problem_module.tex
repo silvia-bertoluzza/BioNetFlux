@@ -1,0 +1,486 @@
+% filepath: /Users/silviabertoluzza/GIT/BioNetFlux/docs/problem_module.tex
+
+\section{Problem Module}
+\label{sec:problem_module}
+
+The problem module defines the mathematical formulations and physical models that BioNetFlux can solve. This module provides a flexible framework for specifying partial differential equations, initial conditions, boundary conditions, and source terms on complex network geometries.
+
+\subsection{Overview}
+\label{subsec:problem_overview}
+
+The problem module is designed around the concept of \emph{domain problems}, where each domain in a network geometry can have its own set of equations, parameters, and physical properties. The module supports:
+
+\begin{itemize}
+	\item Multi-equation systems (arbitrary number of coupled PDEs)
+	\item Time-dependent and steady-state problems
+	\item Nonlinear reaction-diffusion systems
+	\item Coupled transport phenomena
+	\item Flexible parameter specification
+	\item Custom initial and boundary conditions
+\end{itemize}
+
+\subsection{Problem Class Hierarchy}
+\label{subsec:problem_hierarchy}
+
+The problem module follows an object-oriented design with a base \texttt{Problem} class and specialized implementations:
+
+\subsubsection{Base Problem Class}
+
+The base \texttt{Problem} class defines the interface that all problem implementations must follow:
+
+\begin{lstlisting}[language=Python, caption=Base Problem Class Structure]
+	class Problem:
+	def __init__(self, neq: int, parameters: dict):
+	self.neq = neq  # Number of equations
+	self.parameters = parameters
+	
+	def flux_function(self, u, x, t):
+	"""Compute flux vector F(u,x,t)"""
+	raise NotImplementedError
+	
+	def source_function(self, u, x, t):
+	"""Compute source term S(u,x,t)"""
+	raise NotImplementedError
+	
+	def initial_condition(self, x, equation_idx):
+	"""Compute initial condition u_0(x)"""
+	raise NotImplementedError
+\end{lstlisting}
+
+Key attributes:
+\begin{itemize}
+	\item \texttt{neq}: Number of equations in the system
+	\item \texttt{parameters}: Dictionary of problem-specific parameters
+	\item \texttt{domain\_length}: Length of the spatial domain
+	\item \texttt{boundary\_conditions}: Specification of boundary conditions
+\end{itemize}
+
+\subsubsection{Keller-Segel Problems}
+
+The Keller-Segel chemotaxis model is implemented for studying cell migration in response to chemical gradients:
+
+\begin{align}
+	\frac{\partial u}{\partial t} &= D_u \frac{\partial^2 u}{\partial x^2} - \chi \frac{\partial}{\partial x}\left(u \frac{\partial v}{\partial x}\right) + f_u(u,v,x,t) \label{eq:ks_u} \\
+	\frac{\partial v}{\partial t} &= D_v \frac{\partial^2 v}{\partial x^2} + \alpha u - \beta v + f_v(u,v,x,t) \label{eq:ks_v}
+\end{align}
+
+where:
+\begin{itemize}
+	\item $u(x,t)$ is the cell density
+	\item $v(x,t)$ is the chemoattractant concentration  
+	\item $D_u, D_v$ are diffusion coefficients
+	\item $\chi$ is the chemotaxis sensitivity
+	\item $\alpha, \beta$ are production and degradation rates
+	\item $f_u, f_v$ are source/sink terms
+\end{itemize}
+
+\subsubsection{Organ-on-Chip Problems}
+
+The organ-on-chip (OoC) model describes drug transport and cellular uptake in microfluidic devices:
+
+\begin{align}
+	\frac{\partial u}{\partial t} &= D_u \frac{\partial^2 u}{\partial x^2} - k_{\text{on}} u + k_{\text{off}} v + f_u(u,v,w,\omega,x,t) \label{eq:ooc_u} \\
+	\frac{\partial v}{\partial t} &= k_{\text{on}} u - k_{\text{off}} v - k_{\text{int}} v + f_v(u,v,w,\omega,x,t) \label{eq:ooc_v} \\
+	\frac{\partial w}{\partial t} &= k_{\text{int}} v - k_{\text{deg}} w + f_w(u,v,w,\omega,x,t) \label{eq:ooc_w} \\
+	\frac{\partial \omega}{\partial t} &= D_\omega \frac{\partial^2 \omega}{\partial x^2} + A \sin(\omega_0 t + \phi) + f_\omega(u,v,w,\omega,x,t) \label{eq:ooc_omega}
+\end{align}
+
+where:
+\begin{itemize}
+	\item $u(x,t)$ is the free drug concentration
+	\item $v(x,t)$ is the bound drug concentration
+	\item $w(x,t)$ is the cellular drug concentration
+	\item $\omega(x,t)$ represents tissue deformation or other dynamic effects
+	\item $k_{\text{on}}, k_{\text{off}}, k_{\text{int}}, k_{\text{deg}}$ are reaction rates
+	\item $D_u, D_\omega$ are diffusion coefficients
+	\item $A, \omega_0, \phi$ are oscillation parameters
+\end{itemize}
+
+\subsection{Problem Configuration}
+\label{subsec:problem_config}
+
+Problems are configured through parameter dictionaries and factory methods:
+
+\begin{lstlisting}[language=Python, caption=Problem Configuration Example]
+	# Keller-Segel configuration
+	ks_params = {
+		'D_u': 1.0,          # Cell diffusion coefficient
+		'D_v': 10.0,         # Chemical diffusion coefficient  
+		'chi': 5.0,          # Chemotaxis sensitivity
+		'alpha': 1.0,        # Chemical production rate
+		'beta': 1.0,         # Chemical degradation rate
+		'domain_length': 1.0 # Spatial domain length
+	}
+	
+	# Create problem instance
+	problem = KellerSegelProblem(parameters=ks_params)
+	
+	# Organ-on-Chip configuration  
+	ooc_params = {
+		'D_u': 1.0,          # Drug diffusion
+		'D_omega': 0.1,      # Tissue diffusion
+		'k_on': 2.0,         # Binding rate
+		'k_off': 0.5,        # Unbinding rate
+		'k_int': 1.0,        # Internalization rate
+		'k_deg': 0.1,        # Degradation rate
+		'A': 0.5,            # Oscillation amplitude
+		'omega0': 2*np.pi,   # Oscillation frequency
+		'phi': 0.0,          # Phase shift
+		'domain_length': 2.0
+	}
+	
+	problem = OrganOnChipProblem(parameters=ooc_params)
+\end{lstlisting}
+
+\subsection{Initial Conditions}
+\label{subsec:initial_conditions}
+
+The problem module supports various types of initial conditions:
+
+\subsubsection{Analytical Functions}
+
+Initial conditions can be specified as mathematical functions:
+
+\begin{lstlisting}[language=Python, caption=Analytical Initial Conditions]
+	def gaussian_ic(self, x, equation_idx):
+	"""Gaussian initial condition centered at domain midpoint"""
+	if equation_idx == 0:  # Cell density
+	center = self.parameters['domain_length'] / 2
+	width = 0.1
+	return np.exp(-((x - center) / width)**2)
+	elif equation_idx == 1:  # Chemical concentration
+	return np.ones_like(x) * 0.1
+	else:
+	return np.zeros_like(x)
+\end{lstlisting}
+
+\subsubsection{Piecewise Functions}
+
+Complex initial distributions can be constructed piecewise:
+
+\begin{lstlisting}[language=Python, caption=Piecewise Initial Conditions]
+	def piecewise_ic(self, x, equation_idx):
+	"""Piecewise initial condition"""
+	result = np.zeros_like(x)
+	L = self.parameters['domain_length']
+	
+	if equation_idx == 0:  # Cell density
+	# High density in left third
+	mask1 = x < L/3
+	result[mask1] = 2.0
+	
+	# Medium density in middle third  
+	mask2 = (x >= L/3) & (x < 2*L/3)
+	result[mask2] = 1.0
+	
+	# Low density in right third
+	mask3 = x >= 2*L/3
+	result[mask3] = 0.5
+	
+	return result
+\end{lstlisting}
+
+\subsubsection{Random Initial Conditions}
+
+Stochastic initial conditions for sensitivity analysis:
+
+\begin{lstlisting}[language=Python, caption=Random Initial Conditions]
+	def random_ic(self, x, equation_idx):
+	"""Random initial condition with specified statistics"""
+	np.random.seed(self.parameters.get('random_seed', 42))
+	
+	if equation_idx == 0:
+	# Uniform random with specified bounds
+	low = self.parameters.get('u_ic_low', 0.0)
+	high = self.parameters.get('u_ic_high', 1.0)
+	return np.random.uniform(low, high, x.shape)
+	else:
+	# Gaussian random
+	mean = self.parameters.get('v_ic_mean', 0.5)
+	std = self.parameters.get('v_ic_std', 0.1)
+	return np.random.normal(mean, std, x.shape)
+\end{lstlisting}
+
+\subsection{Source Terms and Forcing}
+\label{subsec:source_terms}
+
+The problem module supports time-dependent source terms and external forcing:
+
+\subsubsection{Constant Sources}
+
+\begin{lstlisting}[language=Python, caption=Constant Source Terms]
+	def constant_source(self, u, x, t):
+	"""Constant source terms"""
+	source = np.zeros((self.neq, len(x)))
+	
+	# Constant production for equation 0
+	source[0, :] = self.parameters.get('source_u', 0.0)
+	
+	# Spatially varying source for equation 1
+	center = self.parameters['domain_length'] / 2
+	width = 0.2
+	source[1, :] = self.parameters.get('source_v', 0.0) * \
+	np.exp(-((x - center) / width)**2)
+	
+	return source
+\end{lstlisting}
+
+\subsubsection{Time-Dependent Forcing}
+
+\begin{lstlisting}[language=Python, caption=Time-Dependent Source Terms]
+	def oscillating_source(self, u, x, t):
+	"""Oscillating source terms"""
+	source = np.zeros((self.neq, len(x)))
+	
+	# Sinusoidal forcing
+	freq = self.parameters.get('forcing_frequency', 1.0)
+	amplitude = self.parameters.get('forcing_amplitude', 0.1)
+	
+	source[0, :] = amplitude * np.sin(2 * np.pi * freq * t)
+	
+	return source
+\end{lstlisting}
+
+\subsubsection{Nonlinear Reactions}
+
+\begin{lstlisting}[language=Python, caption=Nonlinear Reaction Terms]
+	def nonlinear_reactions(self, u, x, t):
+	"""Nonlinear reaction terms"""
+	source = np.zeros((self.neq, len(x)))
+	
+	# Logistic growth for cells
+	K = self.parameters.get('carrying_capacity', 10.0)
+	r = self.parameters.get('growth_rate', 0.5)
+	source[0, :] = r * u[0, :] * (1 - u[0, :] / K)
+	
+	# Michaelis-Menten kinetics for chemical
+	Km = self.parameters.get('Km', 1.0)
+	Vmax = self.parameters.get('Vmax', 2.0)
+	source[1, :] = -Vmax * u[1, :] / (Km + u[1, :])
+	
+	return source
+\end{lstlisting}
+
+\subsection{Boundary Conditions}
+\label{subsec:boundary_conditions}
+
+The problem module interfaces with the constraint system to specify boundary conditions:
+
+\subsubsection{Dirichlet Conditions}
+
+Fixed values at domain boundaries:
+
+\begin{lstlisting}[language=Python, caption=Dirichlet Boundary Conditions]
+	def setup_dirichlet_bc(self, constraint_manager, domain_idx):
+	"""Setup Dirichlet boundary conditions"""
+	# Fixed left boundary for equation 0
+	constraint_manager.add_dirichlet(
+	equation_index=0,
+	domain_index=domain_idx, 
+	position=0.0,  # Left boundary
+	data_function=lambda t: self.parameters.get('u_left', 1.0)
+	)
+	
+	# Fixed right boundary for equation 1
+	constraint_manager.add_dirichlet(
+	equation_index=1,
+	domain_index=domain_idx,
+	position=self.parameters['domain_length'],  # Right boundary
+	data_function=lambda t: self.parameters.get('v_right', 0.0)
+	)
+\end{lstlisting}
+
+\subsubsection{Neumann Conditions}
+
+Specified flux at boundaries:
+
+\begin{lstlisting}[language=Python, caption=Neumann Boundary Conditions]
+	def setup_neumann_bc(self, constraint_manager, domain_idx):
+	"""Setup Neumann boundary conditions"""
+	# Zero flux (no-flux) at left boundary
+	constraint_manager.add_neumann(
+	equation_index=0,
+	domain_index=domain_idx,
+	position=0.0,
+	data_function=lambda t: 0.0
+	)
+	
+	# Time-dependent flux at right boundary
+	def time_dependent_flux(t):
+	return self.parameters.get('flux_amplitude', 0.1) * np.sin(t)
+	
+	constraint_manager.add_neumann(
+	equation_index=1,
+	domain_index=domain_idx,
+	position=self.parameters['domain_length'],
+	data_function=time_dependent_flux
+	)
+\end{lstlisting}
+
+\subsubsection{Robin Conditions}
+
+Mixed boundary conditions combining value and flux:
+
+\begin{lstlisting}[language=Python, caption=Robin Boundary Conditions]
+	def setup_robin_bc(self, constraint_manager, domain_idx):
+	"""Setup Robin boundary conditions: alpha*u + beta*flux = data"""
+	alpha = self.parameters.get('robin_alpha', 1.0)
+	beta = self.parameters.get('robin_beta', 0.1)
+	
+	constraint_manager.add_robin(
+	equation_index=0,
+	domain_index=domain_idx,
+	position=0.0,
+	alpha=alpha,
+	beta=beta,
+	data_function=lambda t: self.parameters.get('robin_data', 0.0)
+	)
+\end{lstlisting}
+
+\subsection{Junction Conditions}
+\label{subsec:junction_conditions}
+
+For network problems, the module supports junction conditions between domains:
+
+\subsubsection{Trace Continuity}
+
+Ensuring solution continuity at junctions:
+
+\begin{lstlisting}[language=Python, caption=Trace Continuity Conditions]
+	def setup_trace_continuity(self, constraint_manager, 
+	domain1_idx, domain2_idx,
+	junction_pos1, junction_pos2):
+	"""Setup trace continuity between domains"""
+	for eq_idx in range(self.neq):
+	constraint_manager.add_trace_continuity(
+	equation_index=eq_idx,
+	domain1_index=domain1_idx,
+	domain2_index=domain2_idx,
+	position1=junction_pos1,
+	position2=junction_pos2
+	)
+\end{lstlisting}
+
+\subsubsection{Kedem-Katchalsky Conditions}
+
+Membrane transport with permeability:
+
+\begin{lstlisting}[language=Python, caption=Kedem-Katchalsky Conditions]
+	def setup_kedem_katchalsky(self, constraint_manager,
+	domain1_idx, domain2_idx, 
+	junction_pos1, junction_pos2):
+	"""Setup Kedem-Katchalsky membrane transport"""
+	# Different permeabilities for different species
+	permeabilities = [
+	self.parameters.get('P_u', 1.0),  # Cell permeability
+	self.parameters.get('P_v', 5.0),  # Chemical permeability
+	self.parameters.get('P_w', 0.1),  # Drug permeability
+	self.parameters.get('P_omega', 0.01)  # Tissue permeability
+	]
+	
+	for eq_idx in range(min(self.neq, len(permeabilities))):
+	constraint_manager.add_kedem_katchalsky(
+	equation_index=eq_idx,
+	domain1_index=domain1_idx,
+	domain2_index=domain2_idx,
+	position1=junction_pos1,
+	position2=junction_pos2,
+	permeability=permeabilities[eq_idx]
+	)
+\end{lstlisting}
+
+\subsection{Problem Validation}
+\label{subsec:problem_validation}
+
+The problem module includes validation methods to ensure mathematical consistency:
+
+\begin{lstlisting}[language=Python, caption=Problem Validation]
+	def validate(self):
+	"""Validate problem definition"""
+	errors = []
+	
+	# Check parameter consistency
+	if self.neq <= 0:
+	errors.append("Number of equations must be positive")
+	
+	if self.parameters.get('domain_length', 0) <= 0:
+	errors.append("Domain length must be positive")
+	
+	# Check diffusion coefficients are non-negative
+	for param in ['D_u', 'D_v', 'D_omega']:
+	if param in self.parameters and self.parameters[param] < 0:
+	errors.append(f"Diffusion coefficient {param} must be non-negative")
+	
+	# Check reaction rates
+	for param in ['k_on', 'k_off', 'k_int', 'k_deg']:
+	if param in self.parameters and self.parameters[param] < 0:
+	errors.append(f"Reaction rate {param} must be non-negative")
+	
+	# Validate initial conditions
+	try:
+	test_x = np.linspace(0, self.parameters['domain_length'], 10)
+	for eq_idx in range(self.neq):
+	ic_vals = self.initial_condition(test_x, eq_idx)
+	if np.any(np.isnan(ic_vals)) or np.any(np.isinf(ic_vals)):
+	errors.append(f"Initial condition for equation {eq_idx} contains invalid values")
+	except Exception as e:
+	errors.append(f"Error evaluating initial conditions: {e}")
+	
+	if errors:
+	raise ValueError("Problem validation failed:\n" + "\n".join(f"  - {err}" for err in errors))
+	
+	return True
+\end{lstlisting}
+
+\subsection{Problem Factory}
+\label{subsec:problem_factory}
+
+A factory system simplifies problem creation:
+
+\begin{lstlisting}[language=Python, caption=Problem Factory]
+	class ProblemFactory:
+	"""Factory for creating problem instances"""
+	
+	@staticmethod
+	def create_keller_segel(D_u=1.0, D_v=10.0, chi=5.0, 
+	alpha=1.0, beta=1.0, domain_length=1.0):
+	"""Create standard Keller-Segel problem"""
+	params = {
+		'D_u': D_u, 'D_v': D_v, 'chi': chi,
+		'alpha': alpha, 'beta': beta,
+		'domain_length': domain_length
+	}
+	return KellerSegelProblem(parameters=params)
+	
+	@staticmethod  
+	def create_organ_on_chip(D_u=1.0, D_omega=0.1, k_on=2.0, k_off=0.5,
+	k_int=1.0, k_deg=0.1, A=0.5, omega0=2*np.pi,
+	phi=0.0, domain_length=2.0):
+	"""Create standard organ-on-chip problem"""
+	params = {
+		'D_u': D_u, 'D_omega': D_omega,
+		'k_on': k_on, 'k_off': k_off, 'k_int': k_int, 'k_deg': k_deg,
+		'A': A, 'omega0': omega0, 'phi': phi,
+		'domain_length': domain_length
+	}
+	return OrganOnChipProblem(parameters=params)
+	
+	# Usage
+	ks_problem = ProblemFactory.create_keller_segel(chi=10.0, domain_length=2.0)
+	ooc_problem = ProblemFactory.create_organ_on_chip(k_on=5.0, A=1.0)
+\end{lstlisting}
+
+\subsection{Integration with Framework}
+\label{subsec:problem_integration}
+
+Problems integrate seamlessly with other framework components:
+
+\begin{itemize}
+	\item \textbf{Geometry Module}: Problems are assigned to domains in network geometries
+	\item \textbf{Discretization}: Spatial operators are constructed based on problem flux functions
+	\item \textbf{Time Integration}: Temporal schemes use problem source terms and parameters
+	\item \textbf{Constraint System}: Boundary and junction conditions are automatically enforced
+	\item \textbf{Visualization}: Plot labels and physical interpretations are derived from problem types
+\end{itemize}
+
+The problem module provides the mathematical foundation that drives all numerical computations in BioNetFlux, ensuring physical consistency and mathematical rigor throughout the solution process.

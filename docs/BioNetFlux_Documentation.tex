@@ -77,7 +77,7 @@
     \centering
     
     % BioNetFlux Logo
-    \includegraphics[width=0.6\textwidth]{../Logos/BioNetFlux.png}\\[1cm]
+    \includegraphics[width=0.6\textwidth]{BioNetFlux_Logo.png}\\[1cm]
     
     {\Huge \textbf{\bionetflux{}} \\[0.5cm]}
     {\Large \textbf{Documentation} \\[1cm]}
@@ -99,7 +99,7 @@
         \vskip3cm
         
     % Barra bar
-    \includegraphics[width=\textwidth]{../Logos/Barra.png}\\[2cm]
+    \includegraphics[width=\textwidth]{Barra_D34Health.png}\\[2cm]
 \end{titlepage}
 
 % Table of contents
@@ -181,6 +181,7 @@ class Problem:
     \item \code{set\_initial\_condition(eq\_idx, ic\_func)}: Define initial conditions
     \item \code{set\_extrema(start\_point, end\_point)}: Set 2D spatial coordinates
 \end{itemize}
+
 
 \subsubsection{Discretization Classes (\code{discretization.py})}
 
@@ -571,6 +572,12 @@ plotter.plot_birdview(
     \item Solution point markers
     \item Clean network overview
 \end{itemize}
+
+
+\input{geometry_module}
+\input{problem_module}
+\input{discretization}
+
 
 \section{Example Applications}
 
