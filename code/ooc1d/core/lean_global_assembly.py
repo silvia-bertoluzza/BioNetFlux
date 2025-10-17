@@ -191,7 +191,7 @@ class GlobalAssembler:
             
             # Compute constraint residuals
             constraint_residuals = self.constraint_manager.compute_constraint_residuals(
-                trace_solutions, multipliers, time
+                trace_solutions, multipliers, time, domain_data_list=self.bulk_manager.domain_data_list
             )            
             
             # Add constraint residuals to global residual

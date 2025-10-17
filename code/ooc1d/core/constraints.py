@@ -246,7 +246,7 @@ class ConstraintManager:
                                    trace_solutions: List[np.ndarray], 
                                    multiplier_values: np.ndarray, 
                                    time: float,
-                                   discretizations: List = None) -> np.ndarray:
+                                   domain_data_list: List = None) -> np.ndarray:
         """
         Compute constraint residuals for all constraints.
         
@@ -254,11 +254,14 @@ class ConstraintManager:
             trace_solutions: List of trace solution vectors for each domain
             multiplier_values: Vector of all Lagrange multiplier values (containing flux values)
             time: Current time for time-dependent constraint data
-            discretizations: List of discretizations (optional, uses stored mappings if None)
+            domain_data_list: List of domain data objects containing nodes information
             
         Returns:
             Vector of constraint residuals matching multiplier structure
         """
+        
+        if domain_data_list is None:
+            raise ValueError("domain_data_list parameter is required for proper constraint evaluation")
         
         residuals = []
         multiplier_idx = 0
@@ -272,8 +275,8 @@ class ConstraintManager:
                 node_idx = node_indices[0]
                 eq_idx = constraint.equation_index
                 
-                # Extract trace value at the constraint node
-                n_nodes = len(trace_solutions[domain_idx]) // self._get_equations_per_domain(domain_idx)
+                # Extract trace value at the constraint node using domain data
+                n_nodes = len(domain_data_list[domain_idx].nodes)
                 trace_idx = eq_idx * n_nodes + node_idx
                 u_value = trace_solutions[domain_idx][trace_idx]
                 
@@ -298,8 +301,8 @@ class ConstraintManager:
                 node_idx = node_indices[0]
                 eq_idx = constraint.equation_index
                 
-                # Extract trace value
-                n_nodes = len(trace_solutions[domain_idx]) // self._get_equations_per_domain(domain_idx)
+                # Extract trace value using domain data
+                n_nodes = len(domain_data_list[domain_idx].nodes)
                 trace_idx = eq_idx * n_nodes + node_idx
                 u_value = trace_solutions[domain_idx][trace_idx]
                 
@@ -318,9 +321,9 @@ class ConstraintManager:
                 node1_idx, node2_idx = node_indices
                 eq_idx = constraint.equation_index
                 
-                # Extract trace values from both domains
-                n_nodes1 = len(trace_solutions[domain1_idx]) // self._get_equations_per_domain(domain1_idx)
-                n_nodes2 = len(trace_solutions[domain2_idx]) // self._get_equations_per_domain(domain2_idx)
+                # Extract trace values from both domains using domain data
+                n_nodes1 = len(domain_data_list[domain1_idx].nodes)
+                n_nodes2 = len(domain_data_list[domain2_idx].nodes)
                 
                 trace_idx1 = eq_idx * n_nodes1 + node1_idx
                 trace_idx2 = eq_idx * n_nodes2 + node2_idx
@@ -341,9 +344,9 @@ class ConstraintManager:
                 node1_idx, node2_idx = node_indices
                 eq_idx = constraint.equation_index
                 
-                # Extract trace values
-                n_nodes1 = len(trace_solutions[domain1_idx]) // self._get_equations_per_domain(domain1_idx)
-                n_nodes2 = len(trace_solutions[domain2_idx]) // self._get_equations_per_domain(domain2_idx)
+                # Extract trace values using domain data
+                n_nodes1 = len(domain_data_list[domain1_idx].nodes)
+                n_nodes2 = len(domain_data_list[domain2_idx].nodes)
                 
                 trace_idx1 = eq_idx * n_nodes1 + node1_idx
                 trace_idx2 = eq_idx * n_nodes2 + node2_idx
@@ -368,6 +371,20 @@ class ConstraintManager:
         return np.array(residuals)
     
     def _get_equations_per_domain(self, domain_idx: int) -> int:
-        """Helper to get number of equations per domain (assuming all domains have same neq)."""
-        # This is a simplification - in practice, would get from problem definitions
-        return 2  # Assuming neq = 2 for Keller-Segel
+        """
+        Helper to get number of equations per domain.
+        
+        WARNING: This method assumes neq=2 and should ONLY be used for Keller-Segel problems.
+        For general problems, use the domain_data_list parameter in compute_constraint_residuals
+        and access len(domain_data_list[domain_idx].nodes) directly.
+        
+        This method is deprecated and will be removed in future versions.
+        """
+        import warnings
+        warnings.warn(
+            "The _get_equations_per_domain method assumes neq=2 and should only be used for "
+            "Keller-Segel problems. Use domain_data_list parameter instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        return 2  # Assuming neq = 2 for Keller-Segel ONLY

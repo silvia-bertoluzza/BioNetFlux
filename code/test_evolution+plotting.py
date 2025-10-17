@@ -23,7 +23,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 from setup_solver import quick_setup
 from ooc1d.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 
-filename = "ooc1d.problems.KS_grid_geometry"  # New geometry-based problem
+filename = "ooc1d.problems.OoC_grid_geometry"  # New geometry-based problem
 
 print("="*60)
 print("BIONETFLUX REAL INITIALIZATION TEST")
@@ -34,8 +34,231 @@ print("Testing initialization with test_problem2 for MATLAB comparison")
 # STEP 1: Initialize the solver setup
 # =============================================================================
 print("\nStep 1: Initializing solver setup...")
-setup = quick_setup(filename, validate=True)
-print("✓ Setup initialized and validated")
+
+# First initialize without validation to get basic structure
+try:
+    setup = quick_setup(filename, validate=False)  # Skip validation initially
+    print("✓ Basic setup initialized (validation skipped)")
+except Exception as e:
+    print(f"✗ Failed to initialize basic setup: {e}")
+    import traceback
+    traceback.print_exc()
+    sys.exit(1)
+
+# Debug: Print detailed problem structure before validation
+print(f"\n=== PRE-VALIDATION DEBUGGING ===")
+for i, problem in enumerate(setup.problems):
+    print(f"Domain {i+1}:")
+    print(f"  Problem type: {type(problem).__name__}")
+    print(f"  Number of equations (neq): {problem.neq}")
+    
+    # Add detailed neq debugging
+    print(f"  === NEQ DEBUGGING FOR DOMAIN {i+1} ===")
+    
+    # Check if problem has neq-related attributes
+    problem_attrs = [attr for attr in dir(problem) if 'neq' in attr.lower() or 'eq' in attr.lower()]
+    if problem_attrs:
+        print(f"    Equation-related attributes: {problem_attrs}")
+        for attr in problem_attrs:
+            try:
+                value = getattr(problem, attr)
+                print(f"      {attr}: {value}")
+            except:
+                print(f"      {attr}: <could not access>")
+    
+    # Check if neq is computed from other attributes
+    if hasattr(problem, 'get_neq'):
+        try:
+            computed_neq = problem.get_neq()
+            print(f"    Computed neq via get_neq(): {computed_neq}")
+        except Exception as e:
+            print(f"    Error calling get_neq(): {e}")
+    
+    # Check problem configuration/parameters
+    if hasattr(problem, 'config') or hasattr(problem, 'parameters'):
+        config = getattr(problem, 'config', None) or getattr(problem, 'parameters', None)
+        # Fix: Check if config exists without triggering ValueError on arrays
+        if config is not None:
+            print(f"    Problem config/parameters: {type(config)}")
+            if hasattr(config, 'neq'):
+                print(f"      Config neq: {config.neq}")
+        else:
+            print(f"    No config/parameters found")
+    
+    # Check if it's a specific problem type that should have 4 equations
+    if hasattr(problem, '__class__'):
+        class_name = problem.__class__.__name__
+        print(f"    Problem class: {class_name}")
+        
+        # Check if this is an organ-on-chip problem that should have 4 equations
+        if 'ooc' in class_name.lower() or 'organ' in class_name.lower():
+            print(f"    → This appears to be an Organ-on-Chip problem")
+            print(f"    → Expected equations: drug, bound drug, cellular drug, omega (4 total)")
+            if problem.neq != 4:
+                print(f"    ⚠ WARNING: OoC problem has neq={problem.neq}, expected 4!")
+    
+    # Check method resolution order to see inheritance
+    if hasattr(problem, '__mro__'):
+        mro_names = [cls.__name__ for cls in problem.__class__.__mro__]
+        print(f"    Class hierarchy: {' -> '.join(mro_names)}")
+    
+    discretization = setup.global_discretization.spatial_discretizations[i]
+    n_nodes = len(discretization.nodes)
+    expected_trace_size = problem.neq * n_nodes
+    print(f"  Nodes: {n_nodes}")
+    print(f"  Expected trace size: {expected_trace_size}")
+    
+    # Add check for 4-equation expectation
+    expected_4eq_size = 4 * n_nodes
+    print(f"  Expected size if neq=4: {expected_4eq_size}")
+    
+    # Check if problem has any hardcoded assumptions
+    if hasattr(problem, 'neq_original') or hasattr(problem, '_neq'):
+        print(f"  ⚠ WARNING: Problem may have internal neq conflicts")
+        if hasattr(problem, 'neq_original'):
+            print(f"    neq_original: {problem.neq_original}")
+        if hasattr(problem, '_neq'):
+            print(f"    _neq: {problem._neq}")
+
+# Check global structure before validation
+print(f"\nGlobal structure:")
+print(f"  Total domains: {len(setup.problems)}")
+print(f"  Global discretization exists: {hasattr(setup, 'global_discretization')}")
+
+if hasattr(setup, 'global_assembler'):
+    print(f"  Global assembler total trace DOFs: {setup.global_assembler.total_trace_dofs}")
+
+# Now try validation with detailed error catching
+print(f"\n=== ATTEMPTING VALIDATION ===")
+try:
+    # Manual validation steps to identify the exact failure point
+    print("Step 1.1: Validating initial conditions creation...")
+    
+    # Try creating initial conditions manually to see where it fails
+    try:
+        trace_solutions, multipliers = setup.create_initial_conditions()
+        print("✓ Initial conditions created successfully")
+        
+        # Check the actual sizes
+        for i, trace in enumerate(trace_solutions):
+            problem = setup.problems[i]
+            discretization = setup.global_discretization.spatial_discretizations[i]
+            n_nodes = len(discretization.nodes)
+            expected_size = problem.neq * n_nodes
+            
+            print(f"  Domain {i+1}: trace size {trace.shape[0]}, expected {expected_size}")
+            if trace.shape[0] != expected_size:
+                print(f"    ✗ SIZE MISMATCH: Expected {expected_size}, got {trace.shape[0]}")
+                
+        print("Step 1.2: Validating global vector assembly...")
+        global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
+        print(f"✓ Global solution created: shape {global_solution.shape}")
+        
+        print("Step 1.3: Validating round-trip extraction...")
+        extracted_traces, extracted_multipliers = setup.extract_domain_solutions(global_solution)
+        print("✓ Round-trip extraction completed")
+        
+        print("Step 1.4: Validating bulk solutions...")
+        bulk_manager = setup.bulk_data_manager
+        bulk_guess = bulk_manager.initialize_all_bulk_data(
+            problems=setup.problems,
+            discretizations=setup.global_discretization.spatial_discretizations,
+            time=0.0
+        )
+        print("✓ Bulk solutions created")
+        
+        print("Step 1.5: Validating forcing terms...")
+        source_terms = bulk_manager.compute_source_terms(
+            problems=setup.problems,
+            discretizations=setup.global_discretization.spatial_discretizations,
+            time=0.0
+        )
+        print("✓ Forcing terms computed")
+        
+        print("Step 1.6: Validating constraint handling...")
+        if hasattr(setup, 'constraint_manager') and setup.constraint_manager is not None:
+            n_constraints = setup.constraint_manager.n_multipliers
+            print(f"  Number of constraints: {n_constraints}")
+            
+            if n_constraints > 0:
+                try:
+                    constraint_data = setup.constraint_manager.get_multiplier_data(0.0)
+                    print(f"  Constraint data shape: {constraint_data.shape}")
+                    
+                    # Check if constraint indexing is causing the issue
+                    total_trace_dofs = sum(prob.neq * len(disc.nodes) 
+                                         for prob, disc in zip(setup.problems, 
+                                                             setup.global_discretization.spatial_discretizations))
+                    print(f"  Total trace DOFs: {total_trace_dofs}")
+                    print(f"  Expected global size: {total_trace_dofs + n_constraints}")
+                    print(f"  Actual global size: {global_solution.shape[0]}")
+                    
+                    if total_trace_dofs + n_constraints != global_solution.shape[0]:
+                        print(f"    ✗ CONSTRAINT SIZE MISMATCH!")
+                        
+                except Exception as constraint_error:
+                    print(f"    ✗ Constraint validation failed: {constraint_error}")
+                    import traceback
+                    traceback.print_exc()
+        else:
+            print("  No constraint manager found")
+            
+        print("✓ Manual validation steps completed successfully")
+        
+    except IndexError as idx_error:
+        print(f"✗ IndexError during manual validation: {idx_error}")
+        print("This error occurs in the validation process, not the main solver")
+        
+        # Get detailed traceback to see exactly where the IndexError occurs
+        import traceback
+        print("Full traceback of IndexError:")
+        traceback.print_exc()
+        
+        # Try to identify which validation step failed
+        print(f"\n=== DETAILED INDEX ERROR ANALYSIS ===")
+        print(f"Error message: {idx_error}")
+        
+        # Check if it's related to equation indexing
+        for i, problem in enumerate(setup.problems):
+            discretization = setup.global_discretization.spatial_discretizations[i]
+            n_nodes = len(discretization.nodes)
+            
+            for eq_idx in range(problem.neq):
+                eq_start = eq_idx * n_nodes
+                eq_end = eq_start + n_nodes
+                
+                print(f"Domain {i+1}, Eq {eq_idx}: indices [{eq_start}:{eq_end}]")
+                
+                # Check if any equation tries to access index 88 in an 84-element array
+                if eq_start == 88 or eq_end > 84:
+                    print(f"  ✗ FOUND PROBLEMATIC INDEXING!")
+                    print(f"    This equation tries to access indices that don't exist")
+                    print(f"    Problem neq: {problem.neq}, Nodes: {n_nodes}")
+        
+        # Don't exit, continue with debugging information
+        
+    except Exception as other_error:
+        print(f"✗ Other error during manual validation: {other_error}")
+        import traceback
+        traceback.print_exc()
+
+    # Try the full validation if manual steps succeeded
+    print(f"\n=== FULL SETUP VALIDATION ===")
+    try:
+        setup_validated = quick_setup(filename, validate=True)
+        print("✓ Full setup validation completed successfully")
+        setup = setup_validated  # Use the validated setup
+    except Exception as validation_error:
+        print(f"✗ Full validation failed: {validation_error}")
+        print("Continuing with unvalidated setup for debugging...")
+        # Keep the unvalidated setup for further debugging
+
+except Exception as e:
+    print(f"✗ Critical error in validation debugging: {e}")
+    import traceback
+    traceback.print_exc()
+
+print("✓ Setup initialization completed (with or without validation)")
 
 # Get problem information
 info = setup.get_problem_info()
@@ -61,16 +284,31 @@ trace_solutions, multipliers = setup.create_initial_conditions()
 
 print("✓ Initial trace solutions created:")
 for i, trace in enumerate(trace_solutions):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-    
-    # Debug: Print solution values for each equation
+    problem = setup.problems[i]
     discretization = setup.global_discretization.spatial_discretizations[i]
     n_nodes = len(discretization.nodes)
-    for eq_idx in range(setup.problems[0].neq):
+    expected_size = problem.neq * n_nodes
+    
+    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
+    print(f"    Expected size: {expected_size}, Actual size: {trace.shape[0]}")
+    
+    if trace.shape[0] != expected_size:
+        print(f"    ⚠ WARNING: Size mismatch! Expected {expected_size}, got {trace.shape[0]}")
+    
+    # Debug: Print solution values for each equation
+    for eq_idx in range(problem.neq):
         eq_start = eq_idx * n_nodes
         eq_end = eq_start + n_nodes
+        
+        print(f"    Equation {eq_idx}: indices [{eq_start}:{eq_end}] out of {trace.shape[0]}")
+        
+        if eq_end > trace.shape[0]:
+            print(f"    ✗ ERROR: Equation {eq_idx} indices out of bounds!")
+            print(f"      Trying to access indices {eq_start}:{eq_end} but trace size is {trace.shape[0]}")
+            continue
+            
         eq_values = trace[eq_start:eq_end]
-        eq_name = plotter.equation_names[eq_idx] if 'plotter' in locals() else f'Eq{eq_idx}'
+        eq_name = plotter.equation_names[eq_idx] if 'plotter' in locals() and hasattr(plotter, 'equation_names') else f'Eq{eq_idx+1}'
         print(f"    {eq_name}: range [{np.min(eq_values):.6f}, {np.max(eq_values):.6f}]")
         if eq_idx == 1:  # omega should be sinusoidal
             print(f"    {eq_name} values (first 10): {eq_values[:10]}")
@@ -137,7 +375,6 @@ for i, (orig, ext) in enumerate(zip(trace_solutions, extracted_traces)):
         print(f"  Domain {i+1} trace extraction matches original")
     else:
         print(f"  ✗ Domain {i+1} trace extraction does NOT match original")
-        
 
 # =============================================================================
 # STEP 4.0: Initialize bulk data U(t=0.0)
@@ -198,14 +435,11 @@ if hasattr(setup, 'constraint_manager') and setup.constraint_manager is not None
 print(f"  Newton method parameters:")
 print(f"    Max iterations: {max_newton_iterations}")
 print(f"    Tolerance: {newton_tolerance:.1e}")
-# Note: residual variable not defined in this scope, would need to use final_residual if available
-
 
 # Time evolution loop
 while current_time+dt <= T and time_step <= max_time_steps:
     print(f"\n--- Time Step {time_step}: t = {current_time+dt:.6f} ---")
-
-
+    
     current_time += dt
     time_step += 1
 
@@ -216,10 +450,6 @@ while current_time+dt <= T and time_step <= max_time_steps:
         time=current_time
     )
     
-    
-    
-    
-    
     # Assemble right-hand side for static condensation
     right_hand_side = []  # For clarity in this step
     for i, (bulk_sol, source, static_cond) in enumerate(zip(bulk_guess, source_terms, setup.static_condensations)):
@@ -228,26 +458,43 @@ while current_time+dt <= T and time_step <= max_time_steps:
         right_hand_side.append(rhs)
         
     print("  ✓ Right-hand side assembled for static condensation")
-    
 
-   
     # Newton iteration loop
     newton_converged = False
     
-    
-    
-    
     for newton_iter in range(max_newton_iterations):
+        print(f"  Newton iteration {newton_iter + 1}/{max_newton_iterations}")
         
         # Compute residual and Jacobian at current solution
-        current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
-            global_solution=newton_solution,
-            forcing_terms=right_hand_side,
-            static_condensations=setup.static_condensations,
-            time=current_time
-        )
-    
-        
+        try:
+            # Add debugging to identify which component is failing
+            print(f"    Attempting to assemble residual and Jacobian...")
+            print(f"    Global assembler type: {type(global_assembler).__name__}")
+            
+            # Check constraint manager integration
+            if hasattr(global_assembler, 'constraint_manager'):
+                print(f"    Global assembler has constraint manager: {global_assembler.constraint_manager is not None}")
+            
+            current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
+                global_solution=newton_solution,
+                forcing_terms=right_hand_side,
+                static_condensations=setup.static_condensations,
+                time=current_time
+            )
+            print(f"    ✓ Residual and Jacobian assembled successfully")
+        except IndexError as e:
+            print(f"    ✗ CRITICAL IndexError in residual assembly: {e}")
+            print(f"      This is likely where the neq=2 assumption is causing problems!")
+            
+            # Additional debugging for the IndexError
+            import traceback
+            print(f"    Full traceback:")
+            traceback.print_exc()
+            break
+        except Exception as e:
+            print(f"    ✗ Other error in residual assembly: {e}")
+            break
+
         # Check convergence
         residual_norm = np.linalg.norm(current_residual)
         
@@ -273,7 +520,11 @@ while current_time+dt <= T and time_step <= max_time_steps:
 
     if not newton_converged:
         print(f"  ✗ Newton method did not converge after {max_newton_iterations} iterations")
-        print(f"    Final residual norm: {np.linalg.norm(current_residual):.6e}")
+        # Fix the NameError by checking if current_residual exists
+        try:
+            print(f"    Final residual norm: {np.linalg.norm(current_residual):.6e}")
+        except NameError:
+            print("    Final residual norm: Not available (Newton iteration failed before residual computation)")
     else:
         # Final verification
         final_residual, final_jacobian = global_assembler.assemble_residual_and_jacobian(
