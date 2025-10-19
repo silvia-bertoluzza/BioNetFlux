@@ -1,0 +1,974 @@
+% Setup Solver Module Detailed API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/setup_solver_detailed_api}
+
+\section{Setup Solver Module Detailed API Reference}
+\label{sec:setup_solver_detailed_api}
+
+This section provides an exact reference for the setup solver module (\texttt{setup\_solver.py}) based on detailed analysis of the actual implementation. The module provides lean solver orchestration for OOC1D problems on networks, minimizing data redundancy while providing clean interfaces for different problem types.
+
+\subsection{Module Overview}
+
+The setup solver module provides:
+\begin{itemize}
+    \item Lean solver setup orchestration with minimal data storage
+    \item Dynamic problem module loading and initialization
+    \item On-demand component creation with caching
+    \item Clean interfaces for accessing all solver components
+    \item Comprehensive validation and testing capabilities
+    \item Factory functions for common setup patterns
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import List, Tuple, Optional, Dict, Any
+import importlib
+
+# Core imports
+from ooc1d.core.discretization import Discretization, GlobalDiscretization
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+from ooc1d.core.static_condensation_factory import StaticCondensationFactory
+from ooc1d.core.constraints import ConstraintManager
+from ooc1d.core.lean_global_assembly import GlobalAssembler
+from ooc1d.core.lean_bulk_data_manager import BulkDataManager
+\end{lstlisting}
+
+\subsection{SolverSetup Class}
+\label{subsec:solver_setup_class_detailed}
+
+Main class that orchestrates initialization of all solver components with lean data storage.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}
+\begin{lstlisting}[language=Python, caption=SolverSetup Constructor]
+def __init__(self, problem_module: str = "ooc1d.problems.test_problem2")
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem\_module}: String path to problem module containing \texttt{create\_global\_framework} (default: "ooc1d.problems.test\_problem2")
+\end{itemize}
+
+\textbf{Side Effects:} 
+\begin{itemize}
+    \item Sets \texttt{self.problem\_module} to specified module path
+    \item Initializes \texttt{self.\_initialized} to False
+    \item Sets all framework object attributes to None
+    \item Sets all cached component attributes to None
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
+# Default problem module
+setup = SolverSetup()
+
+# Custom problem module
+setup = SolverSetup("ooc1d.problems.ooc_test_problem")
+
+# OrganOnChip problem
+setup = SolverSetup("ooc1d.problems.organ_on_chip_example")
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{problem\_module} & \texttt{str} & String path to problem module \\
+\hline
+
+\texttt{\_initialized} & \texttt{bool} & Flag tracking initialization state \\
+\hline
+
+\texttt{problems} & \texttt{Optional[List]} & List of Problem instances (loaded on initialization) \\
+\hline
+
+\texttt{global\_discretization} & \texttt{Optional[GlobalDiscretization]} & Global discretization instance \\
+\hline
+
+\texttt{constraint\_manager} & \texttt{Optional[ConstraintManager]} & Constraint manager for boundary/junction conditions \\
+\hline
+
+\texttt{problem\_name} & \texttt{Optional[str]} & Descriptive name of the problem \\
+\hline
+
+\texttt{constraints} & \texttt{Optional[ConstraintManager]} & Alias for \texttt{constraint\_manager} (backward compatibility) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Cached Component Attributes (Private)}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{\_elementary\_matrices} & \texttt{Optional[ElementaryMatrices]} & Cached elementary matrices instance \\
+\hline
+
+\texttt{\_static\_condensations} & \texttt{Optional[List]} & Cached static condensation implementations \\
+\hline
+
+\texttt{\_global\_assembler} & \texttt{Optional[GlobalAssembler]} & Cached global assembler instance \\
+\hline
+
+\texttt{\_bulk\_data\_manager} & \texttt{Optional[BulkDataManager]} & Cached bulk data manager instance \\
+\hline
+
+\texttt{\_domain\_data} & \texttt{Optional[List]} & Cached extracted domain data \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Initialization Methods}
+
+\paragraph{initialize()}
+\begin{lstlisting}[language=Python, caption=Initialize Method]
+def initialize(self) -> None
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Algorithm:}
+\begin{enumerate}
+    \item Check if already initialized (early return if True)
+    \item Import problem module using \texttt{importlib.import\_module()}
+    \item Get \texttt{create\_global\_framework} function from module
+    \item Call function to get: problems, global\_discretization, constraint\_manager, problem\_name
+    \item Set \texttt{self.constraints} as alias to \texttt{constraint\_manager}
+    \item Set \texttt{self.\_initialized} to True
+\end{enumerate}
+
+\textbf{Side Effects:}
+\begin{itemize}
+    \item Imports specified problem module
+    \item Calls \texttt{create\_global\_framework()} from module
+    \item Sets core problem attributes
+    \item Sets \texttt{\_initialized} flag to True
+\end{itemize}
+
+\textbf{Raises:} \texttt{ImportError} if problem module or function not found
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Initialize Usage]
+setup = SolverSetup("ooc1d.problems.ooc_test_problem")
+setup.initialize()  # Explicit initialization
+
+# Or use properties that auto-initialize
+print(setup.problem_name)  # Triggers initialization if needed
+\end{lstlisting}
+
+\paragraph{\_ensure\_initialized()}
+\begin{lstlisting}[language=Python, caption=Ensure Initialized Method]
+def _ensure_initialized(self) -> None
+\end{lstlisting}
+
+\textbf{Purpose:} Internal method ensuring initialization has occurred
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Ensure Initialized Implementation]
+if not self._initialized:
+    self.initialize()
+\end{lstlisting}
+
+\textbf{Usage:} Called automatically by property accessors
+
+\subsubsection{Component Properties (Cached)}
+
+\paragraph{elementary\_matrices}
+\begin{lstlisting}[language=Python, caption=Elementary Matrices Property]
+@property
+def elementary_matrices(self) -> ElementaryMatrices
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{ElementaryMatrices} - Elementary matrices instance (created once, cached)
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Elementary Matrices Property Implementation]
+if self._elementary_matrices is None:
+    self._elementary_matrices = ElementaryMatrices(orthonormal_basis=False)
+return self._elementary_matrices
+\end{lstlisting}
+
+\textbf{Configuration:} Uses Lagrange basis (\texttt{orthonormal\_basis=False})
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Elementary Matrices Usage]
+setup = SolverSetup()
+elem_matrices = setup.elementary_matrices
+
+# Get specific matrices
+M = elem_matrices.get_matrix('M')        # Mass matrix
+T = elem_matrices.get_matrix('T')        # Trace matrix
+D = elem_matrices.get_matrix('D')        # Derivative matrix
+QUAD = elem_matrices.get_matrix('QUAD')  # Quadrature matrix
+\end{lstlisting}
+
+\paragraph{static\_condensations}
+\begin{lstlisting}[language=Python, caption=Static Condensations Property]
+@property
+def static_condensations(self) -> List
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{List} - Static condensation implementations for all domains (created once, cached)
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Static Condensations Implementation]
+if self._static_condensations is None:
+    self._ensure_initialized()
+    self._static_condensations = []
+    
+    for domain_idx in range(len(self.problems)):
+        sc = StaticCondensationFactory.create(
+            self.problems[domain_idx],
+            self.global_discretization,
+            self.elementary_matrices,
+            domain_idx
+        )
+        # Build matrices immediately to cache them
+        sc.build_matrices()
+        self._static_condensations.append(sc)
+        
+return self._static_condensations
+\end{lstlisting}
+
+\textbf{Process:}
+\begin{enumerate}
+    \item Creates static condensation for each domain using factory
+    \item Immediately builds matrices for caching
+    \item Returns list of configured implementations
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Static Condensations Usage]
+static_condensations = setup.static_condensations
+
+# Access specific domain
+sc_domain_0 = static_condensations[0]
+matrices = sc_domain_0.build_matrices()  # Already built and cached
+
+# Use in computations
+for i, sc in enumerate(static_condensations):
+    print(f"Domain {i}: {type(sc).__name__}")
+\end{lstlisting}
+
+\paragraph{global\_assembler}
+\begin{lstlisting}[language=Python, caption=Global Assembler Property]
+@property
+def global_assembler(self) -> GlobalAssembler
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{GlobalAssembler} - Global assembler instance (created once, cached)
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Global Assembler Implementation]
+if self._global_assembler is None:
+    self._ensure_initialized()
+    # Check the actual constructor signature and use correct parameters
+    self._global_assembler = GlobalAssembler.from_framework_objects(
+        self.problems,
+        self.global_discretization,
+        self.static_condensations,
+        self.constraint_manager
+    )
+return self._global_assembler
+\end{lstlisting}
+
+\textbf{Creation:} Uses factory method \texttt{GlobalAssembler.from\_framework\_objects()}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Global Assembler Usage]
+assembler = setup.global_assembler
+
+print(f"Total DOFs: {assembler.total_dofs}")
+print(f"Trace DOFs: {assembler.total_trace_dofs}")
+print(f"Multipliers: {assembler.n_multipliers}")
+
+# Use for system assembly
+global_solution = np.random.rand(assembler.total_dofs)
+residual, jacobian = assembler.assemble_residual_and_jacobian(
+    global_solution, forcing_terms, setup.static_condensations, time=0.0
+)
+\end{lstlisting}
+
+\paragraph{bulk\_data\_manager}
+\begin{lstlisting}[language=Python, caption=Bulk Data Manager Property]
+@property
+def bulk_data_manager(self) -> BulkDataManager
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{BulkDataManager} - Bulk data manager instance (created once, cached)
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Bulk Data Manager Implementation]
+if self._bulk_data_manager is None:
+    self._ensure_initialized()
+    discretizations = self.global_discretization.spatial_discretizations
+    self._domain_data = BulkDataManager.extract_domain_data_list(
+        self.problems, discretizations, self.static_condensations
+    )
+    self._bulk_data_manager = BulkDataManager(
+        self._domain_data
+    )
+return self._bulk_data_manager
+\end{lstlisting}
+
+\textbf{Process:}
+\begin{enumerate}
+    \item Extracts domain data using \texttt{BulkDataManager.extract\_domain\_data\_list()}
+    \item Creates lean BulkDataManager with extracted data
+    \item Caches both domain data and manager
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Bulk Data Manager Usage]
+bulk_manager = setup.bulk_data_manager
+
+# Initialize bulk data
+bulk_data_list = bulk_manager.initialize_all_bulk_data(
+    setup.problems,
+    setup.global_discretization.spatial_discretizations,
+    time=0.0
+)
+
+# Compute forcing terms
+forcing_terms = bulk_manager.compute_forcing_terms(
+    bulk_data_list, setup.problems,
+    setup.global_discretization.spatial_discretizations,
+    time=0.1, dt=0.01
+)
+\end{lstlisting}
+
+\subsubsection{Information and Analysis Methods}
+
+\paragraph{get\_problem\_info()}
+\begin{lstlisting}[language=Python, caption=Get Problem Info Method]
+def get_problem_info(self) -> Dict[str, Any]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Dict[str, Any]} - Comprehensive problem information dictionary
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Problem Info Algorithm]
+self._ensure_initialized()
+
+info = {
+    'problem_name': self.problem_name,
+    'num_domains': len(self.problems),
+    'total_elements': sum(disc.n_elements for disc in self.global_discretization.spatial_discretizations),
+    'total_trace_dofs': self.global_assembler.total_trace_dofs,
+    'num_constraints': self.constraint_manager.n_multipliers if self.constraint_manager else 0,
+    'time_discretization': {
+        'dt': self.global_discretization.dt,
+        'T': self.global_discretization.T,
+        'n_steps': self.global_discretization.n_time_steps
+    },
+    'domains': []
+}
+
+for i, (problem, discretization) in enumerate(zip(self.problems, self.global_discretization.spatial_discretizations)):
+    domain_info = {
+        'index': i,
+        'type': problem.type,
+        'domain': [problem.domain_start, problem.domain_end],
+        'n_elements': discretization.n_elements,
+        'n_equations': problem.neq,
+        'trace_size': problem.neq * (discretization.n_elements + 1)
+    }
+    info['domains'].append(domain_info)
+
+return info
+\end{lstlisting}
+
+\textbf{Information Structure:}
+\begin{lstlisting}[language=Python, caption=Problem Info Structure]
+{
+    'problem_name': str,
+    'num_domains': int,
+    'total_elements': int,
+    'total_trace_dofs': int,
+    'num_constraints': int,
+    'time_discretization': {
+        'dt': float,
+        'T': float,
+        'n_steps': int
+    },
+    'domains': [
+        {
+            'index': int,
+            'type': str,
+            'domain': [float, float],  # [start, end]
+            'n_elements': int,
+            'n_equations': int,
+            'trace_size': int
+        },
+        # ... for each domain
+    ]
+}
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Problem Info Usage]
+info = setup.get_problem_info()
+
+print(f"Problem: {info['problem_name']}")
+print(f"Domains: {info['num_domains']}")
+print(f"Total DOFs: {info['total_trace_dofs']}")
+print(f"Time stepping: dt={info['time_discretization']['dt']}, T={info['time_discretization']['T']}")
+
+# Domain details
+for domain_info in info['domains']:
+    print(f"  Domain {domain_info['index']}: {domain_info['type']}")
+    print(f"    Range: {domain_info['domain']}")
+    print(f"    Elements: {domain_info['n_elements']}")
+    print(f"    Equations: {domain_info['n_equations']}")
+\end{lstlisting}
+
+\subsubsection{Initial Condition and Solution Vector Management}
+
+\paragraph{create\_initial\_conditions()}
+\begin{lstlisting}[language=Python, caption=Create Initial Conditions Method]
+def create_initial_conditions(self) -> Tuple[List[np.ndarray], np.ndarray]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Tuple[List[np.ndarray], np.ndarray]} - (trace\_solutions, initial\_multipliers)
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Initial Conditions Algorithm]
+self._ensure_initialized()
+
+trace_solutions = []
+
+for i, (problem, discretization) in enumerate(zip(self.problems, self.global_discretization.spatial_discretizations)):
+    n_nodes = discretization.n_elements + 1
+    trace_size = problem.neq * n_nodes
+    nodes = discretization.nodes
+    
+    trace_solution = np.zeros(trace_size)
+    
+    # Apply initial conditions if available
+    for eq in range(problem.neq):
+        for j in range(n_nodes):
+            node_idx = eq * n_nodes + j
+            if hasattr(problem, 'u0') and len(problem.u0) > eq and callable(problem.u0[eq]):
+                trace_solution[node_idx] = problem.u0[eq](nodes[j])
+            elif hasattr(problem, 'initial_conditions') and len(problem.initial_conditions) > eq:
+                if callable(problem.initial_conditions[eq]):
+                    trace_solution[node_idx] = problem.initial_conditions[eq](nodes[j])
+    
+    trace_solutions.append(trace_solution)
+
+# Initialize multipliers to zero
+n_multipliers = self.constraint_manager.n_multipliers if self.constraint_manager else 0
+initial_multipliers = np.zeros(n_multipliers)
+
+return trace_solutions, initial_multipliers
+\end{lstlisting}
+
+\textbf{Process:}
+\begin{enumerate}
+    \item For each domain: create trace solution array
+    \item For each equation: evaluate initial condition at mesh nodes
+    \item Initialize multipliers to zero
+    \item Return domain traces and multiplier arrays
+\end{enumerate}
+
+\textbf{Initial Condition Access Patterns:}
+\begin{itemize}
+    \item \texttt{problem.u0[eq]} (primary pattern)
+    \item \texttt{problem.initial\_conditions[eq]} (fallback)
+    \item Zero initialization if no initial conditions found
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Initial Conditions Usage]
+trace_solutions, multipliers = setup.create_initial_conditions()
+
+print(f"Created {len(trace_solutions)} domain trace solutions")
+for i, trace_sol in enumerate(trace_solutions):
+    print(f"  Domain {i}: shape {trace_sol.shape}")
+
+print(f"Initial multipliers: {len(multipliers)} (all zero)")
+\end{lstlisting}
+
+\paragraph{create\_global\_solution\_vector()}
+\begin{lstlisting}[language=Python, caption=Create Global Solution Vector Method]
+def create_global_solution_vector(self, trace_solutions: List[np.ndarray], 
+                                 multipliers: np.ndarray) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_solutions}: List of trace solution arrays for each domain
+    \item \texttt{multipliers}: Array of Lagrange multiplier values
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Global solution vector
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Global Vector Assembly Algorithm]
+global_assembler = self.global_assembler
+
+# Calculate total size
+total_trace_size = sum(len(trace) for trace in trace_solutions)
+total_size = total_trace_size + len(multipliers)
+
+# Create global solution vector
+global_solution = np.zeros(total_size)
+
+# Fill trace solutions
+offset = 0
+for trace in trace_solutions:
+    trace_flat = trace.flatten() if trace.ndim > 1 else trace
+    global_solution[offset:offset+len(trace_flat)] = trace_flat
+    offset += len(trace_flat)
+
+# Fill multipliers
+if len(multipliers) > 0:
+    global_solution[offset:offset+len(multipliers)] = multipliers
+
+return global_solution
+\end{lstlisting}
+
+\textbf{Assembly Structure:} \texttt{[trace\_domain\_0, trace\_domain\_1, ..., multipliers]}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Global Vector Assembly Usage]
+# Create initial conditions
+trace_solutions, multipliers = setup.create_initial_conditions()
+
+# Assemble global vector
+global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
+
+print(f"Global solution vector shape: {global_solution.shape}")
+print(f"Total DOFs: {len(global_solution)}")
+
+# Verify size matches assembler
+expected_size = setup.global_assembler.total_dofs
+print(f"Matches assembler DOFs: {len(global_solution) == expected_size}")
+\end{lstlisting}
+
+\paragraph{extract\_domain\_solutions()}
+\begin{lstlisting}[language=Python, caption=Extract Domain Solutions Method]
+def extract_domain_solutions(self, global_solution: np.ndarray) -> Tuple[List[np.ndarray], np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{global\_solution}: Global solution vector
+\end{itemize}
+
+\textbf{Returns:} \texttt{Tuple[List[np.ndarray], np.ndarray]} - (trace\_solutions, multipliers)
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Domain Solution Extraction Algorithm]
+self._ensure_initialized()
+
+trace_solutions = []
+offset = 0
+
+# Extract trace solutions for each domain
+for i, (problem, discretization) in enumerate(zip(self.problems, self.global_discretization.spatial_discretizations)):
+    n_nodes = discretization.n_elements + 1
+    trace_size = problem.neq * n_nodes
+    
+    trace_solution = global_solution[offset:offset+trace_size]
+    trace_solutions.append(trace_solution)
+    offset += trace_size
+
+# Extract multipliers
+n_multipliers = self.constraint_manager.n_multipliers if self.constraint_manager else 0
+if n_multipliers > 0:
+    multipliers = global_solution[offset:offset+n_multipliers]
+else:
+    multipliers = np.array([])
+
+return trace_solutions, multipliers
+\end{lstlisting}
+
+\textbf{Purpose:} Inverse operation of \texttt{create\_global\_solution\_vector()}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Domain Solution Extraction Usage]
+# Extract from global solution
+extracted_traces, extracted_multipliers = setup.extract_domain_solutions(global_solution)
+
+# Verify round-trip consistency
+for i, (orig, extracted) in enumerate(zip(trace_solutions, extracted_traces)):
+    consistent = np.allclose(orig, extracted)
+    print(f"Domain {i} round-trip consistent: {consistent}")
+
+multiplier_consistent = np.allclose(multipliers, extracted_multipliers)
+print(f"Multiplier round-trip consistent: {multiplier_consistent}")
+\end{lstlisting}
+
+\subsubsection{Validation and Testing}
+
+\paragraph{validate\_setup()}
+\begin{lstlisting}[language=Python, caption=Validate Setup Method]
+def validate_setup(self, verbose: bool = False) -> bool
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{verbose}: If True, print detailed validation information (default: False)
+\end{itemize}
+
+\textbf{Returns:} \texttt{bool} - True if all validation tests pass, False otherwise
+
+\textbf{Validation Tests:}
+\begin{enumerate}
+    \item \textbf{Initial Condition Creation}: Tests creation of trace solutions and multipliers
+    \item \textbf{Global Vector Round-Trip}: Tests assembly and extraction consistency
+    \item \textbf{Multiplier Round-Trip}: Validates multiplier handling
+    \item \textbf{Bulk Solution Creation}: Tests BulkData creation for all domains
+    \item \textbf{Forcing Term Computation}: Validates forcing term calculation
+    \item \textbf{Residual/Jacobian Assembly}: Tests global system assembly
+\end{enumerate}
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Validate Setup Algorithm]
+try:
+    self._ensure_initialized()
+    
+    if verbose:
+        print(f"Validating setup for problem: {self.problem_name}")
+        print(f"Number of domains: {len(self.problems)}")
+        print(f"Total DOFs: {self.global_assembler.total_dofs}")
+    
+    # Test initial conditions
+    trace_solutions, multipliers = self.create_initial_conditions()
+    if verbose:
+        print(f"✓ Initial conditions created")
+    
+    # Test global vector assembly/extraction
+    global_solution = self.create_global_solution_vector(trace_solutions, multipliers)
+    extracted_traces, extracted_multipliers = self.extract_domain_solutions(global_solution)
+    
+    # Verify round-trip consistency
+    for i, (orig, extracted) in enumerate(zip(trace_solutions, extracted_traces)):
+        if not np.allclose(orig, extracted):
+            if verbose:
+                print(f"✗ Round-trip test failed for domain {i}")
+            return False
+    
+    if not np.allclose(multipliers, extracted_multipliers):
+        if verbose:
+            print(f"✗ Round-trip test failed for multipliers")
+        return False
+    
+    if verbose:
+        print(f"✓ Global vector round-trip test passed")
+    
+    # Test bulk data manager
+    bulk_solutions = []
+    for i in range(len(self.problems)):
+        problem = self.problems[i]
+        discretization = self.global_discretization.spatial_discretizations[i]
+        bulk_sol = self.bulk_data_manager.create_bulk_data(i, problem, discretization)
+        bulk_solutions.append(bulk_sol)
+    
+    if verbose:
+        print(f"✓ Bulk solutions created")
+    
+    # Test forcing term computation
+    forcing_terms = self.bulk_data_manager.compute_forcing_terms(bulk_solutions, 
+                                                                 self.problems, 
+                                                                 self.global_discretization.spatial_discretizations, 
+                                                                 0.0, 
+                                                                 self.global_discretization.dt
+                                                                 )
+
+    if verbose:
+        print(f"✓ Forcing terms computed")
+    
+    # Test residual/jacobian computation
+    global_residual, global_jacobian = self.global_assembler.assemble_residual_and_jacobian(
+        global_solution=global_solution,
+        forcing_terms=forcing_terms,
+        static_condensations=self._static_condensations,
+        time=0.0
+    )
+    
+    if verbose:
+        print(f"✓ Global residual and Jacobian assembled")
+        print(f"  Residual norm: {np.linalg.norm(global_residual):.6e}")
+        print(f"  Jacobian condition number: {np.linalg.cond(global_jacobian):.2e}")
+    
+    return True
+    
+except Exception as e:
+    if verbose:
+        print(f"✗ Validation failed: {e}")
+        import traceback
+        traceback.print_exc()
+    return False
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Validation Usage]
+# Quick validation
+is_valid = setup.validate_setup()
+if is_valid:
+    print("✓ Setup validation passed")
+else:
+    print("✗ Setup validation failed")
+
+# Detailed validation with output
+is_valid = setup.validate_setup(verbose=True)
+\end{lstlisting}
+
+\textbf{Sample Validation Output:}
+\begin{lstlisting}[language=Python, caption=Sample Validation Output]
+Validating setup for problem: OrganOnChip Test Problem
+Number of domains: 1
+Total DOFs: 86
+✓ Initial conditions created
+✓ Global vector round-trip test passed
+✓ Bulk solutions created
+✓ Forcing terms computed
+✓ Global residual and Jacobian assembled
+  Residual norm: 1.234567e-02
+  Jacobian condition number: 2.34e+03
+\end{lstlisting}
+
+\subsection{Factory Functions}
+\label{subsec:factory_functions_detailed}
+
+\paragraph{create\_solver\_setup()}
+\begin{lstlisting}[language=Python, caption=Create Solver Setup Function]
+def create_solver_setup(problem_module: str = "ooc1d.problems.test_problem2") -> SolverSetup
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem\_module}: String path to problem module (default: "ooc1d.problems.test\_problem2")
+\end{itemize}
+
+\textbf{Returns:} \texttt{SolverSetup} - Initialized SolverSetup instance
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Factory Function Implementation]
+setup = SolverSetup(problem_module)
+setup.initialize()
+return setup
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Factory Function Usage]
+# Create and initialize setup
+setup = create_solver_setup("ooc1d.problems.ooc_test_problem")
+
+# Immediate access to components
+assembler = setup.global_assembler
+bulk_manager = setup.bulk_data_manager
+\end{lstlisting}
+
+\paragraph{quick\_setup()}
+\begin{lstlisting}[language=Python, caption=Quick Setup Function]
+def quick_setup(problem_module: str = "ooc1d.problems.test_problem2", 
+               validate: bool = True) -> SolverSetup
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem\_module}: String path to problem module (default: "ooc1d.problems.test\_problem2")
+    \item \texttt{validate}: If True, run validation tests (default: True)
+\end{itemize}
+
+\textbf{Returns:} \texttt{SolverSetup} - Validated SolverSetup instance
+
+\textbf{Raises:} \texttt{RuntimeError} if validation fails
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Quick Setup Implementation]
+setup = create_solver_setup(problem_module)
+if validate:
+    if not setup.validate_setup(verbose=True):
+        raise RuntimeError("Setup validation failed")
+
+return setup
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Quick Setup Usage]
+# Quick setup with validation
+setup = quick_setup("ooc1d.problems.ooc_test_problem", validate=True)
+
+# Quick setup without validation (faster)
+setup = quick_setup("ooc1d.problems.test_problem", validate=False)
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples_detailed}
+
+\subsubsection{Complete Solver Setup and Newton Iteration}
+
+\begin{lstlisting}[language=Python, caption=Complete Solver Setup Example]
+from setup_solver import quick_setup, SolverSetup
+import numpy as np
+
+def complete_solver_example():
+    """Complete example of solver setup and Newton iteration."""
+    
+    # Step 1: Initialize solver with validation
+    print("Setting up solver...")
+    setup = quick_setup("ooc1d.problems.ooc_test_problem", validate=True)
+    
+    # Step 2: Get problem information
+    info = setup.get_problem_info()
+    print(f"\nProblem: {info['problem_name']}")
+    print(f"Domains: {info['num_domains']}")
+    print(f"Total DOFs: {info['total_trace_dofs'] + info['num_constraints']}")
+    
+    # Step 3: Create initial conditions
+    trace_solutions, multipliers = setup.create_initial_conditions()
+    global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
+    
+    print(f"\nInitial conditions created:")
+    print(f"  Global solution shape: {global_solution.shape}")
+    print(f"  Initial residual norm: {np.linalg.norm(global_solution):.6e}")
+    
+    # Step 4: Setup Newton iteration
+    assembler = setup.global_assembler
+    bulk_manager = setup.bulk_data_manager
+    static_condensations = setup.static_condensations
+    
+    # Step 5: Newton iteration loop
+    tolerance = 1e-10
+    max_iterations = 20
+    current_time = 0.0
+    dt = setup.global_discretization.dt
+    
+    print(f"\nStarting Newton iterations (tol={tolerance:.0e})...")
+    
+    for iteration in range(max_iterations):
+        # Create bulk data for forcing terms
+        bulk_data_list = bulk_manager.initialize_all_bulk_data(
+            setup.problems,
+            setup.global_discretization.spatial_discretizations,
+            time=current_time
+        )
+        
+        # Compute forcing terms
+        forcing_terms = bulk_manager.compute_forcing_terms(
+            bulk_data_list, setup.problems,
+            setup.global_discretization.spatial_discretizations,
+            current_time, dt
+        )
+        
+        # Assemble system
+        residual, jacobian = assembler.assemble_residual_and_jacobian(
+            global_solution=global_solution,
+            forcing_terms=forcing_terms,
+            static_condensations=static_condensations,
+            time=current_time
+        )
+        
+        # Check convergence
+        residual_norm = np.linalg.norm(residual)
+        print(f"  Iteration {iteration}: ||R|| = {residual_norm:.6e}")
+        
+        if residual_norm < tolerance:
+            print("  ✓ Newton solver converged")
+            break
+        
+        # Newton update
+        try:
+            delta = np.linalg.solve(jacobian, -residual)
+            global_solution += delta
+        except np.linalg.LinAlgError:
+            print("  ✗ Newton solver failed: singular Jacobian")
+            break
+    
+    # Step 6: Extract final solutions
+    final_traces, final_multipliers = setup.extract_domain_solutions(global_solution)
+    
+    print(f"\nSolver completed:")
+    print(f"  Final residual norm: {residual_norm:.6e}")
+    print(f"  Domain solutions: {len(final_traces)}")
+    print(f"  Constraint multipliers: {len(final_multipliers)}")
+    
+    return setup, global_solution, final_traces, final_multipliers
+
+# Usage
+setup, solution, traces, multipliers = complete_solver_example()
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:method_summary_detailed}
+
+\begin{longtable}{|p{4cm}|p{2.5cm}|p{6.5cm}|}
+\hline
+\textbf{Method/Property} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize setup with problem module path \\
+\hline
+
+\texttt{initialize} & \texttt{None} & Load and initialize problem configuration \\
+\hline
+
+\texttt{elementary\_matrices} & \texttt{ElementaryMatrices} & Get cached elementary matrices \\
+\hline
+
+\texttt{static\_condensations} & \texttt{List} & Get cached static condensation implementations \\
+\hline
+
+\texttt{global\_assembler} & \texttt{GlobalAssembler} & Get cached global assembler \\
+\hline
+
+\texttt{bulk\_data\_manager} & \texttt{BulkDataManager} & Get cached bulk data manager \\
+\hline
+
+\texttt{get\_problem\_info} & \texttt{Dict} & Get comprehensive problem information \\
+\hline
+
+\texttt{create\_initial\_conditions} & \texttt{Tuple} & Create initial trace solutions and multipliers \\
+\hline
+
+\texttt{create\_global\_solution\_vector} & \texttt{np.ndarray} & Assemble global solution from components \\
+\hline
+
+\texttt{extract\_domain\_solutions} & \texttt{Tuple} & Extract components from global solution \\
+\hline
+
+\texttt{validate\_setup} & \texttt{bool} & Run comprehensive validation tests \\
+\hline
+
+\texttt{create\_solver\_setup} & \texttt{SolverSetup} & Factory function for setup creation \\
+\hline
+
+\texttt{quick\_setup} & \texttt{SolverSetup} & Factory with optional validation \\
+\hline
+
+\end{longtable}
+
+\subsection{Key Features and Design Principles}
+
+\begin{itemize}
+    \item \textbf{Lean Architecture}: Minimal data storage with on-demand component creation
+    \item \textbf{Component Caching}: Expensive objects created once and cached
+    \item \textbf{Dynamic Loading}: Problem modules loaded at runtime via importlib
+    \item \textbf{Lazy Initialization}: Components created only when accessed
+    \item \textbf{Comprehensive Validation}: Built-in testing of all components and round-trip consistency
+    \item \textbf{Clean Interfaces}: Simple property-based access to complex components
+    \item \textbf{Factory Patterns}: Convenience functions for common setup scenarios
+    \item \textbf{Backward Compatibility}: Aliases and fallbacks for existing code
+    \item \textbf{Error Handling}: Robust error reporting and fallback strategies
+    \item \textbf{Flexible Architecture}: Support for arbitrary problem modules and configurations
+\end{itemize}
+
+This documentation provides an exact reference for the setup solver module, emphasizing its role as the central orchestrator for BioNetFlux solver initialization and its lean, efficient approach to component management.
+
+% End of setup solver module detailed API documentation
