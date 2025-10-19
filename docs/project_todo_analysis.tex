@@ -1,0 +1,381 @@
+% BioNetFlux Project TODO Analysis and Recommendations
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/project_todo_analysis}
+
+\section{BioNetFlux: Project State Evaluation and TODO Analysis}
+
+\subsection{Executive Summary}
+
+Based on comprehensive analysis of the current BioNetFlux implementation, MATLAB reference files, and existing codebase, this document provides a strategic roadmap for completing the biological network transport solver. The project has achieved significant milestones in HDG implementation and organ-on-chip modeling, but requires focused development in key areas to reach production readiness.
+
+\subsection{Current Project Maturity Assessment}
+
+\subsubsection{Completed Components (85\% Implementation)}
+\begin{itemize}
+    \item \textbf{Core HDG Framework}: Fully functional with static condensation
+    \item \textbf{Organ-on-Chip Model}: 4-equation system with MATLAB compatibility
+    \item \textbf{Single Domain Operations}: Validated against analytical solutions
+    \item \textbf{Time Evolution}: Newton solver with implicit Euler integration
+    \item \textbf{Visualization System}: Advanced multi-domain plotting capabilities
+    \item \textbf{Elementary Matrices}: Complete basis function integration
+    \item \textbf{Constraint Management}: Basic boundary condition support
+\end{itemize}
+
+\subsubsection{Partially Implemented (60\% Implementation)}
+\begin{itemize}
+    \item \textbf{Multi-Domain Support}: Basic connectivity with junction constraints
+    \item \textbf{Static Condensation}: OrganOnChip implementation needs refinement
+    \item \textbf{Nonlinear Solvers}: Newton method working, Picard iterations missing
+    \item \textbf{Constraint System}: Junction conditions require validation
+\end{itemize}
+
+\subsubsection{Missing Critical Components (0\% Implementation)}
+\begin{itemize}
+    \item \textbf{Adaptive Time Stepping}: No error control or step size adaptation
+    \item \textbf{Non-Uniform Meshes}: Only uniform spacing currently supported
+    \item \textbf{Advanced Nonlinear Methods}: Limited to Newton iteration
+    \item \textbf{Performance Optimization}: No large-scale efficiency measures
+\end{itemize}
+
+\subsection{Strategic Priority Classification}
+
+\subsubsection{Immediate Priority (0-3 months)}
+
+\paragraph{Critical Bug Fixes and Stability}
+\begin{enumerate}
+    \item \textbf{Fix StaticCondensationOOC Constructor Signature}
+    \begin{itemize}
+        \item Issue: Factory expects 5 parameters, class accepts 4
+        \item Impact: Prevents OrganOnChip problem instantiation
+        \item Effort: 1 day
+        \item Dependencies: None
+    \end{itemize}
+    
+    \item \textbf{Resolve Domain Flux Jump Broadcasting Error}
+    \begin{itemize}
+        \item Issue: Shape mismatch (2,) vs (1,8) in static condensation
+        \item Impact: Runtime failure for 4-equation systems
+        \item Effort: 2-3 days
+        \item Dependencies: Elementary matrices validation
+    \end{itemize}
+    
+    \item \textbf{Fix Time Step Parameter Propagation}
+    \begin{itemize}
+        \item Issue: \texttt{dt} not properly set in discretization objects
+        \item Impact: Static condensation matrix construction fails
+        \item Effort: 1 day
+        \item Dependencies: GlobalDiscretization update
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Junction Condition Validation}
+\begin{enumerate}
+    \item \textbf{T-Junction Double Arc Investigation}
+    \begin{itemize}
+        \item Issue: Unconvincing results for multi-domain coupling
+        \item Approach: Compare with analytical solutions for simple geometries
+        \item Effort: 1 week
+        \item Dependencies: Bug fixes above
+    \end{itemize}
+    
+    \item \textbf{Kirchhoff-Kedem Condition Implementation Review}
+    \begin{itemize}
+        \item Validate against MATLAB reference
+        \item Test continuity vs flux conservation
+        \item Effort: 3-4 days
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{High Priority (1-6 months)}
+
+\paragraph{Advanced Numerical Methods}
+\begin{enumerate}
+    \item \textbf{Picard Iteration Framework}
+    \begin{itemize}
+        \item Motivation: Handle arbitrary nonlinearities beyond Newton scope
+        \item Components: Fixed-point iteration, acceleration techniques
+        \item Applications: Keller-Segel chemotaxis, nonlinear diffusion
+        \item Effort: 3-4 weeks
+        \item Validation: Compare convergence with Newton method
+    \end{itemize}
+    
+    \item \textbf{Adaptive Time Stepping}
+    \begin{itemize}
+        \item Motivation: Automatic step size control for stiff problems
+        \item Methods: Embedded Runge-Kutta, local truncation error estimation
+        \item Features: Step rejection/retry, stability limiters
+        \item Effort: 4-6 weeks
+        \item Testing: Biological problems with multiple time scales
+    \end{itemize}
+    
+    \item \textbf{Non-Uniform Mesh Support}
+    \begin{itemize}
+        \item Motivation: Adaptive refinement near critical regions
+        \item Components: Variable element sizes, mesh grading
+        \item Integration: Update elementary matrices, static condensation
+        \item Effort: 6-8 weeks
+        \item Applications: Boundary layers, reaction zones
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Multi-Domain Robustness}
+\begin{enumerate}
+    \item \textbf{Complex Network Topologies}
+    \begin{itemize}
+        \item Star junctions, tree networks, cycles
+        \item Load balancing for large networks
+        \item Effort: 4-5 weeks
+    \end{itemize}
+    
+    \item \textbf{Non-Homogeneous Boundary Conditions}
+    \begin{itemize}
+        \item Time-dependent Dirichlet/Neumann data
+        \item Integration with constraint system
+        \item Effort: 2-3 weeks
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Medium Priority (3-12 months)}
+
+\paragraph{Performance and Scalability}
+\begin{enumerate}
+    \item \textbf{Computational Optimization}
+    \begin{itemize}
+        \item Sparse matrix operations
+        \item Iterative linear solvers
+        \item Memory usage optimization
+        \item Effort: 4-6 weeks
+    \end{itemize}
+    
+    \item \textbf{Parallel Computing Support}
+    \begin{itemize}
+        \item Domain decomposition
+        \item Shared memory parallelization
+        \item Effort: 8-10 weeks
+    \end{itemize}
+\end{enumerate}
+
+\paragraph{Advanced Applications}
+\begin{enumerate}
+    \item \textbf{Biological Model Library}
+    \begin{itemize}
+        \item Keller-Segel variants
+        \item Vascular network models
+        \item Neural network dynamics
+        \item Effort: 6-8 weeks per model
+    \end{itemize}
+    
+    \item \textbf{Parameter Estimation Tools}
+    \begin{itemize}
+        \item Inverse problem solvers
+        \item Sensitivity analysis
+        \item Effort: 8-12 weeks
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Long-Term Goals (6-24 months)}
+
+\paragraph{Advanced Features}
+\begin{enumerate}
+    \item \textbf{2D/3D Network Extensions}
+    \item \textbf{Moving Boundary Problems}
+    \item \textbf{Uncertainty Quantification}
+    \item \textbf{Machine Learning Integration}
+\end{enumerate}
+
+\subsection{Technical Debt and Code Quality}
+
+\subsubsection{Architecture Improvements}
+\begin{enumerate}
+    \item \textbf{Eliminate Code Duplication}
+    \begin{itemize}
+        \item \texttt{assemble\_residual\_and\_jacobian} vs \texttt{bulk\_by\_static\_condensation}
+        \item Common validation and domain iteration patterns
+        \item Effort: 2-3 weeks
+    \end{itemize}
+    
+    \item \textbf{Unified Constraint Management}
+    \begin{itemize}
+        \item Inconsistent constraint attribute access
+        \item Cleaner interface between setup and solver components
+        \item Effort: 3-4 weeks
+    \end{itemize}
+    
+    \item \textbf{TraceData Abstraction}
+    \begin{itemize}
+        \item Standardize trace vector operations
+        \item Improve type safety and debugging
+        \item Effort: 4-5 weeks
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Testing and Validation}
+\begin{enumerate}
+    \item \textbf{Integration Test Suite}
+    \begin{itemize}
+        \item MATLAB reference comparison
+        \item Multi-domain validation scenarios
+        \item Convergence studies
+        \item Effort: 3-4 weeks
+    \end{itemize}
+    
+    \item \textbf{Performance Benchmarking}
+    \begin{itemize}
+        \item Memory usage profiling
+        \item Computational efficiency metrics
+        \item Scalability analysis
+        \item Effort: 2-3 weeks
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Resource Allocation Strategy}
+
+\subsubsection{Phase 1: Stabilization (Months 1-2)}
+\textbf{Goal}: Achieve robust single and multi-domain functionality
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|l|}
+\hline
+\textbf{Task} & \textbf{Effort} & \textbf{Priority} & \textbf{Outcome} \\
+\hline
+Constructor signature fix & 1 day & Critical & Basic functionality restored \\
+Broadcasting error resolution & 3 days & Critical & 4-equation systems working \\
+Time parameter propagation & 1 day & Critical & Static condensation operational \\
+Junction condition validation & 1 week & High & Multi-domain confidence \\
+Code duplication elimination & 3 weeks & Medium & Maintainable architecture \\
+\hline
+\end{tabular}
+\caption{Phase 1 Task Allocation}
+\end{table}
+
+\subsubsection{Phase 2: Enhancement (Months 3-6)}
+\textbf{Goal}: Advanced numerical methods and robustness
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|l|c|c|l|}
+\hline
+\textbf{Task} & \textbf{Effort} & \textbf{Priority} & \textbf{Outcome} \\
+\hline
+Picard iteration framework & 4 weeks & High & General nonlinearity support \\
+Adaptive time stepping & 6 weeks & High & Automatic step control \\
+Non-uniform mesh support & 8 weeks & High & Adaptive refinement \\
+Complex network topologies & 5 weeks & Medium & Production-ready networks \\
+Performance optimization & 6 weeks & Medium & Large-scale capability \\
+\hline
+\end{tabular}
+\caption{Phase 2 Task Allocation}
+\end{table}
+
+\subsubsection{Phase 3: Application Development (Months 6-12)}
+\textbf{Goal}: Biological application portfolio and validation
+
+\begin{itemize}
+    \item Biological model library development
+    \item Experimental validation campaigns
+    \item User documentation and tutorials
+    \item Community engagement and feedback
+\end{itemize}
+
+\subsection{Risk Assessment and Mitigation}
+
+\subsubsection{Technical Risks}
+\begin{enumerate}
+    \item \textbf{MATLAB Compatibility Issues}
+    \begin{itemize}
+        \item Risk: Subtle differences in static condensation implementation
+        \item Mitigation: Systematic validation with identical test cases
+        \item Probability: Medium, Impact: High
+    \end{itemize}
+    
+    \item \textbf{Performance Bottlenecks}
+    \begin{itemize}
+        \item Risk: Poor scalability for large networks
+        \item Mitigation: Early profiling and iterative optimization
+        \item Probability: High, Impact: Medium
+    \end{itemize}
+    
+    \item \textbf{Numerical Stability}
+    \begin{itemize}
+        \item Risk: Convergence issues for stiff biological problems
+        \item Mitigation: Multiple solver strategies, adaptive methods
+        \item Probability: Medium, Impact: High
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Project Management Risks}
+\begin{enumerate}
+    \item \textbf{Scope Creep}
+    \begin{itemize}
+        \item Risk: Adding features before core stability
+        \item Mitigation: Strict prioritization and milestone-based development
+    \end{itemize}
+    
+    \item \textbf{Technical Debt Accumulation}
+    \begin{itemize}
+        \item Risk: Rushed implementation compromising future development
+        \item Mitigation: Regular refactoring cycles, code quality metrics
+    \end{itemize}
+\end{enumerate}
+
+\subsection{Success Metrics and Milestones}
+
+\subsubsection{Phase 1 Success Criteria}
+\begin{itemize}
+    \item All unit tests passing for OrganOnChip problems
+    \item Multi-domain junction conditions validated against analytical solutions
+    \item Time evolution stable for test problems over multiple time scales
+    \item Memory usage under control for moderate-sized networks
+\end{itemize}
+
+\subsubsection{Phase 2 Success Criteria}
+\begin{itemize}
+    \item Picard iteration converging for nonlinear Keller-Segel problems
+    \item Adaptive time stepping maintaining accuracy within user tolerances
+    \item Non-uniform meshes providing expected convergence rates
+    \item Complex network topologies (star, tree) functioning correctly
+\end{itemize}
+
+\subsubsection{Long-Term Success Criteria}
+\begin{itemize}
+    \item Published validation against experimental organ-on-chip data
+    \item Performance competitive with specialized tools in target domains
+    \item Active user community and third-party contributions
+    \item Integration into biological research workflows
+\end{itemize}
+
+\subsection{Recommendations}
+
+\subsubsection{Immediate Actions (This Week)}
+\begin{enumerate}
+    \item Fix constructor signature in StaticCondensationOOC
+    \item Resolve broadcasting error in domain flux jump computation
+    \item Implement proper dt parameter propagation
+    \item Create comprehensive test for junction conditions
+\end{enumerate}
+
+\subsubsection{Strategic Priorities (Next Quarter)}
+\begin{enumerate}
+    \item Focus on Picard iteration implementation for biological relevance
+    \item Begin adaptive time stepping development for stiff problems
+    \item Establish systematic MATLAB validation pipeline
+    \item Eliminate major code duplication issues
+\end{enumerate}
+
+\subsubsection{Resource Investment}
+\begin{enumerate}
+    \item Prioritize developer time on core stability over new features
+    \item Invest in automated testing infrastructure early
+    \item Consider collaboration with domain experts for biological validation
+    \item Plan for performance optimization as problem sizes grow
+\end{enumerate}
+
+\subsection{Conclusion}
+
+BioNetFlux has established a solid foundation with advanced HDG methods and biological problem support. The immediate focus should be on resolving critical bugs and validating multi-domain functionality. With systematic attention to the prioritized TODO list, the project can achieve production readiness within 6 months and become a leading tool for biological network transport modeling within 12-18 months.
+
+The key to success lies in maintaining focus on core functionality while building toward advanced features systematically. The biological application domain provides clear validation targets and user requirements that should guide development priorities.
+
+% End of TODO analysis

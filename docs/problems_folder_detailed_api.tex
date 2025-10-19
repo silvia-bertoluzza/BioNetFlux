@@ -1,0 +1,840 @@
+% Problems Folder Detailed API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/problems_folder_detailed_api}
+
+\section{Problems Folder Detailed API Reference}
+\label{sec:problems_folder_detailed_api}
+
+This section provides detailed documentation specifically for the problem modules in the BioNetFlux problems folder, focusing on the mathematical formulations, parameter specifications, and `create\_global\_framework` method implementations based on the actual MATLAB reference files and Python implementations.
+
+\subsection{Problems Folder Structure}
+
+The problems folder contains problem-specific modules that implement the mathematical models for various biological transport phenomena:
+
+\begin{itemize}
+    \item \textbf{MATLAB Reference Files}: Original problem definitions and parameters
+    \item \textbf{Python Implementation Modules}: BioNetFlux-compatible problem setups
+    \item \textbf{Mathematical Model Specifications}: 4-equation OrganOnChip system parameters
+    \item \textbf{Boundary Condition Configurations}: Dirichlet and Neumann boundary setups
+\end{itemize}
+
+\subsection{Mathematical Model: OrganOnChip System}
+\label{subsec:ooc_mathematical_system}
+
+All problems in the folder implement variants of the 4-equation OrganOnChip system:
+
+\subsubsection{Governing System}
+
+\begin{align}
+\frac{\partial u}{\partial t} &= \nu \nabla^2 u - \chi \nabla \cdot (u \nabla \phi) + a u + f_u(x,t) \label{eq:u_equation}\\
+\frac{\partial \omega}{\partial t} &= \epsilon \nabla^2 \omega + c \omega + d u + f_\omega(x,t) \label{eq:omega_equation}\\
+\frac{\partial v}{\partial t} &= \sigma \nabla^2 v + \lambda(\bar{\omega}) v + f_v(x,t) \label{eq:v_equation}\\
+\frac{\partial \phi}{\partial t} &= \mu \nabla^2 \phi + a \phi + b v + f_\phi(x,t) \label{eq:phi_equation}
+\end{align}
+
+where $\bar{\omega} = \frac{1}{|K|} \int_K \omega \, dx$ is the cell-averaged value of $\omega$.
+
+\subsubsection{Parameter Vector Structure}
+
+All problem modules use the standardized parameter vector:
+\begin{align}
+\text{parameters} = [\nu, \mu, \epsilon, \sigma, a, b, c, d, \chi]
+\end{align}
+
+\subsection{MATLAB Reference Problems}
+\label{subsec:matlab_reference_detailed}
+
+\subsubsection{TestProblem.m Analysis}
+
+\paragraph{Complete Parameter Configuration}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Full Parameter Setup]
+% Viscosity parameters (diffusion coefficients)
+nu = 1.0;      % Cell diffusion coefficient
+mu = 2.0;      % Potential diffusion coefficient  
+epsilon = 1.0; % Chemical diffusion coefficient
+sigma = 1.0;   % Velocity diffusion coefficient
+
+% Reaction parameters
+a = 0.0;       % Growth/decay rate (u and phi equations)
+c = 0.0;       % Chemical reaction rate (omega equation)
+
+% Domain specification
+A = 0;         % Domain start coordinate
+L = 1.0;       % Domain length
+
+% Coupling parameters
+b = 1.0;       % Velocity-potential coupling strength
+d = 1.0;       % Cell-chemical coupling strength
+chi = 1.0;     % Chemotactic sensitivity parameter
+
+% Nonlinearity specification
+lambda = @(x) constant_function(x);  % Constant nonlinear function
+\end{lstlisting}
+
+\paragraph{OoC\_pbParameters Function}
+\begin{lstlisting}[language=Matlab, caption=Parameter Structure Creation]
+function problem = OoC_pbParameters(a,b,c,d,chi,lambda,mu,nu,epsilon,sigma,A,L)
+    s = whos; % Get all workspace variables
+    problem = cell2struct({s.name}.', {s.name}); % Create structure
+    eval(structvars(problem,0).'); % Evaluate structure variables
+end
+\end{lstlisting}
+
+\paragraph{Initial Conditions Specification}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Initial Conditions]
+% Cell density u: Non-trivial sinusoidal profile
+problem.u0{1} = @(x,t) sin(2*pi*x);  
+
+% Chemical concentration omega: Zero initial condition
+problem.u0{2} = @(x,t) zeros(size(x));
+
+% Velocity field v: Zero initial condition  
+problem.u0{3} = @(x,t) zeros(size(x));
+
+% Potential field phi: Zero initial condition
+problem.u0{4} = @(x,t) zeros(size(x));
+
+% Gradient initial condition
+problem.phix0 = @(x,t) zeros(size(x));
+\end{lstlisting}
+
+\paragraph{Source Term Configuration}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Source Terms]
+% All source terms are zero - homogeneous problem
+force{1} = @(x,t) zeros(size(x));  % f_u = 0
+force{2} = @(x,t) zeros(size(x));  % f_omega = 0  
+force{3} = @(x,t) zeros(size(x));  % f_v = 0
+force{4} = @(x,t) zeros(size(x));  % f_phi = 0
+\end{lstlisting}
+
+\paragraph{Boundary Condition Setup}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Boundary Conditions]
+% Neumann flux conditions at both boundaries
+% Left boundary (x = A = 0)
+problem.fluxu0{1} = @(t) 0.;  % Zero flux for u
+problem.fluxu0{2} = @(t) 0.;  % Zero flux for omega
+problem.fluxu0{3} = @(t) 0.;  % Zero flux for v
+problem.fluxu0{4} = @(t) 0.;  % Zero flux for phi
+
+% Right boundary (x = A + L = 1)
+problem.fluxu1{1} = @(t) 0.;  % Zero flux for u
+problem.fluxu1{2} = @(t) 0.;  % Zero flux for omega
+problem.fluxu1{3} = @(t) 0.;  % Zero flux for v
+problem.fluxu1{4} = @(t) 0.;  % Zero flux for phi
+
+% Neumann data vector (8×1: 2 boundaries × 4 equations)
+problem.NeumannData = zeros(8,1);
+\end{lstlisting}
+
+\subsubsection{EmptyProblem.m Analysis}
+
+\paragraph{Parameter Differences from TestProblem.m}
+\begin{lstlisting}[language=Matlab, caption=EmptyProblem.m Parameter Configuration]
+% IDENTICAL to TestProblem.m:
+nu = 1.0; mu = 2.0; epsilon = 1.0; sigma = 1.0;
+a = 0.0; c = 0.0;
+A = 0; L = 1.0;
+b = 1.0; d = 1.0; chi = 1.0;
+lambda = @(x) constant_function(x);
+\end{lstlisting}
+
+\paragraph{Key Difference: Initial Conditions}
+\begin{lstlisting}[language=Matlab, caption=EmptyProblem.m Initial Conditions]
+% ALL initial conditions are zero (unlike TestProblem.m)
+problem.u0{1} = @(x,t) zeros(size(x));  % Zero cell density
+problem.u0{2} = @(x,t) zeros(size(x));  % Zero chemical
+problem.u0{3} = @(x,t) zeros(size(x));  % Zero velocity
+problem.u0{4} = @(x,t) zeros(size(x));  % Zero potential
+
+problem.phix0 = @(x,t) zeros(size(x));  % Zero gradient
+\end{lstlisting}
+
+\paragraph{Source Terms and Boundary Conditions}
+\begin{lstlisting}[language=Matlab, caption=EmptyProblem.m Additional Configuration]
+% Source terms - also all zero
+force_u = @(x,t) zeros(size(x));
+force_phi = @(x,t) zeros(size(x));  
+force_v = @(x,t) zeros(size(x));
+force_omega = @(x,t) zeros(size(x));
+
+% Boundary conditions - identical to TestProblem.m
+% All zero Neumann flux conditions
+problem.fluxu0{1-4} = @(t) 0.;  % Left boundary
+problem.fluxu1{1-4} = @(t) 0.;  % Right boundary
+problem.NeumannData = zeros(8,1);
+\end{lstlisting}
+
+\subsubsection{MATLAB Problems Comparison}
+
+\begin{longtable}{|p{3cm}|p{4cm}|p{4cm}|p{2cm}|}
+\hline
+\textbf{Aspect} & \textbf{TestProblem.m} & \textbf{EmptyProblem.m} & \textbf{Purpose} \\
+\hline
+\endhead
+
+Parameters & $\nu=1, \mu=2, \epsilon=1, \sigma=1$ & Identical & Reference values \\
+\hline
+
+Reaction & $a=0, c=0$ & Identical & No reaction terms \\
+\hline
+
+Coupling & $b=1, d=1, \chi=1$ & Identical & Unit coupling \\
+\hline
+
+Domain & $[0, 1]$ & Identical & Unit interval \\
+\hline
+
+Nonlinearity & $\lambda(x) = \text{constant}$ & Identical & Linear case \\
+\hline
+
+Initial u & $\sin(2\pi x)$ & $0$ & Non-trivial vs zero \\
+\hline
+
+Initial $\omega,v,\phi$ & $0$ & $0$ & Both zero \\
+\hline
+
+Source terms & All zero & All zero & Homogeneous \\
+\hline
+
+Boundary conditions & Zero Neumann & Zero Neumann & Natural boundaries \\
+\hline
+
+Use case & Non-trivial initial test & Baseline/template & Testing framework \\
+\hline
+
+\end{longtable}
+
+\subsection{Python Implementation: ooc\_test\_problem.py}
+\label{subsec:python_ooc_implementation}
+
+\subsubsection{create\_global\_framework Method Analysis}
+
+\paragraph{Method Signature and Overview}
+\begin{lstlisting}[language=Python, caption=create\_global\_framework Method Signature]
+def create_global_framework():
+    """
+    OrganOnChip test problem - Python port from MATLAB TestProblem.m
+    
+    Returns:
+        Tuple: (problems, global_discretization, constraint_manager, problem_name)
+            - problems: List[Problem] - Single domain problem instance
+            - global_discretization: GlobalDiscretization - Time and space discretization
+            - constraint_manager: ConstraintManager - Boundary condition manager
+            - problem_name: str - Descriptive problem name
+    """
+\end{lstlisting}
+
+\paragraph{Mesh and Global Configuration}
+\begin{lstlisting}[language=Python, caption=Python Global Configuration]
+# Mesh parameters
+n_elements = 20  # Spatial discretization fineness
+
+# Global problem structure  
+ndom = 1        # Single domain
+neq = 4         # Four coupled equations
+T = 1.0         # Final simulation time
+dt = 0.1        # Time step size
+
+problem_name = "OrganOnChip Test Problem"
+\end{lstlisting}
+
+\paragraph{Parameter Configuration Differences}
+\begin{lstlisting}[language=Python, caption=Python Parameter Setup vs MATLAB]
+# Physical parameters - DIFFERENCES from MATLAB highlighted
+nu = 1.0      # SAME as MATLAB
+mu = 1.0      # DIFFERENT: MATLAB uses mu = 2.0
+epsilon = 1.0 # SAME as MATLAB  
+sigma = 1.0   # SAME as MATLAB
+
+# Reaction parameters - DIFFERENCES from MATLAB
+a = 1.0       # DIFFERENT: MATLAB uses a = 0.0
+c = 1.0       # DIFFERENT: MATLAB uses c = 0.0
+
+# Coupling parameters - SAME as MATLAB
+b = 1.0       # SAME as MATLAB
+d = 1.0       # SAME as MATLAB  
+chi = 1.0     # SAME as MATLAB
+
+# Domain configuration - DIFFERENT from MATLAB
+domain_start = 1.0    # DIFFERENT: MATLAB uses A = 0
+domain_length = 1.0   # SAME: MATLAB uses L = 1.0
+
+# Parameter vector assembly [nu, mu, epsilon, sigma, a, b, c, d, chi]
+parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, chi])
+\end{lstlisting}
+
+\paragraph{Nonlinear Function Configuration}
+\begin{lstlisting}[language=Python, caption=Python Nonlinear Function Setup]
+# DIFFERENT from MATLAB: Non-constant nonlinearity
+lambda_function = lambda x: 1.0/(1.0 + x**2)      # Saturation-type
+dlambda_function = lambda x: -2.0*x/(1.0 + x**2)**2  # Analytical derivative
+
+# MATLAB equivalent (for comparison):
+# lambda = @(x) constant_function(x);  % Returns ones(size(x))
+\end{lstlisting}
+
+\paragraph{Initial Condition Functions}
+\begin{lstlisting}[language=Python, caption=Python Initial Conditions - Complex]
+def initial_u(s, t=0.0):
+    """Cell density initial condition"""
+    s = np.asarray(s)
+    return 0.0 * s  # Zero initial condition (like EmptyProblem.m)
+
+def initial_omega(s, t=0.0):
+    """Chemical concentration - TIME-DEPENDENT initial condition"""
+    s = np.asarray(s)
+    return np.sin(2 * np.pi * s + np.pi * t)  # MATLAB: zeros(size(x))
+
+def initial_v(s, t=0.0):
+    """Velocity field - SPACE-TIME coupled initial condition"""
+    s = np.asarray(s)
+    return t * s  # MATLAB: zeros(size(x))
+
+def initial_phi(s, t=0.0):
+    """Potential field - QUADRATIC spatial profile"""
+    return s ** 2  # MATLAB: zeros(size(x))
+\end{lstlisting}
+
+\paragraph{Source Term Functions}
+\begin{lstlisting}[language=Python, caption=Python Source Terms - Non-Zero]
+def force_u(s, t):
+    """Cell density source - remains zero"""
+    s = np.asarray(s)
+    return np.zeros_like(s)  # SAME as MATLAB
+
+def force_omega(s, t):
+    """Chemical source - COMPLEX analytical form"""
+    s = np.asarray(s)
+    x = 2 * np.pi * s + np.pi * t
+    return np.sin(x) + 4 * np.pi**2 * np.sin(x) + np.pi * np.cos(x)
+    # MATLAB: zeros(size(x))
+
+def force_v(s, t):
+    """Velocity source - NONLINEAR coupling"""
+    omega_val = initial_omega(s, t)
+    lambda_val = lambda_function(omega_val)
+    s = np.asarray(s)
+    return s + lambda_val * t * s
+    # MATLAB: zeros(size(x))
+
+def force_phi(s, t):
+    """Potential source - MULTI-TERM expression"""
+    s = np.asarray(s)
+    return - mu * 2.0 * np.ones_like(s) + a * s**2 - b * t * s
+    # MATLAB: zeros(size(x))
+\end{lstlisting}
+
+\paragraph{Problem Instance Creation}
+\begin{lstlisting}[language=Python, caption=Python Problem Instance Setup]
+# Create Problem instance with BioNetFlux framework
+problem = Problem(
+    neq=neq,                    # 4 equations
+    domain_start=domain_start,  # 1.0 (vs MATLAB A=0) 
+    domain_length=domain_length, # 1.0 (same as MATLAB L)
+    parameters=parameters,       # 9-element parameter vector
+    problem_type="organ_on_chip", # Problem classification
+    name="ooc_test"             # Instance identifier
+)
+
+# Set nonlinear functions using flexible interface
+problem.set_function('lambda_function', lambda_function)  
+problem.set_function('dlambda_function', dlambda_function)
+
+# Set source terms for all 4 equations
+problem.set_force(0, lambda s, t: force_u(s, t))      # u equation
+problem.set_force(1, lambda s, t: force_omega(s, t))  # omega equation  
+problem.set_force(2, lambda s, t: force_v(s, t))      # v equation
+problem.set_force(3, lambda s, t: force_phi(s, t))    # phi equation
+
+# Set initial conditions for all 4 equations
+problem.set_initial_condition(0, initial_u)   # u initial condition
+problem.set_initial_condition(1, initial_omega) # omega initial condition
+problem.set_initial_condition(2, initial_v)   # v initial condition
+problem.set_initial_condition(3, initial_phi) # phi initial condition
+\end{lstlisting}
+
+\paragraph{Discretization Configuration}
+\begin{lstlisting}[language=Python, caption=Python Discretization Setup]
+# Spatial discretization
+discretization = Discretization(
+    n_elements=n_elements,        # 20 elements
+    domain_start=domain_start,    # 1.0
+    domain_length=domain_length,  # 1.0
+    stab_constant=1.0            # Stabilization constant
+)
+
+# Stabilization parameters for HDG method
+tau_u = 1.0 / discretization.element_length     # Scaled by mesh size
+tau_omega = 1.0                                 # Constant
+tau_v = 1.0                                     # Constant  
+tau_phi = 1.0                                   # Constant
+
+discretization.set_tau([tau_u, tau_omega, tau_v, tau_phi])
+
+# Global discretization with time parameters
+global_disc = GlobalDiscretization([discretization])
+global_disc.set_time_parameters(dt, T)  # dt=0.1, T=1.0
+\end{lstlisting}
+
+\paragraph{Boundary Condition Configuration}
+\begin{lstlisting}[language=Python, caption=Python Boundary Condition Setup]
+# Analytical flux functions for Neumann boundary conditions
+flux_u = lambda s, t: 0.0  # SAME as MATLAB: zero flux
+flux_omega = lambda s, t: 2 * np.pi * np.cos(2 * np.pi * s + np.pi * t)  # NON-ZERO
+flux_v = lambda s, t: t    # TIME-DEPENDENT flux  
+flux_phi = lambda s, t: 2 * s  # SPACE-DEPENDENT flux
+
+# Create constraint manager
+constraint_manager = ConstraintManager()
+domain_end = domain_start + domain_length  # 2.0
+
+# Add Neumann boundary conditions for all equations
+# Left boundary (x = domain_start = 1.0)
+constraint_manager.add_neumann(0, 0, domain_start, lambda t: -flux_u(domain_start, t))
+constraint_manager.add_neumann(1, 0, domain_start, lambda t: -flux_omega(domain_start, t))
+constraint_manager.add_neumann(2, 0, domain_start, lambda t: -flux_v(domain_start, t))
+constraint_manager.add_neumann(3, 0, domain_start, lambda t: -flux_phi(domain_start, t))
+
+# Right boundary (x = domain_end = 2.0)  
+constraint_manager.add_neumann(0, 0, domain_end, lambda t: flux_u(domain_end, t))
+constraint_manager.add_neumann(1, 0, domain_end, lambda t: flux_omega(domain_end, t))
+constraint_manager.add_neumann(2, 0, domain_end, lambda t: flux_v(domain_end, t))
+constraint_manager.add_neumann(3, 0, domain_end, lambda t: flux_phi(domain_end, t))
+
+# Map constraints to discretizations
+constraint_manager.map_to_discretizations([discretization])
+\end{lstlisting}
+
+\paragraph{Return Value Assembly}
+\begin{lstlisting}[language=Python, caption=create\_global\_framework Return]
+# Return framework components as expected by BioNetFlux
+return [problem], global_disc, constraint_manager, problem_name
+
+# Return structure:
+# - [problem]: List containing single Problem instance
+# - global_disc: GlobalDiscretization with time and space parameters  
+# - constraint_manager: ConstraintManager with mapped boundary conditions
+# - problem_name: String identifier for the problem configuration
+\end{lstlisting}
+
+\subsection{MATLAB vs Python Implementation Comparison}
+\label{subsec:comprehensive_comparison}
+
+\subsubsection{Parameter Value Differences}
+
+\begin{longtable}{|p{2.5cm}|p{2cm}|p{2cm}|p{6.5cm}|}
+\hline
+\textbf{Parameter} & \textbf{MATLAB} & \textbf{Python} & \textbf{Mathematical Impact} \\
+\hline
+\endhead
+
+$\mu$ (potential diffusion) & 2.0 & 1.0 & Reduced potential diffusion in Python \\
+\hline
+
+$a$ (growth rate) & 0.0 & 1.0 & Added growth terms: $+u$ in eq.~\eqref{eq:u_equation}, $+\phi$ in eq.~\eqref{eq:phi_equation} \\
+\hline
+
+$c$ (chemical reaction) & 0.0 & 1.0 & Added reaction term: $+\omega$ in eq.~\eqref{eq:omega_equation} \\
+\hline
+
+Domain start & 0.0 & 1.0 & Shifted domain from $[0,1]$ to $[1,2]$ \\
+\hline
+
+$\lambda(x)$ function & $\text{constant}$ & $\frac{1}{1+x^2}$ & Nonlinear saturation vs linear behavior \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Initial Condition Complexity}
+
+\begin{longtable}{|p{2cm}|p{3.5cm}|p{3.5cm}|p{4cm}|}
+\hline
+\textbf{Variable} & \textbf{MATLAB TestProblem.m} & \textbf{Python ooc\_test\_problem.py} & \textbf{Complexity Level} \\
+\hline
+\endhead
+
+$u(x,0)$ & $\sin(2\pi x)$ & $0$ & MATLAB: Spatial oscillation \\
+\hline
+
+$\omega(x,0)$ & $0$ & $\sin(2\pi x + \pi t)$ & Python: Spatio-temporal \\
+\hline
+
+$v(x,0)$ & $0$ & $t \cdot x$ & Python: Space-time product \\
+\hline
+
+$\phi(x,0)$ & $0$ & $x^2$ & Python: Quadratic profile \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Source Term Complexity}
+
+\begin{longtable}{|p{2cm}|p{5cm}|p{6cm}|}
+\hline
+\textbf{Equation} & \textbf{MATLAB (All Problems)} & \textbf{Python Implementation} \\
+\hline
+\endhead
+
+$f_u$ & $0$ & $0$ \\
+\hline
+
+$f_\omega$ & $0$ & $\sin(x) + 4\pi^2\sin(x) + \pi\cos(x)$ where $x = 2\pi s + \pi t$ \\
+\hline
+
+$f_v$ & $0$ & $s + \lambda(\omega(s,t)) \cdot t \cdot s$ \\
+\hline
+
+$f_\phi$ & $0$ & $-\mu \cdot 2 + a s^2 - b t s$ \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Boundary Condition Differences}
+
+\begin{longtable}{|p{2.5cm}|p{3cm}|p{3cm}|p{4.5cm}|}
+\hline
+\textbf{Flux Type} & \textbf{MATLAB} & \textbf{Python} & \textbf{Mathematical Form} \\
+\hline
+\endhead
+
+$u$ flux & Zero & Zero & No difference \\
+\hline
+
+$\omega$ flux & Zero & $2\pi\cos(2\pi s + \pi t)$ & Time-dependent analytical flux \\
+\hline
+
+$v$ flux & Zero & $t$ & Linear time dependence \\
+\hline
+
+$\phi$ flux & Zero & $2s$ & Linear spatial dependence \\
+\hline
+
+\end{longtable}
+
+\subsection{Framework Integration Patterns}
+\label{subsec:framework_integration_patterns}
+
+\subsubsection{Problem Instance Configuration}
+
+\begin{lstlisting}[language=Python, caption=Standard Problem Configuration Pattern]
+def create_global_framework():
+    """Standard pattern for problem module implementation"""
+    
+    # 1. Parameter Definition
+    # Define all physical, reaction, and coupling parameters
+    parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, chi])
+    
+    # 2. Domain Configuration  
+    # Set domain start, length, and mesh parameters
+    domain_start, domain_length, n_elements = ...
+    
+    # 3. Function Definitions
+    # Define initial conditions, source terms, and nonlinear functions
+    def initial_condition_i(s, t): ...
+    def force_function_i(s, t): ...
+    lambda_function = lambda x: ...
+    
+    # 4. Problem Creation
+    problem = Problem(neq, domain_start, domain_length, parameters, ...)
+    problem.set_initial_condition(i, initial_condition_i)
+    problem.set_force(i, force_function_i)
+    problem.set_function('lambda_function', lambda_function)
+    
+    # 5. Discretization Setup
+    discretization = Discretization(n_elements, domain_start, domain_length, ...)
+    discretization.set_tau([tau_0, tau_1, tau_2, tau_3])
+    
+    # 6. Time Integration Configuration
+    global_disc = GlobalDiscretization([discretization])
+    global_disc.set_time_parameters(dt, T)
+    
+    # 7. Boundary Condition Setup
+    constraint_manager = ConstraintManager()
+    constraint_manager.add_neumann/add_dirichlet(...)
+    constraint_manager.map_to_discretizations([discretization])
+    
+    # 8. Return Framework Components
+    return [problem], global_disc, constraint_manager, problem_name
+\end{lstlisting}
+
+\subsubsection{Multi-Domain Extension Pattern}
+
+\begin{lstlisting}[language=Python, caption=Expected Multi-Domain Problem Pattern]
+def create_multi_domain_framework():
+    """Expected pattern for multi-domain problems"""
+    
+    problems = []
+    discretizations = []
+    
+    # Create multiple domains
+    for domain_idx, domain_config in enumerate(domain_configurations):
+        # Domain-specific parameters
+        domain_parameters = modify_parameters_for_domain(base_parameters, domain_config)
+        
+        # Create domain problem
+        problem = Problem(
+            neq=neq,
+            domain_start=domain_config['start'],
+            domain_length=domain_config['length'],
+            parameters=domain_parameters
+        )
+        
+        # Set domain-specific functions
+        problem.set_initial_condition(i, lambda s, t: domain_initial_i(s, t, domain_idx))
+        problem.set_force(i, lambda s, t: domain_force_i(s, t, domain_idx))
+        
+        problems.append(problem)
+        
+        # Create domain discretization
+        discretization = Discretization(...)
+        discretizations.append(discretization)
+    
+    # Global discretization and time setup
+    global_disc = GlobalDiscretization(discretizations)
+    global_disc.set_time_parameters(dt, T)
+    
+    # Inter-domain constraints (junctions)
+    constraint_manager = ConstraintManager()
+    
+    # Add junction constraints between domains
+    for junction in junction_configurations:
+        constraint_manager.add_trace_continuity(...)
+        constraint_manager.add_flux_continuity(...)
+        constraint_manager.add_kedem_katchalsky(...)
+    
+    # Add boundary constraints for exterior boundaries
+    constraint_manager.add_dirichlet/add_neumann(...)
+    
+    constraint_manager.map_to_discretizations(discretizations)
+    
+    return problems, global_disc, constraint_manager, problem_name
+\end{lstlisting}
+
+\subsection{Parameter Sensitivity Analysis Methods}
+\label{subsec:parameter_sensitivity_methods}
+
+\subsubsection{Parameter Variation Utilities}
+
+\begin{lstlisting}[language=Python, caption=Parameter Sensitivity Analysis Pattern]
+def create_parameter_sweep(base_problem_module, parameter_variations):
+    """
+    Create multiple problem instances for parameter sensitivity studies
+    
+    Args:
+        base_problem_module: String path to base problem module
+        parameter_variations: Dict mapping parameter names to value lists
+        
+    Returns:
+        List of (parameter_set, framework_components) tuples
+    """
+    
+    # Load base framework
+    base_problems, base_global_disc, base_constraints, base_name = \
+        importlib.import_module(base_problem_module).create_global_framework()
+    
+    base_problem = base_problems[0]
+    base_parameters = base_problem.parameters.copy()
+    
+    # Parameter index mapping
+    param_indices = {
+        'nu': 0, 'mu': 1, 'epsilon': 2, 'sigma': 3,
+        'a': 4, 'b': 5, 'c': 6, 'd': 7, 'chi': 8
+    }
+    
+    results = []
+    
+    # Generate parameter combinations
+    for param_name, param_values in parameter_variations.items():
+        param_idx = param_indices[param_name]
+        
+        for param_value in param_values:
+            # Create modified parameters
+            modified_params = base_parameters.copy()
+            modified_params[param_idx] = param_value
+            
+            # Create new problem with modified parameters
+            modified_problem = Problem(
+                neq=base_problem.neq,
+                domain_start=base_problem.domain_start,
+                domain_length=base_problem.domain_length,
+                parameters=modified_params,
+                problem_type=base_problem.type,
+                name=f"{base_problem.name}_{param_name}_{param_value}"
+            )
+            
+            # Copy functions and conditions from base problem
+            for i in range(base_problem.neq):
+                if base_problem.initial_conditions[i] is not None:
+                    modified_problem.set_initial_condition(i, base_problem.initial_conditions[i])
+                if base_problem.force_functions[i] is not None:
+                    modified_problem.set_force(i, base_problem.force_functions[i])
+            
+            # Copy additional functions
+            for func_name, func in base_problem.additional_functions.items():
+                modified_problem.set_function(func_name, func)
+            
+            # Create modified framework components
+            modified_framework = (
+                [modified_problem],
+                base_global_disc,  # Reuse discretization and time setup
+                base_constraints,  # Reuse boundary conditions
+                f"{base_name} - {param_name}={param_value}"
+            )
+            
+            results.append(((param_name, param_value), modified_framework))
+    
+    return results
+
+# Usage example
+parameter_variations = {
+    'chi': [0.1, 0.5, 1.0, 2.0, 5.0],  # Chemotactic sensitivity
+    'mu': [0.5, 1.0, 2.0, 4.0],        # Potential diffusion
+    'a': [0.0, 0.5, 1.0, 1.5]          # Growth rate
+}
+
+sensitivity_study = create_parameter_sweep(
+    'ooc1d.problems.ooc_test_problem',
+    parameter_variations
+)
+\end{lstlisting}
+
+\subsection{Problem Module Summary}
+\label{subsec:problem_module_summary_detailed}
+
+\subsubsection{Implemented Problems Overview}
+
+\begin{longtable}{|p{4.5cm}|p{2cm}|p{3cm}|p{4.5cm}|}
+\hline
+\textbf{Module/File} & \textbf{Domain} & \textbf{Complexity} & \textbf{Key Features} \\
+\hline
+\endhead
+
+\texttt{TestProblem.m} & $[0,1]$ & Medium & Non-zero $u$ initial condition, constant $\lambda$ \\
+\hline
+
+\texttt{EmptyProblem.m} & $[0,1]$ & Low & All zero initial conditions, template structure \\
+\hline
+
+\texttt{ooc\_test\_problem.py} & $[1,2]$ & High & Rich analytical test case, nonlinear $\lambda$ \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Framework Integration Summary}
+
+\begin{longtable}{|p{5cm}|p{8cm}|}
+\hline
+\textbf{Component} & \textbf{Implementation Details} \\
+\hline
+\endhead
+
+\texttt{create\_global\_framework} & Returns (problems, global\_discretization, constraint\_manager, problem\_name) \\
+\hline
+
+Parameter vector & Standardized 9-element array: $[\nu, \mu, \epsilon, \sigma, a, b, c, d, \chi]$ \\
+\hline
+
+Initial conditions & 4 functions for $(u, \omega, v, \phi)$ with optional time dependence \\
+\hline
+
+Source terms & 4 functions for $(f_u, f_\omega, f_v, f_\phi)$ with spatio-temporal dependence \\
+\hline
+
+Nonlinear functions & $\lambda(x)$ and $\lambda'(x)$ for velocity equation nonlinearity \\
+\hline
+
+Boundary conditions & Neumann flux specifications for all 4 equations at both boundaries \\
+\hline
+
+Time discretization & Uniform time stepping with configurable $dt$ and final time $T$ \\
+\hline
+
+Space discretization & Uniform mesh with configurable element count and stabilization parameters \\
+\hline
+
+\end{longtable}
+
+\subsection{Expected Extensions and Variations}
+\label{subsec:expected_extensions}
+
+\subsubsection{Alternative Nonlinear Functions}
+
+\begin{lstlisting}[language=Python, caption=Expected Alternative Lambda Functions]
+# Michaelis-Menten kinetics
+lambda_mm = lambda x, K=1.0, V_max=2.0: V_max * x / (K + x)
+dlambda_mm = lambda x, K=1.0, V_max=2.0: V_max * K / (K + x)**2
+
+# Hill function (cooperative binding)  
+lambda_hill = lambda x, K=1.0, n=2.0: x**n / (K**n + x**n)
+dlambda_hill = lambda x, K=1.0, n=2.0: n * x**(n-1) * K**n / (K**n + x**n)**2
+
+# Exponential saturation
+lambda_exp = lambda x, alpha=1.0, beta=2.0: alpha * (1.0 - np.exp(-beta * x))
+dlambda_exp = lambda x, alpha=1.0, beta=2.0: alpha * beta * np.exp(-beta * x)
+\end{lstlisting}
+
+\subsubsection{Expected Multi-Domain Problem Structure}
+
+\begin{lstlisting}[language=Python, caption=Expected Multi-Domain Problem Template]
+def create_vascular_network_framework():
+    """Expected vascular network problem with 3 domains"""
+    
+    # Domain configurations
+    domains = [
+        {"start": 0.0, "length": 1.0, "chi": 1.0, "name": "vessel_1"},
+        {"start": 1.0, "length": 0.5, "chi": 2.0, "name": "junction"},  
+        {"start": 1.5, "length": 1.0, "chi": 0.5, "name": "vessel_2"}
+    ]
+    
+    problems = []
+    discretizations = []
+    
+    for i, domain_config in enumerate(domains):
+        # Domain-specific parameter modifications
+        parameters = base_parameters.copy()
+        parameters[8] = domain_config["chi"]  # Modify chemotactic sensitivity
+        
+        # Create domain problem
+        problem = Problem(
+            neq=4,
+            domain_start=domain_config["start"],
+            domain_length=domain_config["length"],
+            parameters=parameters,
+            problem_type="vascular_network",
+            name=domain_config["name"]
+        )
+        
+        # Domain-specific initial conditions and source terms
+        problem.set_initial_condition(0, lambda s, t: domain_initial_u(s, t, i))
+        # ... set other conditions ...
+        
+        problems.append(problem)
+        discretizations.append(create_domain_discretization(domain_config))
+    
+    # Junction constraints
+    constraint_manager = ConstraintManager()
+    
+    # Continuity at domain interfaces
+    constraint_manager.add_trace_continuity(0, 0, 1, -1, 1.0)  # u continuity
+    constraint_manager.add_trace_continuity(1, 0, 2, -1, 1.5)  # omega continuity
+    
+    # Flux continuity with permeability effects
+    constraint_manager.add_kedem_katchalsky(2, 0, 1, -1, 1.0, P=0.1)  # v coupling
+    constraint_manager.add_kedem_katchalsky(3, 0, 2, -1, 1.5, P=0.2)  # phi coupling
+    
+    # Boundary conditions at network ends
+    constraint_manager.add_dirichlet(0, 0, 0.0, lambda t: 1.0)  # u inlet
+    constraint_manager.add_neumann(0, 2, 2.5, lambda t: 0.0)    # u outlet
+    
+    global_disc = GlobalDiscretization(discretizations)
+    global_disc.set_time_parameters(dt=0.01, T=2.0)
+    
+    constraint_manager.map_to_discretizations(discretizations)
+    
+    return problems, global_disc, constraint_manager, "Vascular Network Model"
+\end{lstlisting}
+
+This comprehensive documentation provides exact details of the problems folder modules, focusing specifically on the 'create\_global\_framework' implementations and their parameter configurations, without duplicating information about other BioNetFlux components that are documented separately.
+
+% End of problems folder detailed API documentation

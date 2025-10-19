@@ -1,0 +1,533 @@
+% Flux Jump Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/flux_jump_module_api}
+
+\section{Flux Jump Module API Reference (Accurate Analysis)}
+\label{sec:flux_jump_module_api}
+
+This section provides an exact reference for the flux jump module (\texttt{ooc1d.core.flux\_jump}) based on detailed analysis of the actual implementation. The module computes local flux balance contributions for HDG methods, serving as the Python equivalent of MATLAB \texttt{fluxJump.m}.
+
+\subsection{Module Overview}
+
+The flux jump module provides:
+\begin{itemize}
+    \item Local flux balance computation for HDG static condensation
+    \item Element-wise bulk solution reconstruction
+    \item Flux jump assembly across mesh points
+    \item Jacobian computation for Newton solvers
+    \item Comprehensive testing infrastructure
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import Tuple
+\end{lstlisting}
+
+\subsection{Main Function}
+\label{subsec:domain_flux_jump_function}
+
+The primary function for computing local flux balance contributions.
+
+\paragraph{domain\_flux\_jump()}
+\begin{lstlisting}[language=Python, caption=Domain Flux Jump Function]
+def domain_flux_jump(
+    trace_solution: np.ndarray,
+    forcing_term: np.ndarray,
+    problem, # dummy placeholder for backwards compatibility
+    discretization, # dummy placeholder for backwards compatibility
+    static_condensation
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
+\end{lstlisting}
+
+\textbf{Purpose:} Python equivalent of MATLAB \texttt{fluxJump.m} function for local flux balance computation
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_solution}: Trial trace solution vector of length \texttt{neq*(N+1)} where N is number of elements
+    \item \texttt{forcing\_term}: \texttt{(2*neq)×N} matrix accounting for previous timestep and forcing terms (stacked for all equations)
+    \item \texttt{problem}: Problem instance containing boundary conditions (placeholder for backwards compatibility)
+    \item \texttt{discretization}: Discretization parameters (placeholder for backwards compatibility)
+    \item \texttt{static\_condensation}: Static condensation implementation with \texttt{static\_condensation()} method
+\end{itemize}
+
+\textbf{Returns:} \texttt{Tuple[np.ndarray, np.ndarray, np.ndarray]} - (U, F, JF) where:
+\begin{itemize}
+    \item \texttt{U}: \texttt{(2*neq)×N} matrix of bulk solutions for each element
+    \item \texttt{F}: \texttt{neq*(N+1)} vector of flux jumps at mesh points
+    \item \texttt{JF}: \texttt{neq*(N+1)×neq*(N+1)} Jacobian matrix
+\end{itemize}
+
+\textbf{Algorithm Description:}
+\begin{enumerate}
+    \item \textbf{Input Deduction}: Extract N (elements) and neq (equations) from \texttt{forcing\_term.shape}
+    \item \textbf{Initialization}: Create output arrays U, F, JF with appropriate dimensions
+    \item \textbf{Element Loop}: For each element k = 0, ..., N-1:
+    \begin{itemize}
+        \item Extract local indices for element nodes
+        \item Extract local forcing term and trace values
+        \item Apply static condensation to get local solution and flux contributions
+        \item Update global bulk solution matrix U
+        \item Accumulate flux jump contributions in F
+        \item Accumulate Jacobian contributions in JF
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Input Shape Requirements:}
+\begin{itemize}
+    \item \texttt{trace\_solution}: Shape \texttt{(neq*(N+1), 1)} or \texttt{(neq*(N+1),)}
+    \item \texttt{forcing\_term}: Shape \texttt{(2*neq, N)}
+    \item Static condensation must provide method: \texttt{static\_condensation(local\_trace, local\_forcing)}
+\end{itemize}
+
+\textbf{Output Shape Guarantees:}
+\begin{itemize}
+    \item \texttt{U}: Shape \texttt{(2*neq, N)} - bulk solutions for all elements
+    \item \texttt{F}: Shape \texttt{(neq*(N+1), 1)} - flux jumps at all nodes
+    \item \texttt{JF}: Shape \texttt{(neq*(N+1), neq*(N+1))} - full Jacobian matrix
+\end{itemize}
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Domain Flux Jump Usage Examples]
+import numpy as np
+from ooc1d.core.flux_jump import domain_flux_jump
+
+# Example 1: Single equation (neq=1), 4 elements
+N = 4
+neq = 1
+n_nodes = N + 1  # 5 nodes
+
+# Create input data
+trace_solution = np.random.rand(neq * n_nodes, 1)  # Shape: (5, 1)
+forcing_term = np.random.rand(2 * neq, N)          # Shape: (2, 4)
+
+# Assume static_condensation is available
+U, F, JF = domain_flux_jump(
+    trace_solution=trace_solution,
+    forcing_term=forcing_term,
+    problem=None,  # Placeholder
+    discretization=None,  # Placeholder
+    static_condensation=static_condensation_instance
+)
+
+print(f"Bulk solutions U: {U.shape}")    # (2, 4)
+print(f"Flux jumps F: {F.shape}")       # (5, 1)
+print(f"Jacobian JF: {JF.shape}")       # (5, 5)
+
+# Example 2: Two equations (neq=2), 3 elements
+N = 3
+neq = 2
+n_nodes = N + 1  # 4 nodes
+
+trace_solution = np.random.rand(neq * n_nodes, 1)  # Shape: (8, 1)
+forcing_term = np.random.rand(2 * neq, N)          # Shape: (4, 3)
+
+U, F, JF = domain_flux_jump(
+    trace_solution, forcing_term, None, None, static_condensation_instance
+)
+
+print(f"Bulk solutions U: {U.shape}")    # (4, 3)
+print(f"Flux jumps F: {F.shape}")       # (8, 1)  
+print(f"Jacobian JF: {JF.shape}")       # (8, 8)
+\end{lstlisting}
+
+\textbf{Local Index Construction:} For element k, the function constructs local indices as:
+\begin{lstlisting}[language=Python, caption=Local Index Construction Algorithm]
+# Initialize local_indices as vector of length 2*neq
+local_indices = np.zeros(2 * neq, dtype=int)
+
+# Fill indices for each equation
+for ieq in range(neq):
+    # For equation ieq: indices k and k+1 in the corresponding block
+    local_indices[ieq * 2] = ieq * n_nodes + k      # Left node for equation ieq
+    local_indices[ieq * 2 + 1] = ieq * n_nodes + (k + 1)  # Right node for equation ieq
+
+# Example for neq=2, k=1, n_nodes=5:
+# local_indices = [1, 2, 6, 7]  # [u_left, u_right, phi_left, phi_right]
+\end{lstlisting}
+
+\textbf{Static Condensation Interface:} The function expects the static condensation object to provide:
+\begin{lstlisting}[language=Python, caption=Required Static Condensation Interface]
+def static_condensation(self, local_trace, local_source):
+    """
+    Required interface for static condensation objects.
+    
+    Args:
+        local_trace: Local trace values, shape (2*neq, 1) or (2*neq,)
+        local_source: Local forcing term, shape (2*neq, 1) or (2*neq,)
+        
+    Returns:
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+            - local_solution: Bulk coefficients, shape (2*neq,)
+            - flux: Scalar flux value
+            - flux_trace: Flux contributions, shape (2*neq,)
+            - jacobian: Local Jacobian, shape (2*neq, 2*neq)
+    """
+    pass
+\end{lstlisting}
+
+\textbf{Error Handling:}
+\begin{itemize}
+    \item \texttt{RuntimeError}: Raised if static condensation fails for any element
+    \item Includes element number in error message for debugging
+\end{itemize}
+
+\textbf{Integration with BioNetFlux:}
+\begin{lstlisting}[language=Python, caption=BioNetFlux Integration Example]
+# Integration with GlobalAssembler
+class GlobalAssembler:
+    def compute_element_contributions(self, trace_solutions, forcing_terms):
+        """Example integration in GlobalAssembler."""
+        all_bulk_solutions = []
+        all_flux_jumps = []
+        all_jacobians = []
+        
+        for domain_idx in range(self.n_domains):
+            # Get domain-specific data
+            trace_sol = trace_solutions[domain_idx]
+            forcing = forcing_terms[domain_idx]
+            static_cond = self.static_condensations[domain_idx]
+            
+            # Compute domain flux jump
+            U, F, JF = domain_flux_jump(
+                trace_solution=trace_sol,
+                forcing_term=forcing,
+                problem=self.problems[domain_idx],
+                discretization=self.discretizations[domain_idx],
+                static_condensation=static_cond
+            )
+            
+            all_bulk_solutions.append(U)
+            all_flux_jumps.append(F)
+            all_jacobians.append(JF)
+        
+        return all_bulk_solutions, all_flux_jumps, all_jacobians
+\end{lstlisting}
+
+\subsection{Testing Infrastructure}
+\label{subsec:flux_jump_testing}
+
+The module provides comprehensive testing infrastructure for validation.
+
+\paragraph{test\_domain\_flux\_jump()}
+\begin{lstlisting}[language=Python, caption=Test Function]
+def test_domain_flux_jump(verbose=True) -> bool
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{verbose}: If True, print detailed test information (default: True)
+\end{itemize}
+
+\textbf{Returns:} \texttt{bool} - True if all tests pass, False otherwise
+
+\textbf{Test Suite Components:}
+
+\textbf{1. Mock Object Classes:}
+\begin{lstlisting}[language=Python, caption=Mock Object Definitions]
+class MockProblem:
+    def __init__(self, neq=1):
+        self.neq = neq
+        self.domain_start = 0.0
+        self.domain_end = 1.0
+
+class MockDiscretization:
+    def __init__(self, n_elements=4):
+        self.n_elements = n_elements
+        self.nodes = np.linspace(0, 1, n_elements + 1)
+        self.element_length = 1.0 / n_elements
+
+class MockStaticCondensation:
+    def __init__(self, neq=1):
+        self.neq = neq
+        
+    def static_condensation(self, local_trace, local_source=None):
+        """Mock static condensation with predictable results."""
+        # Returns deterministic outputs for testing
+        pass
+\end{lstlisting}
+
+\textbf{2. Test Cases:}
+\begin{itemize}
+    \item \textbf{Case 1}: Single equation, 3 elements
+    \item \textbf{Case 2}: Two equations, 4 elements  
+    \item \textbf{Case 3}: Single equation, 5 elements
+\end{itemize}
+
+\textbf{3. Validation Tests:}
+\begin{enumerate}
+    \item \textbf{Shape Validation}: Verify output array shapes match expected dimensions
+    \item \textbf{Finite Value Check}: Ensure no NaN or infinite values in outputs
+    \item \textbf{Jacobian Properties}: Check Jacobian matrix properties
+    \item \textbf{Edge Case Testing}: Test with zero trace and zero forcing
+\end{enumerate}
+
+\textbf{Test Output Format:}
+\begin{lstlisting}[language=Python, caption=Sample Test Output]
+============================================================
+TESTING domain_flux_jump FUNCTION
+============================================================
+
+Test Case 1: Single equation, 3 elements
+----------------------------------------
+  Input shapes:
+    trace_solution: (4, 1)
+    forcing_term: (2, 3)
+    ✓ U shape: (2, 3)
+    ✓ F shape: (4, 1)
+    ✓ JF shape: (4, 4)
+    ✓ U contains only finite values
+    ✓ F contains only finite values
+    ✓ JF contains only finite values
+    ✓ JF has non-zero entries
+    ✓ Test case passed
+  Results summary:
+    |U|_max = 1.234567e+00
+    |F|_norm = 2.345678e+00
+    JF condition = 1.23e+01
+
+Edge Case Tests:
+----------------------------------------
+  ✓ Zero trace test passed: |F| = 1.234567e-02
+  ✓ Zero forcing test passed: |F| = 2.345678e-01
+
+============================================================
+✅ ALL TESTS PASSED
+============================================================
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Test Function Usage]
+# Run tests with detailed output
+success = test_domain_flux_jump(verbose=True)
+if success:
+    print("All tests passed")
+else:
+    print("Some tests failed")
+
+# Run tests silently
+success = test_domain_flux_jump(verbose=False)
+
+# Command line execution
+if __name__ == "__main__":
+    success = test_domain_flux_jump(verbose=True)
+    exit(0 if success else 1)
+\end{lstlisting}
+
+\textbf{Mock Static Condensation Algorithm:}
+\begin{lstlisting}[language=Python, caption=Mock Static Condensation Details]
+def static_condensation(self, local_trace, local_source=None):
+    """Mock implementation with predictable behavior."""
+    trace_length = len(local_trace.flatten())
+    neq = trace_length // 2
+    
+    if local_source is None:
+        local_source = np.zeros(2 * neq)
+    
+    local_trace_flat = local_trace.flatten()
+    local_source_flat = local_source.flatten()
+    
+    # Mock local solution: 2*neq coefficients
+    coeffs_per_element = 2 * neq
+    local_solution = np.zeros(coeffs_per_element)
+    
+    # Fill with simple pattern for testing
+    for i in range(min(coeffs_per_element, len(local_trace_flat))):
+        local_solution[i] = 0.8 * local_trace_flat[i] + 0.1 * (i + 1)
+    
+    # Mock flux: scalar
+    flux = np.sum(local_trace_flat) * 0.1
+    
+    # Mock flux_trace: same length as local_trace
+    flux_trace = local_trace_flat * 0.9 + local_source_flat * 0.1
+    
+    # Mock jacobian
+    jacobian = np.eye(len(local_trace_flat)) * 1.1 + 0.1
+    
+    return local_solution, flux, flux_trace, jacobian
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:flux_jump_complete_examples}
+
+\subsubsection{Integration with Real Static Condensation}
+
+\begin{lstlisting}[language=Python, caption=Real Static Condensation Integration]
+from ooc1d.core.flux_jump import domain_flux_jump
+from ooc1d.core.static_condensation_ooc import StaticCondensationOOC
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization, GlobalDiscretization
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+import numpy as np
+
+# Setup OrganOnChip problem (4 equations)
+ooc_params = np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0])
+problem = Problem(
+    neq=4,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=ooc_params,
+    problem_type="organ_on_chip"
+)
+
+# Setup discretization
+discretization = Discretization(n_elements=10)
+global_disc = GlobalDiscretization([discretization])
+
+# Create static condensation
+elementary_matrices = ElementaryMatrices()
+static_condensation = StaticCondensation(
+    problem=problem,
+    global_discretization=global_disc,
+    elementary_matrices=elementary_matrices,
+    domain_index=0
+)
+
+# Prepare realistic input data
+N = 10  # elements
+neq = 4  # equations
+n_nodes = N + 1  # 11 nodes
+
+# Create trace solution (4 equations × 11 nodes = 44 values)
+trace_solution = np.random.rand(neq * n_nodes, 1)
+
+# Create forcing term (8 coefficients × 10 elements)
+forcing_term = np.random.rand(2 * neq, N)
+
+# Compute flux jump
+U, F, JF = domain_flux_jump(
+    trace_solution=trace_solution,
+    forcing_term=forcing_term,
+    problem=problem,
+    discretization=discretization,
+    static_condensation=static_condensation
+)
+
+print(f"OrganOnChip flux jump computation:")
+print(f"  Input: {neq} equations, {N} elements, {n_nodes} nodes")
+print(f"  Output shapes:")
+print(f"    Bulk solutions U: {U.shape}")     # (8, 10)
+print(f"    Flux jumps F: {F.shape}")        # (44, 1)
+print(f"    Jacobian JF: {JF.shape}")        # (44, 44)
+print(f"  Solution statistics:")
+print(f"    |U|_max = {np.max(np.abs(U)):.6e}")
+print(f"    |F|_norm = {np.linalg.norm(F):.6e}")
+print(f"    JF condition = {np.linalg.cond(JF):.2e}")
+\end{lstlisting}
+
+
+
+\subsubsection{Error Handling and Debugging}
+
+\begin{lstlisting}[language=Python, caption=Error Handling Example]
+def robust_flux_jump_computation(trace_solution, forcing_term, 
+                                problem, discretization, static_condensation):
+    """
+    Robust wrapper for domain_flux_jump with comprehensive error handling.
+    """
+    try:
+        # Validate inputs
+        if trace_solution.size == 0:
+            raise ValueError("Empty trace solution")
+        
+        if forcing_term.size == 0:
+            raise ValueError("Empty forcing term")
+        
+        # Check for NaN or infinite values in inputs
+        if np.any(np.isnan(trace_solution)) or np.any(np.isinf(trace_solution)):
+            raise ValueError("Trace solution contains NaN or infinite values")
+        
+        if np.any(np.isnan(forcing_term)) or np.any(np.isinf(forcing_term)):
+            raise ValueError("Forcing term contains NaN or infinite values")
+        
+        # Compute flux jump
+        U, F, JF = domain_flux_jump(
+            trace_solution, forcing_term, problem, discretization, static_condensation
+        )
+        
+        # Validate outputs
+        if np.any(np.isnan(U)) or np.any(np.isinf(U)):
+            raise RuntimeError("Bulk solution contains NaN or infinite values")
+        
+        if np.any(np.isnan(F)) or np.any(np.isinf(F)):
+            raise RuntimeError("Flux jump contains NaN or infinite values")
+        
+        if np.any(np.isnan(JF)) or np.any(np.isinf(JF)):
+            raise RuntimeError("Jacobian contains NaN or infinite values")
+        
+        # Check Jacobian conditioning
+        jf_condition = np.linalg.cond(JF)
+        if jf_condition > 1e12:
+            print(f"Warning: Jacobian is poorly conditioned (cond = {jf_condition:.2e})")
+        
+        return U, F, JF, {"status": "success", "condition": jf_condition}
+        
+    except Exception as e:
+        error_info = {
+            "status": "error",
+            "error_type": type(e).__name__,
+            "error_message": str(e),
+            "trace_shape": trace_solution.shape if hasattr(trace_solution, 'shape') else None,
+            "forcing_shape": forcing_term.shape if hasattr(forcing_term, 'shape') else None
+        }
+        
+        print(f"Flux jump computation failed: {e}")
+        print(f"Error details: {error_info}")
+        
+        # Return zeros with error info
+        neq = forcing_term.shape[0] // 2 if hasattr(forcing_term, 'shape') and forcing_term.size > 0 else 1
+        N = forcing_term.shape[1] if hasattr(forcing_term, 'shape') and len(forcing_term.shape) > 1 else 1
+        n_nodes = N + 1
+        
+        U_zero = np.zeros((2 * neq, N))
+        F_zero = np.zeros((neq * n_nodes, 1))
+        JF_zero = np.eye(neq * n_nodes)  # Identity to avoid singular matrix
+        
+        return U_zero, F_zero, JF_zero, error_info
+
+# Usage with error handling
+U, F, JF, status = robust_flux_jump_computation(
+    trace_solution, forcing_term, problem, discretization, static_condensation
+)
+
+if status["status"] == "success":
+    print(f"✓ Computation successful (condition = {status['condition']:.2e})")
+else:
+    print(f"✗ Computation failed: {status['error_message']}")
+\end{lstlisting}
+
+\subsection{Method and Function Summary}
+\label{subsec:flux_jump_summary}
+
+\begin{longtable}{|p{4.3cm}|p{3.5cm}|p{6cm}|}
+\hline
+\textbf{Function} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{domain\_flux\_jump} & \texttt{Tuple[3×np.ndarray]} & Compute local flux balance for HDG method \\
+\hline
+
+\texttt{test\_domain\_flux\_jump} & \texttt{bool} & Comprehensive testing with mock objects \\
+\hline
+
+\end{longtable}
+
+\subsection{Key Features and Capabilities}
+
+\begin{itemize}
+    \item \textbf{MATLAB Compatibility}: Direct Python equivalent of MATLAB \texttt{fluxJump.m}
+    \item \textbf{Multi-Equation Support}: Handles arbitrary number of equations (\texttt{neq})
+    \item \textbf{Flexible Element Count}: Works with any number of elements (N)
+    \item \textbf{Static Condensation Integration}: Compatible with all static condensation implementations
+    \item \textbf{Comprehensive Testing}: Built-in test suite with mock objects and edge cases
+    \item \textbf{Error Handling}: Robust error reporting with element-specific debugging
+    \item \textbf{Shape Validation}: Automatic input/output shape verification
+    \item \textbf{Jacobian Assembly}: Full Jacobian matrix construction for Newton solvers
+\end{itemize}
+
+This documentation provides an exact reference for the flux jump module, emphasizing its role in HDG static condensation and integration with the broader BioNetFlux framework.
+
+% End of flux jump module API documentation

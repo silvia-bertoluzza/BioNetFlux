@@ -1,0 +1,787 @@
+% Lean Bulk Data Manager Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/lean_bulk_data_manager_api}
+
+\section{Lean Bulk Data Manager Module API Reference}
+\label{sec:lean_bulk_data_manager_api}
+
+This section provides an exact reference for the BulkDataManager class (\texttt{ooc1d.core.lean\_bulk\_data\_manager.BulkDataManager}) based on detailed analysis of the actual implementation. This is an ultra-lean coordinator that minimizes memory usage by storing only essential domain data and accepting framework objects as method parameters.
+
+\subsection{Module Overview}
+
+The lean bulk data manager provides memory-efficient coordination for bulk operations by:
+\begin{itemize}
+    \item Storing only extracted essential domain data
+    \item Accepting framework objects as method parameters
+    \item Validating framework object compatibility
+    \item Providing flexible bulk data operations without memory overhead
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import List, Optional, Callable
+from ooc1d.core.bulk_data import BulkData
+from ooc1d.core.domain_data import DomainData
+\end{lstlisting}
+
+\subsection{BulkDataManager Class Definition}
+\label{subsec:lean_bulk_data_manager_class}
+
+\begin{lstlisting}[language=Python, caption=Class Declaration]
+class BulkDataManager:
+    """
+    Ultra-lean coordinator for bulk operations in HDG method.
+    
+    This class stores only essential extracted domain data and accepts
+    framework objects as parameters to methods that need them. This approach
+    minimizes memory usage and increases flexibility.
+    """
+\end{lstlisting}
+
+\subsection{Constructor}
+\label{subsec:lean_constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Lean BulkDataManager Constructor]
+def __init__(self, domain_data_list: List[DomainData])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_data\_list}: List of DomainData objects with essential extracted information
+\end{itemize}
+
+\textbf{Side Effects:} Sets \texttt{self.domain\_data\_list} attribute
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage]
+# Extract domain data first (see static factory method)
+domain_data_list = BulkDataManager.extract_domain_data_list(
+    problems, discretizations, static_condensations
+)
+
+# Create lean manager with extracted data only
+lean_manager = BulkDataManager(domain_data_list)
+\end{lstlisting}
+
+\subsection{Core Attributes}
+\label{subsec:lean_attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{domain\_data\_list} & \texttt{List[DomainData]} & List of essential domain data objects (only stored attribute) \\
+\hline
+
+\end{longtable}
+
+\textbf{Memory Efficiency:} The lean manager stores \textbf{only} the domain data list, avoiding storage of large framework objects.
+
+\subsection{Validation Methods}
+\label{subsec:validation_methods}
+
+\paragraph{\_validate\_framework\_objects()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Framework Validation Method]
+def _validate_framework_objects(self, 
+                               problems: List = None,
+                               discretizations: List = None, 
+                               static_condensations: List = None,
+                               operation_name: str = "operation") -> None
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects to validate (optional)
+    \item \texttt{discretizations}: List of discretization objects to validate (optional)
+    \item \texttt{static\_condensations}: List of static condensation objects to validate (optional)
+    \item \texttt{operation\_name}: Name of operation for error messages (default: "operation")
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Raises:} \texttt{ValueError} for incompatible framework objects
+
+\textbf{Validation Checks:}
+\begin{enumerate}
+    \item \textbf{List Length Validation}: All provided lists must match domain count
+    \item \textbf{Problem Validation}: \texttt{neq} attribute must match stored domain data
+    \item \textbf{Discretization Validation}: \texttt{n\_elements}, nodes, and \texttt{element\_length} compatibility
+    \item \textbf{Static Condensation Validation}: Matrix compatibility and method availability
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Validation Usage]
+try:
+    lean_manager._validate_framework_objects(
+        problems=problems,
+        discretizations=discretizations,
+        operation_name="my_operation"
+    )
+    print("✓ Framework objects are compatible")
+except ValueError as e:
+    print(f"✗ Validation failed: {e}")
+\end{lstlisting}
+
+\subsection{Static Factory Methods}
+\label{subsec:static_factory_methods}
+
+\paragraph{extract\_domain\_data\_list()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Domain Data Extraction Method]
+@staticmethod
+def extract_domain_data_list(problems: List, 
+                            discretizations: List, 
+                            static_condensations: List) -> List[DomainData]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem instances
+    \item \texttt{discretizations}: List of discretization instances
+    \item \texttt{static\_condensations}: List of static condensation instances
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[DomainData]} - Extracted essential domain information
+
+\textbf{Purpose:} Static factory method to extract and store essential data once for reuse
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Domain Data Extraction Usage]
+# One-time extraction of essential domain data
+domain_data_list = BulkDataManager.extract_domain_data_list(
+    problems=problems,
+    discretizations=discretizations,
+    static_condensations=static_condensations
+)
+
+# Can create multiple lean managers with same extracted data
+lean_manager_1 = BulkDataManager(domain_data_list)
+lean_manager_2 = BulkDataManager(domain_data_list)
+\end{lstlisting}
+
+\paragraph{\_extract\_single\_domain\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Single Domain Extraction Method]
+@staticmethod
+def _extract_single_domain_data(problem, discretization, sc, domain_idx: int) -> DomainData
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem}: Problem object for single domain
+    \item \texttt{discretization}: Discretization object for single domain
+    \item \texttt{sc}: Static condensation object for single domain
+    \item \texttt{domain\_idx}: Domain index for error reporting
+\end{itemize}
+
+\textbf{Returns:} \texttt{DomainData} - Extracted essential data for single domain
+
+\textbf{Extraction Process:}
+\begin{enumerate}
+    \item Extract matrices from static condensation (\texttt{M}, \texttt{T})
+    \item Extract initial conditions with multiple access pattern support
+    \item Extract forcing functions with multiple access pattern support
+    \item Create DomainData object with essential information
+\end{enumerate}
+
+\subsection{BulkData Creation Methods}
+\label{subsec_bulk_data_creation}
+
+\paragraph{create\_bulk\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Create BulkData Method]
+def create_bulk_data(self, 
+                    domain_index: int, 
+                    problem, 
+                    discretization, 
+                    dual: bool = False) -> BulkData
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_index}: Index of the domain (0 to \texttt{n\_domains-1})
+    \item \texttt{problem}: Problem object for this domain
+    \item \texttt{discretization}: Discretization object for this domain
+    \item \texttt{dual}: Whether to use dual formulation (default: False)
+\end{itemize}
+
+\textbf{Returns:} \texttt{BulkData} - New BulkData object
+
+\textbf{Raises:} \texttt{ValueError} for invalid domain index
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=BulkData Creation Usage]
+# Create primal BulkData for domain 0
+bulk_data_primal = lean_manager.create_bulk_data(
+    domain_index=0,
+    problem=problems[0],
+    discretization=discretizations[0],
+    dual=False
+)
+
+# Create dual BulkData for forcing terms
+bulk_data_dual = lean_manager.create_bulk_data(
+    domain_index=0,
+    problem=problems[0],
+    discretization=discretizations[0],
+    dual=True
+)
+\end{lstlisting}
+
+\subsection{Bulk Operations Methods}
+\label{subsec:bulk_operations}
+
+\paragraph{compute\_source\_terms()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Source Terms Method]
+def compute_source_terms(self,
+                        problems: List,
+                        discretizations: List,
+                        time: float) -> List[BulkData]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects
+    \item \texttt{discretizations}: List of discretization objects
+    \item \texttt{time}: Current time for evaluation
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[BulkData]} - Source terms for all domains using dual formulation
+
+\textbf{Process:}
+\begin{enumerate}
+    \item Validate framework objects against stored domain data
+    \item Create dual BulkData for each domain
+    \item Set forcing functions from problems at specified time
+    \item Return list of integrated source terms
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Source Terms Usage]
+# Compute source terms at time t=0.5
+source_terms = lean_manager.compute_source_terms(
+    problems=problems,
+    discretizations=discretizations,
+    time=0.5
+)
+
+print(f"Computed {len(source_terms)} source term BulkData objects")
+\end{lstlisting}
+
+\paragraph{compute\_forcing\_terms()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Forcing Terms Method]
+def compute_forcing_terms(self, 
+                          bulk_data_list: List[BulkData],
+                          problems: List,
+                          discretizations: List, 
+                          time: float, 
+                          dt: float) -> List[np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of current BulkData solutions
+    \item \texttt{problems}: List of Problem objects
+    \item \texttt{discretizations}: List of discretization objects
+    \item \texttt{time}: Current time
+    \item \texttt{dt}: Time step size
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[np.ndarray]} - Forcing term arrays for implicit Euler
+
+\textbf{Computation:} For each domain: \texttt{forcing\_term = dt * force\_contrib + M * U\_old}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Forcing Terms Usage]
+# Compute forcing terms for implicit Euler step
+current_bulk_data = [...]  # Current solution
+forcing_terms = lean_manager.compute_forcing_terms(
+    bulk_data_list=current_bulk_data,
+    problems=problems,
+    discretizations=discretizations,
+    time=0.1,
+    dt=0.01
+)
+
+# forcing_terms[i] has shape (2*neq, n_elements) for domain i
+\end{lstlisting}
+
+\subsection{Initialization Methods}
+\label{subsec:initialization_methods}
+
+\paragraph{initialize\_all\_bulk\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Initialize All BulkData Method]
+def initialize_all_bulk_data(self, 
+                            problems: List,
+                            discretizations: List,
+                            time: float = 0.0) -> List[BulkData]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects
+    \item \texttt{discretizations}: List of discretization objects
+    \item \texttt{time}: Initial time (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[BulkData]} - Initialized BulkData objects for all domains
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Initialize All Usage]
+# Initialize all domains with initial conditions
+initial_bulk_data = lean_manager.initialize_all_bulk_data(
+    problems=problems,
+    discretizations=discretizations,
+    time=0.0
+)
+
+print(f"Initialized {len(initial_bulk_data)} BulkData objects")
+\end{lstlisting}
+
+\paragraph{initialize\_bulk\_data\_from\_initial\_conditions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Initialize Single Domain Method]
+def initialize_bulk_data_from_initial_conditions(self, 
+                                                domain_index: int,
+                                                problem,
+                                                discretization,
+                                                time: float = 0.0) -> BulkData
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_index}: Index of domain to initialize
+    \item \texttt{problem}: Problem object for this domain
+    \item \texttt{discretization}: Discretization object for this domain
+    \item \texttt{time}: Initial time (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{BulkData} - Initialized BulkData object
+
+\textbf{Process:}
+\begin{enumerate}
+    \item Validate domain index and framework objects
+    \item Create BulkData with primal formulation
+    \item Set initial conditions from stored domain data
+    \item Default to zero if no initial conditions available
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Initialize Single Domain Usage]
+# Initialize specific domain
+domain_0_bulk = lean_manager.initialize_bulk_data_from_initial_conditions(
+    domain_index=0,
+    problem=problems[0],
+    discretization=discretizations[0],
+    time=0.0
+)
+\end{lstlisting}
+
+\subsection{Data Management Methods}
+\label{subsec:data_management}
+
+\paragraph{update\_bulk\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Update BulkData Method]
+def update_bulk_data(self, bulk_data_list: List[BulkData], new_data_list: List[np.ndarray])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData objects to update
+    \item \texttt{new\_data\_list}: List of new bulk solution arrays
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Updates data in all BulkData objects
+
+\textbf{Validation:}
+\begin{itemize}
+    \item Lists must have matching lengths
+    \item New data must have compatible shapes
+    \item New data must not contain NaN or infinite values
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Update BulkData Usage]
+# Update bulk data with new solution
+new_solutions = [...]  # List of numpy arrays
+lean_manager.update_bulk_data(
+    bulk_data_list=current_bulk_data,
+    new_data_list=new_solutions
+)
+\end{lstlisting}
+
+\paragraph{get\_bulk\_data\_arrays()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Data Arrays Method]
+def get_bulk_data_arrays(self, bulk_data_list: List[BulkData]) -> List[np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData objects
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[np.ndarray]} - Data arrays from all BulkData objects
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Arrays Usage]
+# Extract data arrays for external processing
+data_arrays = lean_manager.get_bulk_data_arrays(bulk_data_list)
+for i, array in enumerate(data_arrays):
+    print(f"Domain {i} data shape: {array.shape}")
+\end{lstlisting}
+
+\subsection{Analysis Methods}
+\label{subsec:analysis_methods}
+
+\paragraph{compute\_total\_mass()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Total Mass Method]
+def compute_total_mass(self, bulk_data_list: List[BulkData]) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData instances
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Total mass across all domains
+
+\textbf{Computation:} Sums mass from each domain using stored mass matrices
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Mass Computation Usage]
+# Monitor mass conservation
+initial_mass = lean_manager.compute_total_mass(initial_bulk_data)
+current_mass = lean_manager.compute_total_mass(current_bulk_data)
+
+mass_change = abs(current_mass - initial_mass) / initial_mass
+print(f"Relative mass change: {mass_change:.6e}")
+\end{lstlisting}
+
+\paragraph{compute\_mass\_conservation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Mass Conservation Method]
+def compute_mass_conservation(self, bulk_data_list: List[BulkData]) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData instances
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Total mass (alias for \texttt{compute\_total\_mass})
+
+\textbf{Note:} This method is an alias for consistency with other interfaces
+
+\subsection{Utility Methods}
+\label{subsec:utility_methods}
+
+\paragraph{get\_num\_domains()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Number of Domains Method]
+def get_num_domains(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Number of domains managed
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Domains Count Usage]
+n_domains = lean_manager.get_num_domains()
+print(f"Managing {n_domains} domains")
+\end{lstlisting}
+
+\paragraph{get\_domain\_info()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Domain Info Method]
+def get_domain_info(self, domain_idx: int) -> DomainData
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_idx}: Domain index
+\end{itemize}
+
+\textbf{Returns:} \texttt{DomainData} - Domain data object for inspection
+
+\textbf{Raises:} \texttt{IndexError} for invalid domain index
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Domain Info Usage]
+# Inspect domain properties
+domain_info = lean_manager.get_domain_info(0)
+print(f"Domain 0: {domain_info.neq} equations, {domain_info.n_elements} elements")
+print(f"Element length: {domain_info.element_length}")
+\end{lstlisting}
+
+\subsection{Testing and Validation}
+\label{subsec:testing_validation}
+
+\paragraph{test()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Test Method]
+def test(self, 
+         problems: List = None,
+         discretizations: List = None,
+         static_condensations: List = None) -> bool
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects for testing (optional)
+    \item \texttt{discretizations}: List of discretization objects for testing (optional)
+    \item \texttt{static\_condensations}: List of static condensation objects for testing (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{bool} - True if all tests pass, False otherwise
+
+\textbf{Test Suite:}
+\begin{enumerate}
+    \item \textbf{Framework Object Validation Test}: Validates provided framework objects
+    \item \textbf{Domain Data Structure Test}: Validates stored domain data integrity
+    \item \textbf{BulkData Creation Test}: Tests creation of primal and dual BulkData
+    \item \textbf{Initialization Test}: Tests bulk data initialization
+    \item \textbf{Forcing Term Computation Test}: Tests forcing term calculations
+    \item \textbf{Mass Computation Test}: Tests mass conservation calculations
+    \item \textbf{Bounds Checking Test}: Tests error handling for invalid indices
+    \item \textbf{Utility Methods Test}: Tests helper methods
+    \item \textbf{Parameter Mismatch Test}: Tests validation error detection
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Test Method Usage]
+# Comprehensive testing with framework objects
+if lean_manager.test(
+    problems=problems,
+    discretizations=discretizations,
+    static_condensations=static_condensations
+):
+    print("✓ Lean BulkDataManager is fully functional")
+else:
+    print("✗ Issues detected in Lean BulkDataManager")
+
+# Minimal testing without framework objects
+if lean_manager.test():
+    print("✓ Basic structure validation passed")
+\end{lstlisting}
+
+\textbf{Sample Test Output:}
+\begin{lstlisting}[language=Python, caption=Sample Test Output]
+Testing Lean BulkDataManager with 3 domains
+PASS: Framework object validation passed
+PASS: All domain data validated
+PASS: BulkData creation tests passed
+PASS: Initialization tests passed
+PASS: Forcing term computation tests passed
+PASS: Mass computation test passed (total_mass=1.234567e+00)
+PASS: ValueError raised for negative domain index
+PASS: get_num_domains() returned correct value
+PASS: get_domain_info() test passed
+PASS: Correctly detected wrong number of problems
+PASS: Correctly detected incompatible problem neq
+PASS: Parameter mismatch detection tests passed
+✓ All Lean BulkDataManager tests passed!
+\end{lstlisting}
+
+\subsection{Special Methods}
+\label{subsec:special_methods}
+
+\paragraph{\_\_str\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=String Representation Method]
+def __str__(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Human-readable summary
+
+\textbf{Format:} \texttt{"LeanBulkDataManager(domains=N, total\_elements=M, total\_equations=K)"}
+
+\paragraph{\_\_repr\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Repr Method]
+def __repr__(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Developer-oriented representation
+
+\textbf{Format:} \texttt{"LeanBulkDataManager(n\_domains=N, domain\_elements=[...], domain\_equations=[...])"}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=String Methods Usage]
+print(str(lean_manager))
+# Output: LeanBulkDataManager(domains=3, total_elements=60, total_equations=6)
+
+print(repr(lean_manager))
+# Output: LeanBulkDataManager(n_domains=3, domain_elements=[20, 20, 20], domain_equations=[2, 2, 2])
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples}
+
+\subsubsection{Standard Workflow Example}
+
+\begin{lstlisting}[language=Python, caption=Complete Lean Manager Workflow]
+from ooc1d.core.lean_bulk_data_manager import BulkDataManager
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization
+import numpy as np
+
+# Step 1: Create framework objects (problems, discretizations, static_condensations)
+problems = [...]  # List of Problem instances
+discretizations = [...]  # List of Discretization instances  
+static_condensations = [...]  # List of static condensation instances
+
+# Step 2: Extract essential data once (memory-efficient)
+domain_data_list = BulkDataManager.extract_domain_data_list(
+    problems=problems,
+    discretizations=discretizations,
+    static_condensations=static_condensations
+)
+
+# Step 3: Create lean manager with extracted data only
+lean_manager = BulkDataManager(domain_data_list)
+
+# Step 4: Validate compatibility (optional but recommended)
+if not lean_manager.test(problems, discretizations, static_condensations):
+    raise RuntimeError("Framework objects incompatible with extracted data")
+
+# Step 5: Initialize bulk data for all domains
+bulk_data_list = lean_manager.initialize_all_bulk_data(
+    problems=problems,
+    discretizations=discretizations,
+    time=0.0
+)
+
+# Step 6: Time evolution loop
+dt = 0.01
+for time_step in range(100):
+    current_time = time_step * dt
+    
+    # Compute forcing terms for implicit Euler
+    forcing_terms = lean_manager.compute_forcing_terms(
+        bulk_data_list=bulk_data_list,
+        problems=problems,
+        discretizations=discretizations,
+        time=current_time,
+        dt=dt
+    )
+    
+    # Solve system (external solver)
+    new_solutions = solve_system(forcing_terms)  # User-defined solver
+    
+    # Update bulk data with new solutions
+    lean_manager.update_bulk_data(bulk_data_list, new_solutions)
+    
+    # Monitor mass conservation
+    current_mass = lean_manager.compute_total_mass(bulk_data_list)
+    if time_step % 10 == 0:
+        print(f"Time {current_time:.3f}: Mass = {current_mass:.6e}")
+
+print("✓ Time evolution completed with lean manager")
+\end{lstlisting}
+
+\subsubsection{Memory Comparison Example}
+
+\begin{lstlisting}[language=Python, caption=Memory Usage Comparison]
+import psutil
+import os
+
+# Measure memory before
+process = psutil.Process(os.getpid())
+memory_before = process.memory_info().rss / 1024 / 1024  # MB
+
+# Traditional approach (stores framework objects)
+# traditional_manager = FullBulkDataManager(problems, discretizations, static_condensations)
+
+# Lean approach (stores only essential data)
+domain_data_list = BulkDataManager.extract_domain_data_list(
+    problems, discretizations, static_condensations
+)
+lean_manager = BulkDataManager(domain_data_list)
+
+# Measure memory after
+memory_after = process.memory_info().rss / 1024 / 1024  # MB
+memory_used = memory_after - memory_before
+
+print(f"Memory used by lean manager: {memory_used:.2f} MB")
+print(f"Domains managed: {lean_manager.get_num_domains()}")
+print(f"Memory per domain: {memory_used / lean_manager.get_num_domains():.2f} MB")
+\end{lstlisting}
+
+\subsubsection{Multi-Manager Example}
+
+\begin{lstlisting}[language=Python, caption=Multiple Lean Managers from Same Data]
+# Extract domain data once
+domain_data_list = BulkDataManager.extract_domain_data_list(
+    problems, discretizations, static_condensations
+)
+
+# Create multiple lean managers for different purposes
+# (all sharing the same extracted data - no additional memory cost)
+
+# Manager for time evolution
+evolution_manager = BulkDataManager(domain_data_list)
+
+# Manager for forcing term computation
+forcing_manager = BulkDataManager(domain_data_list)
+
+# Manager for mass conservation tracking  
+conservation_manager = BulkDataManager(domain_data_list)
+
+# Each manager can operate independently but uses same base data
+initial_bulk = evolution_manager.initialize_all_bulk_data(problems, discretizations)
+source_terms = forcing_manager.compute_source_terms(problems, discretizations, time=0.0)
+total_mass = conservation_manager.compute_total_mass(initial_bulk)
+
+print(f"Created 3 independent managers sharing {len(domain_data_list)} domain data objects")
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:lean_method_summary}
+
+\begin{longtable}{|p{5.3cm}|p{3.2cm}|p{5cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize with extracted domain data only \\
+\hline
+
+\texttt{extract\_domain\_data\_list} & \texttt{List[DomainData]} & Static factory for one-time data extraction \\
+\hline
+
+\texttt{create\_bulk\_data} & \texttt{BulkData} & Create BulkData using external framework objects \\
+\hline
+
+\texttt{initialize\_all\_bulk\_data} & \texttt{List[BulkData]} & Initialize all domains with initial conditions \\
+\hline
+
+\texttt{compute\_source\_terms} & \texttt{List[BulkData]} & Compute source terms using dual formulation \\
+\hline
+
+\texttt{compute\_forcing\_terms} & \texttt{List[np.ndarray]} & Compute forcing terms for implicit Euler \\
+\hline
+
+\texttt{update\_bulk\_data} & \texttt{None} & Update BulkData objects with new solutions \\
+\hline
+
+\texttt{compute\_total\_mass} & \texttt{float} & Calculate total mass for conservation \\
+\hline
+
+\texttt{get\_bulk\_data\_arrays} & \texttt{List[np.ndarray]} & Extract data arrays from BulkData objects \\
+\hline
+
+\texttt{get\_num\_domains} & \texttt{int} & Get number of managed domains \\
+\hline
+
+\texttt{get\_domain\_info} & \texttt{DomainData} & Access domain data for inspection \\
+\hline
+
+\texttt{test} & \texttt{bool} & Comprehensive validation and testing \\
+\hline
+
+\texttt{\_validate\_framework\_objects} & \texttt{None} & Validate framework object compatibility \\
+\hline
+
+\end{longtable}
+
+This documentation provides an exact reference for the lean BulkDataManager class, emphasizing its memory-efficient design and parameter-based approach to framework object usage. The lean architecture minimizes memory overhead while maintaining full functionality through external object validation and flexible method interfaces.
+
+% End of lean bulk data manager module API documentation

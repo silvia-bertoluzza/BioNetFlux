@@ -1,0 +1,890 @@
+% Constraints Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/constraints_module_api}
+
+\section{Constraints Module API Reference (Accurate Analysis)}
+\label{sec:constraints_module_api}
+
+This section provides an exact reference for the constraints module (\texttt{ooc1d.core.constraints}) based on detailed analysis of the actual implementation. The module handles boundary conditions and junction constraints using Lagrange multipliers for HDG methods.
+
+\subsection{Module Overview}
+
+The constraints module provides:
+\begin{itemize}
+    \item Unified constraint representation for boundary and junction conditions
+    \item Lagrange multiplier management
+    \item Support for time-dependent constraint data
+    \item Integration with discretization node mappings
+    \item Constraint residual computation for Newton solvers
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import List, Optional, Tuple, Callable
+from enum import Enum
+\end{lstlisting}
+
+\subsection{ConstraintType Enumeration}
+\label{subsec:constraint_type_enum}
+
+\begin{lstlisting}[language=Python, caption=ConstraintType Enumeration]
+class ConstraintType(Enum):
+    """Types of constraints."""
+    # Boundary conditions (single domain)
+    DIRICHLET = "dirichlet"
+    NEUMANN = "neumann"
+    ROBIN = "robin"
+    
+    # Junction conditions (two domains)
+    TRACE_CONTINUITY = "trace_continuity"
+    KEDEM_KATCHALSKY = "kedem_katchalsky"
+\end{lstlisting}
+
+\textbf{Constraint Categories:}
+\begin{itemize}
+    \item \textbf{Boundary Conditions}: Single domain constraints (DIRICHLET, NEUMANN, ROBIN)
+    \item \textbf{Junction Conditions}: Multi-domain constraints (TRACE\_CONTINUITY, KEDEM\_KATCHALSKY)
+\end{itemize}
+
+\subsection{Constraint Class}
+\label{subsec:constraint_class}
+
+Base class for all constraint types with unified interface.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Constraint Constructor]
+def __init__(self, 
+             constraint_type: ConstraintType,
+             equation_index: int,
+             domains: List[int],
+             positions: List[float],
+             parameters: Optional[np.ndarray] = None,
+             data_function: Optional[Callable] = None)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{constraint\_type}: Type of constraint (from ConstraintType enum)
+    \item \texttt{equation\_index}: Equation number (0, 1, ...) this constraint applies to
+    \item \texttt{domains}: List of domain indices (length 1 for boundary, 2 for junction)
+    \item \texttt{positions}: Position coordinates in each domain
+    \item \texttt{parameters}: Parameters for constraint (e.g., Robin coefficients) (optional)
+    \item \texttt{data\_function}: Function \texttt{f(t)} providing constraint data over time (optional)
+\end{itemize}
+
+\textbf{Validation Rules:}
+\begin{itemize}
+    \item Length of \texttt{domains} must match length of \texttt{positions}
+    \item Boundary conditions require exactly one domain
+    \item Junction conditions require exactly two domains
+\end{itemize}
+
+\textbf{Raises:} \texttt{ValueError} for invalid input combinations
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Constraint Constructor Usage]
+# Dirichlet boundary condition: u = sin(t) at position 0.0
+dirichlet = Constraint(
+    constraint_type=ConstraintType.DIRICHLET,
+    equation_index=0,
+    domains=[0],
+    positions=[0.0],
+    data_function=lambda t: np.sin(t)
+)
+
+# Robin boundary condition: 2*u + 0.5*du/dn = exp(-t)
+robin = Constraint(
+    constraint_type=ConstraintType.ROBIN,
+    equation_index=1,
+    domains=[0],
+    positions=[1.0],
+    parameters=np.array([2.0, 0.5]),
+    data_function=lambda t: np.exp(-t)
+)
+
+# Trace continuity: u1 = u2 at junction
+continuity = Constraint(
+    constraint_type=ConstraintType.TRACE_CONTINUITY,
+    equation_index=0,
+    domains=[0, 1],
+    positions=[1.0, 1.0]
+)
+\end{lstlisting}
+
+\subsubsection{Instance Attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{type} & \texttt{ConstraintType} & Type of constraint from enumeration \\
+\hline
+
+\texttt{equation\_index} & \texttt{int} & Equation number this constraint applies to \\
+\hline
+
+\texttt{domains} & \texttt{List[int]} & List of domain indices \\
+\hline
+
+\texttt{positions} & \texttt{List[float]} & Position coordinates in each domain \\
+\hline
+
+\texttt{parameters} & \texttt{np.ndarray} & Constraint parameters (default: empty array) \\
+\hline
+
+\texttt{data\_function} & \texttt{Callable} & Function providing constraint data (default: \texttt{lambda t: 0.0}) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Properties}
+
+\paragraph{is\_boundary\_condition}\leavevmode
+\begin{lstlisting}[language=Python, caption=Boundary Condition Property]
+@property
+def is_boundary_condition(self) -> bool
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{bool} - True if constraint is a boundary condition
+
+\textbf{Logic:} Returns True for DIRICHLET, NEUMANN, and ROBIN types
+
+\paragraph{is\_junction\_condition}\leavevmode
+\begin{lstlisting}[language=Python, caption=Junction Condition Property]
+@property
+def is_junction_condition(self) -> bool
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{bool} - True if constraint is a junction condition
+
+\textbf{Logic:} Returns \texttt{not is\_boundary\_condition}
+
+\paragraph{n\_multipliers}\leavevmode
+\begin{lstlisting}[language=Python, caption=Number of Multipliers Property]
+@property
+def n_multipliers(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Number of Lagrange multipliers for this constraint
+
+\textbf{Logic:} Returns 1 for boundary conditions, 2 for junction conditions
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Properties Usage]
+constraint = Constraint(ConstraintType.DIRICHLET, 0, [0], [0.0])
+print(f"Is boundary: {constraint.is_boundary_condition}")  # True
+print(f"Is junction: {constraint.is_junction_condition}")  # False
+print(f"Multipliers: {constraint.n_multipliers}")  # 1
+
+junction_constraint = Constraint(ConstraintType.TRACE_CONTINUITY, 0, [0, 1], [1.0, 1.0])
+print(f"Multipliers: {junction_constraint.n_multipliers}")  # 2
+\end{lstlisting}
+
+\subsubsection{Methods}
+
+\paragraph{get\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Data Method]
+def get_data(self, time: float) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{time}: Time value for evaluation
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Constraint data at given time
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Data Usage]
+# Time-dependent Dirichlet condition
+constraint = Constraint(
+    ConstraintType.DIRICHLET, 0, [0], [0.0],
+    data_function=lambda t: np.sin(2*np.pi*t)
+)
+
+data_at_t0 = constraint.get_data(0.0)  # 0.0
+data_at_t025 = constraint.get_data(0.25)  # 1.0
+\end{lstlisting}
+
+\subsection{ConstraintManager Class}
+\label{subsec:constraint_manager_class}
+
+Main class for managing all constraints and their associated Lagrange multipliers.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=ConstraintManager Constructor]
+def __init__(self)
+\end{lstlisting}
+
+\textbf{Parameters:} None
+
+\textbf{Side Effects:} Initializes empty constraint list and node mappings
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=ConstraintManager Constructor Usage]
+constraint_manager = ConstraintManager()
+print(f"Initial constraints: {constraint_manager.n_constraints}")  # 0
+print(f"Initial multipliers: {constraint_manager.n_multipliers}")  # 0
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{constraints} & \texttt{List[Constraint]} & List of all constraints \\
+\hline
+
+\texttt{\_node\_mappings} & \texttt{List[List[int]]} & Node indices for each constraint (filled by mapping) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Constraint Addition Methods}
+
+\paragraph{add\_constraint()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Constraint Method]
+def add_constraint(self, constraint: Constraint) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{constraint}: Constraint object to add
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Index of the added constraint
+
+\textbf{Side Effects:} Adds constraint to list and initializes empty node mapping
+
+\paragraph{add\_dirichlet()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Dirichlet Method]
+def add_dirichlet(self, 
+                 equation_index: int, 
+                 domain_index: int, 
+                 position: float,
+                 data_function: Optional[Callable] = None) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number (0, 1, ...)
+    \item \texttt{domain\_index}: Domain index
+    \item \texttt{position}: Position coordinate in domain
+    \item \texttt{data\_function}: Function \texttt{f(t)} for time-dependent data (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Constraint index
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Add Dirichlet Usage]
+# Homogeneous Dirichlet: u = 0 at x = 0
+idx1 = constraint_manager.add_dirichlet(0, 0, 0.0)
+
+# Time-dependent Dirichlet: u = sin(t) at x = 1
+idx2 = constraint_manager.add_dirichlet(
+    equation_index=0,
+    domain_index=0, 
+    position=1.0,
+    data_function=lambda t: np.sin(t)
+)
+\end{lstlisting}
+
+\paragraph{add\_neumann()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Neumann Method]
+def add_neumann(self, 
+               equation_index: int, 
+               domain_index: int, 
+               position: float,
+               data_function: Optional[Callable] = None) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{domain\_index}: Domain index
+    \item \texttt{position}: Position coordinate in domain
+    \item \texttt{data\_function}: Function \texttt{f(t)} for flux data (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Constraint index
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Add Neumann Usage]
+# Zero flux boundary: du/dn = 0
+idx1 = constraint_manager.add_neumann(0, 0, 0.0)
+
+# Time-dependent flux: du/dn = exp(-t)
+idx2 = constraint_manager.add_neumann(
+    equation_index=1,
+    domain_index=0,
+    position=1.0,
+    data_function=lambda t: np.exp(-t)
+)
+\end{lstlisting}
+
+\paragraph{add\_robin()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Robin Method]
+def add_robin(self, 
+             equation_index: int, 
+             domain_index: int, 
+             position: float,
+             alpha: float, 
+             beta: float,
+             data_function: Optional[Callable] = None) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{domain\_index}: Domain index
+    \item \texttt{position}: Position coordinate in domain
+    \item \texttt{alpha}: Coefficient for solution term
+    \item \texttt{beta}: Coefficient for flux term
+    \item \texttt{data\_function}: Function \texttt{f(t)} for Robin data (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Constraint index
+
+\textbf{Constraint Equation:} $\alpha \cdot u + \beta \cdot \frac{du}{dn} = \text{data}$
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Add Robin Usage]
+# Robin condition: 2*u + 0.5*du/dn = 1.0
+idx = constraint_manager.add_robin(
+    equation_index=0,
+    domain_index=0,
+    position=0.0,
+    alpha=2.0,
+    beta=0.5,
+    data_function=lambda t: 1.0
+)
+\end{lstlisting}
+
+\paragraph{add\_trace\_continuity()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Trace Continuity Method]
+def add_trace_continuity(self, 
+                       equation_index: int,
+                       domain1_index: int, 
+                       domain2_index: int,
+                       position1: float, 
+                       position2: float) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{domain1\_index}: First domain index
+    \item \texttt{domain2\_index}: Second domain index
+    \item \texttt{position1}: Position in first domain
+    \item \texttt{position2}: Position in second domain
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Constraint index
+
+\textbf{Constraint Equation:} $u_1 = u_2$ (trace continuity at junction)
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Add Trace Continuity Usage]
+# Continuity between domains at junction x = 1.0
+idx = constraint_manager.add_trace_continuity(
+    equation_index=0,
+    domain1_index=0,
+    domain2_index=1,
+    position1=1.0,  # End of domain 0
+    position2=1.0   # Start of domain 1
+)
+\end{lstlisting}
+
+\paragraph{add\_kedem\_katchalsky()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Kedem-Katchalsky Method]
+def add_kedem_katchalsky(self, 
+                       equation_index: int,
+                       domain1_index: int, 
+                       domain2_index: int,
+                       position1: float, 
+                       position2: float,
+                       permeability: float) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{domain1\_index}: First domain index
+    \item \texttt{domain2\_index}: Second domain index
+    \item \texttt{position1}: Position in first domain
+    \item \texttt{position2}: Position in second domain
+    \item \texttt{permeability}: Permeability coefficient P
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Constraint index
+
+\textbf{Constraint Equation:} $\text{flux} = -P \cdot (u_1 - u_2)$
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Add Kedem-Katchalsky Usage]
+# Membrane with permeability 0.1
+idx = constraint_manager.add_kedem_katchalsky(
+    equation_index=0,
+    domain1_index=0,
+    domain2_index=1, 
+    position1=1.0,
+    position2=1.0,
+    permeability=0.1
+)
+\end{lstlisting}
+
+\subsubsection{Discretization Integration}
+
+\paragraph{map\_to\_discretizations()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Map to Discretizations Method]
+def map_to_discretizations(self, discretizations: List) -> None
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{discretizations}: List of spatial discretizations for each domain
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Updates \texttt{\_node\_mappings} with closest discretization nodes
+
+\textbf{Algorithm:} For each constraint position, finds closest discretization node
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Map to Discretizations Usage]
+from ooc1d.core.discretization import Discretization
+
+# Create discretizations
+discretizations = [
+    Discretization(n_elements=20, domain_start=0.0, domain_length=1.0),
+    Discretization(n_elements=15, domain_start=1.0, domain_length=0.8)
+]
+
+# Map constraints to discretization nodes
+constraint_manager.map_to_discretizations(discretizations)
+
+# Access mapped node indices
+node_indices = constraint_manager.get_node_indices(0)
+print(f"Constraint 0 mapped to nodes: {node_indices}")
+\end{lstlisting}
+
+\paragraph{get\_node\_indices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Node Indices Method]
+def get_node_indices(self, constraint_index: int) -> List[int]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{constraint\_index}: Index of constraint
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[int]} - Discretization node indices for the constraint
+
+\textbf{Prerequisites:} \texttt{map\_to\_discretizations()} must be called first
+
+\subsubsection{Properties and Query Methods}
+
+\paragraph{n\_constraints}\leavevmode
+\begin{lstlisting}[language=Python, caption=Number of Constraints Property]
+@property
+def n_constraints(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Total number of constraints
+
+\paragraph{n\_multipliers}\leavevmode
+\begin{lstlisting}[language=Python, caption=Number of Multipliers Property]
+@property
+def n_multipliers(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Total number of Lagrange multipliers
+
+\textbf{Computation:} Sums \texttt{n\_multipliers} for all constraints
+
+\paragraph{get\_constraints\_by\_domain()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Constraints by Domain Method]
+def get_constraints_by_domain(self, domain_index: int) -> List[int]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_index}: Domain index to query
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[int]} - Indices of constraints involving the domain
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Query Constraints Usage]
+# Find all constraints affecting domain 0
+domain_0_constraints = constraint_manager.get_constraints_by_domain(0)
+print(f"Domain 0 has {len(domain_0_constraints)} constraints")
+
+# Find all Dirichlet conditions
+dirichlet_constraints = constraint_manager.get_constraints_by_type(
+    ConstraintType.DIRICHLET
+)
+print(f"System has {len(dirichlet_constraints)} Dirichlet conditions")
+\end{lstlisting}
+
+\paragraph{get\_constraints\_by\_type()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Constraints by Type Method]
+def get_constraints_by_type(self, constraint_type: ConstraintType) -> List[int]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{constraint\_type}: Type of constraint to find
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[int]} - Indices of constraints of specified type
+
+\subsubsection{Data and Residual Methods}
+
+\paragraph{get\_multiplier\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Multiplier Data Method]
+def get_multiplier_data(self, time: float) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{time}: Time for data evaluation
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Constraint data for all multipliers at given time
+
+\textbf{Structure:} One entry per multiplier (boundary: 1, junction: 2)
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Multiplier Data Usage]
+# Get constraint data at t = 0.5
+multiplier_data = constraint_manager.get_multiplier_data(0.5)
+print(f"Multiplier data shape: {multiplier_data.shape}")
+print(f"Total multipliers: {constraint_manager.n_multipliers}")
+\end{lstlisting}
+
+\paragraph{compute\_constraint\_residuals()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Constraint Residuals Method]
+def compute_constraint_residuals(self, 
+                               trace_solutions: List[np.ndarray], 
+                               multiplier_values: np.ndarray, 
+                               time: float,
+                               discretizations: List = None) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_solutions}: List of trace solution vectors for each domain
+    \item \texttt{multiplier\_values}: Vector of all Lagrange multiplier values (containing flux values)
+    \item \texttt{time}: Current time for time-dependent constraint data
+    \item \texttt{discretizations}: List of discretizations (optional, uses stored mappings if None)
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Constraint residuals matching multiplier structure
+
+\textbf{Residual Computations:}
+\begin{itemize}
+    \item \textbf{Dirichlet}: $r = u - g(t)$
+    \item \textbf{Neumann}: $r = \text{flux} - g(t)$
+    \item \textbf{Robin}: $r = \alpha u + \beta \text{flux} - g(t)$
+    \item \textbf{Trace Continuity}: $r_1 = u_1 - u_2$, $r_2 = \text{flux}_1 + \text{flux}_2$
+    \item \textbf{Kedem-Katchalsky}: $r_1 = \text{flux}_1 - P(u_1-u_2)$, $r_2 = \text{flux}_2 + P(u_1-u_2)$
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Compute Residuals Usage]
+# In Newton solver iteration
+trace_solutions = [...]  # Current trace solutions
+multiplier_values = [...]  # Current multiplier values
+current_time = 0.5
+
+residuals = constraint_manager.compute_constraint_residuals(
+    trace_solutions=trace_solutions,
+    multiplier_values=multiplier_values,
+    time=current_time
+)
+
+residual_norm = np.linalg.norm(residuals)
+print(f"Constraint residual norm: {residual_norm:.6e}")
+\end{lstlisting}
+
+\paragraph{\_get\_equations\_per\_domain()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Equations per Domain Helper Method]
+def _get_equations_per_domain(self, domain_idx: int) -> int
+\end{lstlisting}
+
+\textbf{Purpose:} Helper method to determine number of equations per domain
+
+\textbf{Current Implementation:} Returns 2 (assuming Keller-Segel system)
+
+\textbf{Note:} This is a simplification - production code should get \texttt{neq} from problem definitions
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples}
+
+\subsubsection{Single Domain with Mixed Boundary Conditions}
+
+\begin{lstlisting}[language=Python, caption=Single Domain Example]
+from ooc1d.core.constraints import ConstraintManager, ConstraintType
+from ooc1d.core.discretization import Discretization
+import numpy as np
+
+# Create constraint manager
+cm = ConstraintManager()
+
+# Add Dirichlet condition at left boundary: u = sin(t)
+cm.add_dirichlet(
+    equation_index=0,
+    domain_index=0,
+    position=0.0,
+    data_function=lambda t: np.sin(2*np.pi*t)
+)
+
+# Add Neumann condition at right boundary: du/dn = 0
+cm.add_neumann(
+    equation_index=0,
+    domain_index=0,
+    position=1.0,
+    data_function=lambda t: 0.0
+)
+
+# Add Robin condition for second equation: 2*phi + 0.1*dphi/dn = exp(-t)
+cm.add_robin(
+    equation_index=1,
+    domain_index=0,
+    position=1.0,
+    alpha=2.0,
+    beta=0.1,
+    data_function=lambda t: np.exp(-t)
+)
+
+# Create discretization and map constraints
+discretization = Discretization(n_elements=50, domain_start=0.0, domain_length=1.0)
+cm.map_to_discretizations([discretization])
+
+print(f"Total constraints: {cm.n_constraints}")
+print(f"Total multipliers: {cm.n_multipliers}")
+
+# Get constraint data at specific time
+constraint_data = cm.get_multiplier_data(time=0.5)
+print(f"Constraint data: {constraint_data}")
+\end{lstlisting}
+
+\subsubsection{Multi-Domain Junction Network}
+
+\begin{lstlisting}[language=Python, caption=Multi-Domain Junction Example]
+# Three-domain network with junctions
+cm = ConstraintManager()
+
+# Domain 0: [0, 1], Domain 1: [1, 2], Domain 2: [1, 2] (Y-junction)
+discretizations = [
+    Discretization(n_elements=20, domain_start=0.0, domain_length=1.0),  # Main
+    Discretization(n_elements=15, domain_start=1.0, domain_length=1.0),  # Branch 1
+    Discretization(n_elements=15, domain_start=1.0, domain_length=1.0)   # Branch 2
+]
+
+# Inlet boundary condition (domain 0, left end)
+cm.add_dirichlet(0, 0, 0.0, lambda t: 1.0 + 0.1*np.sin(t))
+
+# Junction conditions at x = 1.0
+# Continuity between main vessel and branch 1
+cm.add_trace_continuity(
+    equation_index=0,
+    domain1_index=0,  # End of main vessel
+    domain2_index=1,  # Start of branch 1
+    position1=1.0,
+    position2=1.0
+)
+
+# Continuity between main vessel and branch 2
+cm.add_trace_continuity(
+    equation_index=0,
+    domain1_index=0,  # End of main vessel
+    domain2_index=2,  # Start of branch 2
+    position1=1.0,
+    position2=1.0
+)
+
+# Outlet boundary conditions (zero Neumann)
+cm.add_neumann(0, 1, 2.0, lambda t: 0.0)  # Branch 1 outlet
+cm.add_neumann(0, 2, 2.0, lambda t: 0.0)  # Branch 2 outlet
+
+# Map to discretizations
+cm.map_to_discretizations(discretizations)
+
+# Analyze constraint structure
+print(f"Network constraints:")
+print(f"  Total constraints: {cm.n_constraints}")
+print(f"  Total multipliers: {cm.n_multipliers}")
+
+for domain_idx in range(3):
+    domain_constraints = cm.get_constraints_by_domain(domain_idx)
+    print(f"  Domain {domain_idx}: {len(domain_constraints)} constraints")
+
+boundary_constraints = cm.get_constraints_by_type(ConstraintType.DIRICHLET)
+boundary_constraints += cm.get_constraints_by_type(ConstraintType.NEUMANN)
+junction_constraints = cm.get_constraints_by_type(ConstraintType.TRACE_CONTINUITY)
+
+print(f"  Boundary conditions: {len(boundary_constraints)}")
+print(f"  Junction conditions: {len(junction_constraints)}")
+\end{lstlisting}
+
+\subsubsection{Newton Solver Integration}
+
+\begin{lstlisting}[language=Python, caption=Newton Solver Integration Example]
+# Newton solver loop with constraint residuals
+def newton_solve_with_constraints(constraint_manager, initial_solution, initial_multipliers):
+    """Example Newton solver with constraint integration."""
+    
+    tolerance = 1e-10
+    max_iterations = 20
+    
+    current_solution = initial_solution.copy()
+    current_multipliers = initial_multipliers.copy()
+    current_time = 0.0
+    
+    for iteration in range(max_iterations):
+        # Extract trace solutions (domain-wise)
+        trace_solutions = extract_trace_solutions(current_solution)
+        
+        # Compute constraint residuals
+        constraint_residuals = constraint_manager.compute_constraint_residuals(
+            trace_solutions=trace_solutions,
+            multiplier_values=current_multipliers,
+            time=current_time
+        )
+        
+        # Compute system residuals (PDE + constraints)
+        pde_residuals = compute_pde_residuals(current_solution)  # User function
+        total_residuals = np.concatenate([pde_residuals, constraint_residuals])
+        
+        # Check convergence
+        residual_norm = np.linalg.norm(total_residuals)
+        print(f"Iteration {iteration}: residual norm = {residual_norm:.6e}")
+        
+        if residual_norm < tolerance:
+            print("✓ Newton solver converged")
+            break
+        
+        # Compute Jacobian (PDE + constraint contributions)
+        jacobian = compute_system_jacobian(current_solution, current_multipliers, 
+                                         constraint_manager, current_time)
+        
+        # Newton update
+        try:
+            delta = np.linalg.solve(jacobian, -total_residuals)
+            current_solution += delta[:len(current_solution)]
+            current_multipliers += delta[len(current_solution):]
+        except np.linalg.LinAlgError:
+            print("✗ Newton solver failed: singular Jacobian")
+            break
+    
+    return current_solution, current_multipliers
+
+# Usage in time evolution
+solution, multipliers = newton_solve_with_constraints(
+    constraint_manager=cm,
+    initial_solution=np.zeros(total_dofs),
+    initial_multipliers=np.zeros(cm.n_multipliers)
+)
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:constraints_method_summary}
+
+\subsubsection{Constraint Class Methods}
+
+\begin{longtable}{|p{5cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method/Property} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize constraint with type and parameters \\
+\hline
+
+\texttt{is\_boundary\_condition} & \texttt{bool} & Check if constraint is boundary condition \\
+\hline
+
+\texttt{is\_junction\_condition} & \texttt{bool} & Check if constraint is junction condition \\
+\hline
+
+\texttt{n\_multipliers} & \texttt{int} & Get number of Lagrange multipliers needed \\
+\hline
+
+\texttt{get\_data} & \texttt{float} & Evaluate constraint data at given time \\
+\hline
+
+\end{longtable}
+
+\subsubsection{ConstraintManager Class Methods}
+
+\begin{longtable}{|p{5.5cm}|p{2cm}|p{6.5cm}|}
+\hline
+\textbf{Method/Property} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize empty constraint manager \\
+\hline
+
+\texttt{add\_constraint} & \texttt{int} & Add general constraint to system \\
+\hline
+
+\texttt{add\_dirichlet} & \texttt{int} & Add Dirichlet boundary condition \\
+\hline
+
+\texttt{add\_neumann} & \texttt{int} & Add Neumann boundary condition \\
+\hline
+
+\texttt{add\_robin} & \texttt{int} & Add Robin boundary condition \\
+\hline
+
+\texttt{add\_trace\_continuity} & \texttt{int} & Add trace continuity at junction \\
+\hline
+
+\texttt{add\_kedem\_katchalsky} & \texttt{int} & Add membrane permeability condition \\
+\hline
+
+\texttt{map\_to\_discretizations} & \texttt{None} & Map constraint positions to mesh nodes \\
+\hline
+
+\texttt{get\_node\_indices} & \texttt{List[int]} & Get discretization nodes for constraint \\
+\hline
+
+\texttt{n\_constraints} & \texttt{int} & Get total number of constraints \\
+\hline
+
+\texttt{n\_multipliers} & \texttt{int} & Get total number of multipliers \\
+\hline
+
+\texttt{get\_constraints\_by\_domain} & \texttt{List[int]} & Find constraints affecting specific domain \\
+\hline
+
+\texttt{get\_constraints\_by\_type} & \texttt{List[int]} & Find constraints of specific type \\
+\hline
+
+\texttt{get\_multiplier\_data} & \texttt{np.ndarray} & Get constraint data for all multipliers \\
+\hline
+
+\texttt{compute\_constraint\_residuals} & \texttt{np.ndarray} & Compute residuals for Newton solver \\
+\hline
+
+\end{longtable}
+
+This documentation provides an exact reference for the constraints module, emphasizing its integration with HDG methods, support for both boundary and junction conditions, and seamless integration with Newton solvers for nonlinear systems.
+
+% End of constraints module API documentation

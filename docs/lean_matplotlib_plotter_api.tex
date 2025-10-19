@@ -1,0 +1,661 @@
+% Lean Matplotlib Plotter Module API Documentation (Template/Specification)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/lean_matplotlib_plotter_api}
+
+\section{Lean Matplotlib Plotter Module API Reference}
+\label{sec:lean_matplotlib_plotter_api}
+
+\textbf{Note:} This documentation describes the expected API for a lean matplotlib plotter module that follows the BioNetFlux lean architecture pattern. The module is not yet implemented but this serves as a specification.
+
+\subsection{Module Overview}
+
+The lean matplotlib plotter module would provide:
+\begin{itemize}
+    \item Lean plotting interface using external framework objects
+    \item Specialized visualization for HDG trace and bulk solutions
+    \item Multi-domain network visualization capabilities
+    \item Time evolution animation and comparison plots
+    \item Integration with BulkData and BulkDataManager
+    \item Memory-efficient plotting without storing framework objects
+\end{itemize}
+
+\subsection{Expected Module Structure}
+
+\begin{lstlisting}[language=Python, caption=Expected Module Dependencies]
+# Expected imports for lean matplotlib plotter
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+from typing import List, Optional, Dict, Any, Tuple
+from pathlib import Path
+
+# BioNetFlux imports
+from ooc1d.core.bulk_data import BulkData
+from ooc1d.core.lean_bulk_data_manager import BulkDataManager
+from ooc1d.core.discretization import Discretization
+from ooc1d.core.problem import Problem
+\end{lstlisting}
+
+\subsection{Expected LeanMatplotlibPlotter Class}
+\label{subsec:lean_matplotlib_plotter_class}
+
+\subsubsection{Expected Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Constructor Signature]
+def __init__(self, 
+             figsize: Tuple[float, float] = (12, 8),
+             style: str = 'seaborn-v0_8',
+             dpi: int = 100)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{figsize}: Default figure size for plots (default: (12, 8))
+    \item \texttt{style}: Matplotlib style to use (default: 'seaborn-v0\_8')
+    \item \texttt{dpi}: Resolution for saved figures (default: 100)
+\end{itemize}
+
+\textbf{Expected Attributes:}
+\begin{longtable}{|p{3cm}|p{4cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{figsize} & \texttt{Tuple[float, float]} & Default figure dimensions \\
+\hline
+
+\texttt{style} & \texttt{str} & Matplotlib style configuration \\
+\hline
+
+\texttt{dpi} & \texttt{int} & Default resolution for saved figures \\
+\hline
+
+\texttt{color\_palette} & \texttt{List[str]} & Color scheme for multi-domain plots \\
+\hline
+
+\texttt{plot\_config} & \texttt{Dict} & Default plotting configuration options \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Expected Core Plotting Methods}
+
+\paragraph{plot\_bulk\_solution()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Bulk Solution Plotting Method]
+def plot_bulk_solution(self,
+                       bulk_data: BulkData,
+                       discretization: Discretization,
+                       problem: Problem,
+                       domain_idx: int = 0,
+                       equations: Optional[List[int]] = None,
+                       title: Optional[str] = None,
+                       savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data}: BulkData instance containing solution
+    \item \texttt{discretization}: Discretization for spatial coordinates
+    \item \texttt{problem}: Problem instance for metadata and labeling
+    \item \texttt{domain\_idx}: Domain index for title generation (default: 0)
+    \item \texttt{equations}: List of equation indices to plot (default: all)
+    \item \texttt{title}: Custom plot title (default: auto-generated)
+    \item \texttt{savepath}: Path to save figure (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib figure object
+
+\textbf{Expected Usage:}
+\begin{lstlisting}[language=Python, caption=Bulk Solution Plotting Usage]
+from ooc1d.utils.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+plotter = LeanMatplotlibPlotter()
+
+# Plot all equations
+fig = plotter.plot_bulk_solution(
+    bulk_data=bulk_solution,
+    discretization=discretization,
+    problem=problem,
+    domain_idx=0,
+    title="Bulk Solution at t=1.0"
+)
+
+# Plot specific equations only
+fig = plotter.plot_bulk_solution(
+    bulk_data=bulk_solution,
+    discretization=discretization,
+    problem=problem,
+    equations=[0, 2],  # Only plot equations 0 and 2
+    savepath=Path("results/bulk_solution.png")
+)
+\end{lstlisting}
+
+\paragraph{plot\_trace\_solution()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Trace Solution Plotting Method]
+def plot_trace_solution(self,
+                        trace_solution: np.ndarray,
+                        discretization: Discretization,
+                        problem: Problem,
+                        domain_idx: int = 0,
+                        equations: Optional[List[int]] = None,
+                        title: Optional[str] = None,
+                        savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_solution}: Array of trace values (neq*(N+1),)
+    \item \texttt{discretization}: Discretization for node coordinates
+    \item \texttt{problem}: Problem instance for metadata
+    \item \texttt{domain\_idx}: Domain index for labeling (default: 0)
+    \item \texttt{equations}: Equation indices to plot (default: all)
+    \item \texttt{title}: Custom title (default: auto-generated)
+    \item \texttt{savepath}: Save path (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib figure object
+
+\paragraph{plot\_multi\_domain\_network()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Multi-Domain Network Plotting Method]
+def plot_multi_domain_network(self,
+                              bulk_data_list: List[BulkData],
+                              problems: List[Problem],
+                              discretizations: List[Discretization],
+                              constraint_manager = None,
+                              equation_idx: int = 0,
+                              time: float = 0.0,
+                              title: Optional[str] = None,
+                              savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData for each domain
+    \item \texttt{problems}: List of Problem instances
+    \item \texttt{discretizations}: List of Discretization instances
+    \item \texttt{constraint\_manager}: ConstraintManager for junction visualization
+    \item \texttt{equation\_idx}: Which equation to visualize (default: 0)
+    \item \texttt{time}: Current time for title (default: 0.0)
+    \item \texttt{title}: Custom title (default: auto-generated)
+    \item \texttt{savepath}: Save path (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib figure with network visualization
+
+\textbf{Expected Network Visualization Features:}
+\begin{itemize}
+    \item Different colors for each domain
+    \item Junction points marked clearly
+    \item Constraint type indicators (continuity, flux jump, etc.)
+    \item Domain boundaries and connections
+    \item Equation-specific color mapping
+\end{itemize}
+
+\subsubsection{Expected Comparison and Analysis Methods}
+
+\paragraph{plot\_solution\_comparison()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Solution Comparison Method]
+def plot_solution_comparison(self,
+                            solutions: Dict[str, BulkData],
+                            discretization: Discretization,
+                            problem: Problem,
+                            domain_idx: int = 0,
+                            equation_idx: int = 0,
+                            title: Optional[str] = None,
+                            savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{solutions}: Dictionary mapping labels to BulkData solutions
+    \item \texttt{discretization}: Discretization for coordinates
+    \item \texttt{problem}: Problem instance
+    \item \texttt{domain\_idx}: Domain index (default: 0)
+    \item \texttt{equation\_idx}: Equation index to compare (default: 0)
+    \item \texttt{title}: Custom title (default: auto-generated)
+    \item \texttt{savepath}: Save path (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Comparison plot figure
+
+\textbf{Expected Usage:}
+\begin{lstlisting}[language=Python, caption=Solution Comparison Usage]
+solutions = {
+    "Initial": initial_bulk_data,
+    "t=0.5": intermediate_bulk_data,
+    "Final": final_bulk_data,
+    "Analytical": analytical_bulk_data
+}
+
+fig = plotter.plot_solution_comparison(
+    solutions=solutions,
+    discretization=discretization,
+    problem=problem,
+    equation_idx=0,
+    title="Solution Evolution Comparison"
+)
+\end{lstlisting}
+
+\paragraph{plot\_mass\_conservation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Mass Conservation Plotting Method]
+def plot_mass_conservation(self,
+                          mass_history: List[float],
+                          time_points: np.ndarray,
+                          relative: bool = True,
+                          title: Optional[str] = None,
+                          savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{mass\_history}: List of total mass values over time
+    \item \texttt{time\_points}: Corresponding time points
+    \item \texttt{relative}: Plot relative change if True, absolute values if False (default: True)
+    \item \texttt{title}: Custom title (default: auto-generated)
+    \item \texttt{savepath}: Save path (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Mass conservation plot
+
+\subsubsection{Expected Animation Methods}
+
+\paragraph{create\_time\_evolution\_animation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Animation Creation Method]
+def create_time_evolution_animation(self,
+                                   bulk_data_history: List[List[BulkData]],
+                                   problems: List[Problem],
+                                   discretizations: List[Discretization],
+                                   time_points: np.ndarray,
+                                   equation_idx: int = 0,
+                                   fps: int = 10,
+                                   title_template: str = "t = {:.3f}",
+                                   savepath: Optional[Path] = None) -> FuncAnimation
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_history}: List of BulkData lists for each time step
+    \item \texttt{problems}: List of Problem instances
+    \item \texttt{discretizations}: List of Discretization instances
+    \item \texttt{time\_points}: Time values for each frame
+    \item \texttt{equation\_idx}: Which equation to animate (default: 0)
+    \item \texttt{fps}: Frames per second (default: 10)
+    \item \texttt{title\_template}: Title format string (default: "t = \{:.3f\}")
+    \item \texttt{savepath}: Path to save animation (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{FuncAnimation} - Matplotlib animation object
+
+\subsubsection{Expected Convergence and Error Analysis Methods}
+
+\paragraph{plot\_newton\_convergence()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Newton Convergence Plotting Method]
+def plot_newton_convergence(self,
+                           residual_history: List[float],
+                           tolerance: float = 1e-10,
+                           log_scale: bool = True,
+                           title: Optional[str] = None,
+                           savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{residual\_history}: List of residual norms from Newton iterations
+    \item \texttt{tolerance}: Convergence tolerance to mark on plot (default: 1e-10)
+    \item \texttt{log\_scale}: Use logarithmic y-axis (default: True)
+    \item \texttt{title}: Custom title (default: auto-generated)
+    \item \texttt{savepath}: Save path (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Convergence history plot
+
+\paragraph{plot\_error\_analysis()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Error Analysis Method]
+def plot_error_analysis(self,
+                       numerical_solution: BulkData,
+                       analytical_solution: BulkData,
+                       discretization: Discretization,
+                       problem: Problem,
+                       equation_idx: int = 0,
+                       error_type: str = 'absolute',
+                       title: Optional[str] = None,
+                       savepath: Optional[Path] = None) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{numerical\_solution}: Computed BulkData solution
+    \item \texttt{analytical\_solution}: Reference BulkData solution
+    \item \texttt{discretization}: Discretization for coordinates
+    \item \texttt{problem}: Problem instance
+    \item \texttt{equation\_idx}: Equation index to analyze (default: 0)
+    \item \texttt{error\_type}: 'absolute', 'relative', or 'both' (default: 'absolute')
+    \item \texttt{title}: Custom title (default: auto-generated)
+    \item \texttt{savepath}: Save path (default: display only)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Error analysis plot with subplots
+
+\subsubsection{Expected Utility Methods}
+
+\paragraph{set\_default\_style()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Style Configuration Method]
+def set_default_style(self,
+                     style: str = 'seaborn-v0_8',
+                     color_palette: Optional[List[str]] = None,
+                     font_size: int = 12) -> None
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{style}: Matplotlib style name (default: 'seaborn-v0\_8')
+    \item \texttt{color\_palette}: Custom color scheme (default: automatic)
+    \item \texttt{font\_size}: Base font size (default: 12)
+\end{itemize}
+
+\textbf{Side Effects:} Updates default plotting configuration
+
+\paragraph{save\_all\_figures()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Expected Batch Save Method]
+def save_all_figures(self,
+                    figures: List[plt.Figure],
+                    base_path: Path,
+                    prefix: str = "figure",
+                    format: str = "png") -> List[Path]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{figures}: List of matplotlib Figure objects
+    \item \texttt{base\_path}: Directory to save figures
+    \item \texttt{prefix}: Filename prefix (default: "figure")
+    \item \texttt{format}: File format (default: "png")
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[Path]} - List of saved file paths
+
+\subsection{Expected Complete Usage Examples}
+\label{subsec:expected_complete_usage_examples}
+
+\subsubsection{Single Domain Visualization}
+
+\begin{lstlisting}[language=Python, caption=Expected Single Domain Usage]
+from ooc1d.utils.lean_matplotlib_plotter import LeanMatplotlibPlotter
+from ooc1d.core.bulk_data import BulkData
+from pathlib import Path
+
+# Create plotter
+plotter = LeanMatplotlibPlotter(figsize=(14, 10))
+
+# Load or compute solution
+bulk_solution = BulkData(problem, discretization, dual=False)
+# ... populate bulk_solution with data ...
+
+# Plot bulk solution
+fig1 = plotter.plot_bulk_solution(
+    bulk_data=bulk_solution,
+    discretization=discretization,
+    problem=problem,
+    title="Keller-Segel Solution at t=1.0",
+    savepath=Path("results/keller_segel_bulk.png")
+)
+
+# Plot trace solution
+trace_values = bulk_solution.get_trace_values()
+fig2 = plotter.plot_trace_solution(
+    trace_solution=trace_values,
+    discretization=discretization,
+    problem=problem,
+    equations=[0, 1],  # Cell density and chemical concentration
+    title="HDG Trace Values",
+    savepath=Path("results/keller_segel_trace.png")
+)
+
+print("Single domain plots created successfully")
+\end{lstlisting}
+
+\subsubsection{Multi-Domain Network Visualization}
+
+\begin{lstlisting}[language=Python, caption=Expected Multi-Domain Usage]
+# Multi-domain network setup
+problems = [problem1, problem2, problem3]  # Three domains
+discretizations = [disc1, disc2, disc3]
+bulk_data_list = [bulk1, bulk2, bulk3]
+
+# Visualize network solution
+fig = plotter.plot_multi_domain_network(
+    bulk_data_list=bulk_data_list,
+    problems=problems,
+    discretizations=discretizations,
+    constraint_manager=constraint_manager,
+    equation_idx=0,  # Cell density
+    time=2.5,
+    title="Vascular Network Cell Migration",
+    savepath=Path("results/network_solution.png")
+)
+
+# Create animation of time evolution
+# Assume we have solutions at multiple time points
+bulk_history = []  # List[List[BulkData]] for each time step
+time_points = np.linspace(0, 5, 50)
+
+animation = plotter.create_time_evolution_animation(
+    bulk_data_history=bulk_history,
+    problems=problems,
+    discretizations=discretizations,
+    time_points=time_points,
+    equation_idx=0,
+    fps=5,
+    savepath=Path("results/network_evolution.mp4")
+)
+
+print("Multi-domain visualization completed")
+\end{lstlisting}
+
+\subsubsection{Analysis and Comparison Workflows}
+
+\begin{lstlisting}[language=Python, caption=Expected Analysis Workflow]
+# Comparison of different solutions
+solutions_dict = {
+    "Initial Condition": initial_bulk,
+    "Numerical t=1": numerical_bulk_t1,
+    "Numerical t=2": numerical_bulk_t2,
+    "Analytical": analytical_bulk
+}
+
+fig_comp = plotter.plot_solution_comparison(
+    solutions=solutions_dict,
+    discretization=discretization,
+    problem=problem,
+    equation_idx=0,
+    title="Solution Evolution Comparison",
+    savepath=Path("results/solution_comparison.png")
+)
+
+# Error analysis
+fig_error = plotter.plot_error_analysis(
+    numerical_solution=numerical_bulk,
+    analytical_solution=analytical_bulk,
+    discretization=discretization,
+    problem=problem,
+    equation_idx=0,
+    error_type='both',
+    title="Error Analysis vs Analytical Solution",
+    savepath=Path("results/error_analysis.png")
+)
+
+# Newton convergence analysis
+residual_norms = [1e-1, 1e-3, 1e-6, 1e-9, 1e-12]  # Example data
+fig_newton = plotter.plot_newton_convergence(
+    residual_history=residual_norms,
+    tolerance=1e-10,
+    title="Newton Solver Convergence",
+    savepath=Path("results/newton_convergence.png")
+)
+
+# Mass conservation tracking
+mass_values = [100.0, 99.99, 99.98, 99.99, 100.01]  # Example
+time_vals = np.linspace(0, 2, len(mass_values))
+
+fig_mass = plotter.plot_mass_conservation(
+    mass_history=mass_values,
+    time_points=time_vals,
+    relative=True,
+    title="Mass Conservation Check",
+    savepath=Path("results/mass_conservation.png")
+)
+
+print("Analysis workflow completed")
+\end{lstlisting}
+
+\subsection{Expected Integration with BioNetFlux Framework}
+
+\begin{lstlisting}[language=Python, caption=Expected Framework Integration]
+from setup_solver import quick_setup
+
+# Setup complete solver framework
+setup = quick_setup("ooc1d.problems.keller_segel_network")
+
+# Create plotter
+plotter = LeanMatplotlibPlotter()
+
+# Initial conditions
+trace_solutions, multipliers = setup.create_initial_conditions()
+global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
+
+# Initialize bulk data
+bulk_data_list = setup.bulk_data_manager.initialize_all_bulk_data(
+    setup.problems,
+    setup.global_discretization.spatial_discretizations,
+    time=0.0
+)
+
+# Plot initial network state
+fig_initial = plotter.plot_multi_domain_network(
+    bulk_data_list=bulk_data_list,
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations,
+    constraint_manager=setup.constraint_manager,
+    equation_idx=0,
+    time=0.0,
+    title="Initial Network State"
+)
+
+# Time evolution with plotting
+time_history = []
+bulk_history = []
+mass_history = []
+
+for time_step in range(setup.global_discretization.n_time_steps):
+    current_time = time_step * setup.global_discretization.dt
+    
+    # Solve time step (simplified)
+    # ... Newton iteration and solution update ...
+    
+    # Extract current bulk solutions
+    current_bulk_list = setup.bulk_data_manager.initialize_all_bulk_data(
+        setup.problems,
+        setup.global_discretization.spatial_discretizations,
+        time=current_time
+    )
+    
+    # Track mass conservation
+    total_mass = setup.bulk_data_manager.compute_total_mass(current_bulk_list)
+    
+    # Store for history
+    time_history.append(current_time)
+    bulk_history.append(current_bulk_list.copy())
+    mass_history.append(total_mass)
+    
+    # Plot at specific intervals
+    if time_step % 10 == 0:
+        fig_step = plotter.plot_multi_domain_network(
+            bulk_data_list=current_bulk_list,
+            problems=setup.problems,
+            discretizations=setup.global_discretization.spatial_discretizations,
+            constraint_manager=setup.constraint_manager,
+            equation_idx=0,
+            time=current_time,
+            savepath=Path(f"results/network_t_{time_step:04d}.png")
+        )
+
+# Final analysis plots
+fig_mass_final = plotter.plot_mass_conservation(
+    mass_history=mass_history,
+    time_points=np.array(time_history),
+    title="Mass Conservation Over Time"
+)
+
+# Create final animation
+animation = plotter.create_time_evolution_animation(
+    bulk_data_history=bulk_history,
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations,
+    time_points=np.array(time_history),
+    equation_idx=0,
+    savepath=Path("results/complete_evolution.mp4")
+)
+
+print("Complete framework integration visualization finished")
+\end{lstlisting}
+
+\subsection{Expected Method Summary Table}
+\label{subsec:expected_method_summary}
+
+\begin{longtable}{|p{5cm}|p{3cm}|p{6.5cm}|}
+\hline
+\textbf{Expected Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{plot\_bulk\_solution} & \texttt{Figure} & Visualize bulk solution for single domain \\
+\hline
+
+\texttt{plot\_trace\_solution} & \texttt{Figure} & Plot HDG trace values at element boundaries \\
+\hline
+
+\texttt{plot\_multi\_domain\_network} & \texttt{Figure} & Visualize solution across network topology \\
+\hline
+
+\texttt{plot\_solution\_comparison} & \texttt{Figure} & Compare multiple solutions side-by-side \\
+\hline
+
+\texttt{plot\_mass\_conservation} & \texttt{Figure} & Track mass conservation over time \\
+\hline
+
+\texttt{create\_time\_animation} & \texttt{FuncAnimation} & Animate solution evolution \\
+\hline
+
+\texttt{plot\_newton\_convergence} & \texttt{Figure} & Show Newton solver convergence history \\
+\hline
+
+\texttt{plot\_error\_analysis} & \texttt{Figure} & Compare numerical vs analytical solutions \\
+\hline
+
+\texttt{set\_default\_style} & \texttt{None} & Configure plotting appearance \\
+\hline
+
+\texttt{save\_all\_figures} & \texttt{List[Path]} & Batch save multiple figures \\
+\hline
+
+\end{longtable}
+
+\subsection{Expected Key Features}
+
+\begin{itemize}
+    \item \textbf{Lean Architecture}: No framework object storage, all passed as parameters
+    \item \textbf{BulkData Integration}: Native support for BulkData solution format
+    \item \textbf{Multi-Domain Networks}: Specialized visualization for connected domains
+    \item \textbf{HDG-Specific Plots}: Trace and bulk solution visualization
+    \item \textbf{Animation Support}: Time evolution and dynamic visualization
+    \item \textbf{Analysis Tools}: Error analysis, convergence tracking, mass conservation
+    \item \textbf{Flexible Styling}: Customizable appearance and output formats
+    \item \textbf{Framework Integration}: Seamless integration with SolverSetup and BulkDataManager
+\end{itemize}
+
+\textbf{Note:} This documentation serves as a specification for implementing the lean matplotlib plotter module. The actual implementation would follow these interfaces and provide the described functionality.
+
+% End of lean matplotlib plotter module API documentation (specification)

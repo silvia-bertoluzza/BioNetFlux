@@ -1,0 +1,796 @@
+% Static Condensation Modules API Documentation (Based on MATLAB Reference)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/static_condensation_modules_api}
+
+\section{Static Condensation Modules API Reference}
+\label{sec:static_condensation_modules_api}
+
+The static condensation module is where the  problem specific HDG discretization happens. This section provides a comprehensive reference for the static condensation module hierarchy based on analysis of the MATLAB reference files and BioNetFlux architecture patterns. The modules implement HDG static condensation for different problem types.
+
+\subsection{Module Overview}
+
+The static condensation system consists of:
+\begin{itemize}
+    \item \textbf{StaticCondensationBase}: Abstract base class defining the interface
+    \item \textbf{Derived classes}
+   \begin{itemize}
+    \item \textbf{KellerSegelStaticCondensation}: Implementation for 2-equation chemotaxis systems
+    \item \textbf{StaticCondensationOOC}: Implementation for 4-equation OrganOnChip systems
+   \end{itemize}
+    \item \textbf{StaticCondensationFactory}: Factory for creating appropriate implementations
+\end{itemize}
+
+%\subsection{MATLAB Reference Analysis}
+%
+%Based on the MATLAB files, the static condensation process follows this structure:
+%
+%\textbf{From StaticC.m:} The main static condensation function \texttt{[U,hJ,dhJ] = StaticC(hU,rhs,problem,discretization,scMatrices)} performs:
+%\begin{enumerate}
+%    \item Local trace-to-bulk reconstruction: $\hat{U} \rightarrow U$
+%    \item Flux jump computation: $\tilde{J} = D_1 U - D_2 \hat{U}$
+%    \item Normal flux computation: $j = \hat{B}_4 \hat{U} + \tilde{J}^T Q U$
+%    \item Final assembly: $\hat{J} = [\hat{j}; \hat{J}]$
+%\end{enumerate}
+%
+%\textbf{From scBlocks.m:} The matrix construction involves building operators for each step of the 4-equation OrganOnChip system.
+
+\subsection{StaticCondensationBase Class}
+\label{subsec:static_condensation_base}
+
+Abstract base class defining the interface for all static condensation implementations.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=StaticCondensationBase Constructor]
+def __init__(self, 
+             problem: Problem, 
+             global_discretization, 
+             elementary_matrices, 
+             domain_index: int = 0)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem}: Problem instance with equations and parameters
+    \item \texttt{global\_discretization}: GlobalDiscretization instance
+    \item \texttt{elementary\_matrices}: ElementaryMatrices instance
+    \item \texttt{domain\_index}: Domain index for multi-domain problems (default: 0)
+\end{itemize}
+
+\textbf{Side Effects:} Initializes base attributes and extracts domain-specific discretization
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.8cm}|p{3.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{problem} & \texttt{Problem} & Problem definition with parameters and equations \\
+\hline
+
+\texttt{discretization} & \texttt{Discretization} & Domain-specific discretization \\
+\hline
+
+\texttt{elementary\_matrices} & \texttt{ElementaryMatrices} & Pre-computed elementary matrices \\
+\hline
+
+\texttt{domain\_index} & \texttt{int} & Domain index for multi-domain systems \\
+\hline
+
+\texttt{neq} & \texttt{int} & Number of equations (extracted from problem) \\
+\hline
+
+\texttt{n\_elements} & \texttt{int} & Number of elements (extracted from discretization) \\
+\hline
+
+\texttt{element\_length} & \texttt{float} & Element size: \texttt{h = domain\_length / n\_elements} \\
+\hline
+
+\texttt{dt} & \texttt{Optional[float]} & Time step size (from discretization if available) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Abstract Methods (Must be Implemented by Subclasses)}
+
+\paragraph{build\_matrices()}
+\begin{lstlisting}[language=Python, caption=Abstract Build Matrices Method]
+@abstractmethod
+def build_matrices(self) -> dict
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{dict} - Dictionary of static condensation matrices
+
+\textbf{Purpose:} Build all matrices required for static condensation (problem-specific)
+
+\paragraph{static\_condensation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Abstract Static Condensation Method]
+@abstractmethod
+def static_condensation(self, 
+                       trace_values: np.ndarray, 
+                       rhs: np.ndarray, 
+                       time: float = 0.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_values}: Local trace values $\hat{U}$ (size: \texttt{neq*(n\_elements+1)})
+    \item \texttt{rhs}: Right-hand side vector (size: \texttt{2*neq*n\_elements})
+    \item \texttt{time}: Current time for time-dependent problems (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{Tuple[np.ndarray, np.ndarray, np.ndarray]} - (bulk\_solution, flux\_jump, jacobian)
+
+\textbf{Purpose:} Perform local static condensation step
+
+\subsubsection{Concrete Methods (Provided by Base Class)}
+
+\paragraph{get\_problem\_parameters()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Problem Parameters Method]
+def get_problem_parameters(self) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{np.ndarray} - Problem parameters array
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Parameters Usage]
+params = static_condensation.get_problem_parameters()
+# For OrganOnChip: [nu, mu, epsilon, sigma, a, b, c, d, chi]
+# For Keller-Segel: [mu, nu, a, b]
+\end{lstlisting}
+
+\paragraph{get\_stabilization\_parameters()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Stabilization Parameters Method]
+def get_stabilization_parameters(self) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{np.ndarray} - Stabilization parameters $\tau$ for each equation
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Stabilization Usage]
+tau_values = static_condensation.get_stabilization_parameters()
+# For OrganOnChip: [tu, to, tv, tp] (4 equations)
+# For Keller-Segel: [tu, tp] (2 equations)
+\end{lstlisting}
+
+\paragraph{validate\_input()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Validate Input Method]
+def validate_input(self, 
+                  trace_values: np.ndarray, 
+                  rhs: np.ndarray) -> None
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_values}: Trace values to validate
+    \item \texttt{rhs}: Right-hand side to validate
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Raises:} \texttt{ValueError} for invalid input dimensions or content
+
+\textbf{Validation Checks:}
+\begin{itemize}
+    \item Trace values size: \texttt{neq * (n\_elements + 1)}
+    \item RHS size: \texttt{2 * neq * n\_elements}
+    \item No NaN or infinite values
+\end{itemize}
+
+\subsection{KellerSegelStaticCondensation Class}
+\label{subsec:keller_segel_static_condensation}
+
+Implementation for 2-equation Keller-Segel chemotaxis systems (u, $\phi$).
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=KellerSegel Constructor]
+def __init__(self, 
+             problem: Problem, 
+             global_discretization, 
+             elementary_matrices, 
+             domain_index: int = 0)
+\end{lstlisting}
+
+\textbf{Requirements:} \texttt{problem.neq == 2} and \texttt{problem.type == "keller\_segel"}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=KellerSegel Constructor Usage]
+# Create Keller-Segel problem
+problem = Problem(
+    neq=2,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=np.array([2.0, 1.0, 0.1, 1.0]),  # [mu, nu, a, b]
+    problem_type="keller_segel"
+)
+
+# Create static condensation
+ks_sc = KellerSegelStaticCondensation(
+    problem=problem,
+    global_discretization=global_disc,
+    elementary_matrices=elementary_matrices,
+    domain_index=0
+)
+\end{lstlisting}
+
+\subsubsection{Specific Attributes}
+
+\begin{longtable}{|p{3.2cm}|p{3.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{mu} & \texttt{float} & Diffusion coefficient for $\phi$ equation (parameter 0) \\
+\hline
+
+\texttt{nu} & \texttt{float} & Diffusion coefficient for $u$ equation (parameter 1) \\
+\hline
+
+\texttt{a} & \texttt{float} & Reaction parameter (parameter 2) \\
+\hline
+
+\texttt{b} & \texttt{float} & Coupling parameter (parameter 3) \\
+\hline
+
+\texttt{chi\_function} & \texttt{Optional[Callable]} & Chemotactic sensitivity $\chi(\phi)$ \\
+\hline
+
+\texttt{dchi\_function} & \texttt{Optional[Callable]} & Derivative $\chi'(\phi)$ \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Matrix Construction}
+
+\paragraph{build\_matrices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=KellerSegel Build Matrices]
+def build_matrices(self) -> dict
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{dict} - Dictionary with matrices for 2-equation system
+
+\textbf{Matrix Dictionary Keys:}
+\begin{itemize}
+    \item \texttt{'M'}: Mass matrix
+    \item \texttt{'T'}: Trace matrix  
+    \item \texttt{'D'}: Differentiation matrix
+    \item \texttt{'B1'}, \texttt{'L1'}: Matrices for $u$ equation reconstruction
+    \item \texttt{'B2'}, \texttt{'L2'}: Matrices for $\phi$ equation reconstruction
+    \item \texttt{'Q'}: Coupling matrix for chemotaxis
+\end{itemize}
+
+\textbf{Mathematical Formulation:}
+For Keller-Segel system:
+\begin{align}
+\frac{\partial u}{\partial t} - \nu \nabla^2 u + \nabla \cdot (u \chi(\phi) \nabla \phi) &= f_u \\
+\frac{\partial \phi}{\partial t} - \mu \nabla^2 \phi &= f_\phi + a u
+\end{align}
+
+\paragraph{static\_condensation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=KellerSegel Static Condensation]
+def static_condensation(self, 
+                       trace_values: np.ndarray, 
+                       rhs: np.ndarray, 
+                       time: float = 0.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
+\end{lstlisting}
+
+\textbf{Algorithm:} 
+\begin{enumerate}
+    \item Extract trace values for $u$ and $\phi$
+    \item Reconstruct bulk solutions: $u = B_1 \hat{u} + L_1 g_u$, $\phi = B_2 \hat{\phi} + L_2 g_\phi$
+    \item Compute chemotaxis terms if $\chi$ functions available
+    \item Compute flux jumps and Jacobian contributions
+    \item Return bulk solutions, flux jumps, and Jacobian
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=KellerSegel Static Condensation Usage]
+# Prepare input
+trace_vals = np.random.rand(2 * (n_elements + 1))  # u and phi traces
+rhs = np.random.rand(2 * 2 * n_elements)  # RHS for both equations
+
+# Perform static condensation
+bulk_solution, flux_jump, jacobian = ks_sc.static_condensation(
+    trace_values=trace_vals,
+    rhs=rhs,
+    time=0.5
+)
+
+print(f"Bulk solution shape: {bulk_solution.shape}")  # (4, n_elements)
+print(f"Flux jump shape: {flux_jump.shape}")  # (2,)
+print(f"Jacobian shape: {jacobian.shape}")  # (4, 2*(n_elements+1))
+\end{lstlisting}
+
+
+\subsection{StaticCondensationOOC Class}
+\label{subsec:static_condensation_ooc}
+
+Implementation for 4-equation OrganOnChip systems (u, $\omega$, v, $\phi$) based on MATLAB StaticC.m.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=StaticCondensationOOC Constructor]
+def __init__(self, 
+             problem: Problem, 
+             global_discretization, 
+             elementary_matrices, 
+             domain_index: int = 0)
+\end{lstlisting}
+
+\textbf{Requirements:} \texttt{problem.neq == 4} and \texttt{problem.type == "organ\_on\_chip"}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=OrganOnChip Constructor Usage]
+# Create OrganOnChip problem (from MATLAB TestProblem.m)
+ooc_params = np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0])
+problem = Problem(
+    neq=4,
+    domain_start=0.0,  # A = 0
+    domain_length=1.0, # L = 1
+    parameters=ooc_params,  # [nu, mu, epsilon, sigma, a, b, c, d, chi]
+    problem_type="organ_on_chip"
+)
+
+# Create static condensation
+ooc_sc = StaticCondensationOOC(
+    problem=problem,
+    global_discretization=global_disc,
+    elementary_matrices=elementary_matrices,
+    domain_index=0
+)
+\end{lstlisting}
+
+%\subsubsection{Specific Attributes (From MATLAB TestProblem.m)}
+%
+%\begin{longtable}{|p{3.5cm}|p{3.5cm}|p{7cm}|}
+%\hline
+%\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+%\hline
+%\endhead
+%
+%\texttt{nu} & \texttt{float} & Viscosity parameter (parameter 0) \\
+%\hline
+%
+%\texttt{mu} & \texttt{float} & Viscosity parameter (parameter 1) \\
+%\hline
+%
+%\texttt{epsilon} & \texttt{float} & Coupling parameter (parameter 2) \\
+%\hline
+%
+%\texttt{sigma} & \texttt{float} & Coupling parameter (parameter 3) \\
+%\hline
+%
+%\texttt{a} & \texttt{float} & Reaction parameter (parameter 4) \\
+%\hline
+%
+%\texttt{b} & \texttt{float} & Inter-equation coupling (parameter 5) \\
+%\hline
+%
+%\texttt{c} & \texttt{float} & Reaction parameter (parameter 6) \\
+%\hline
+%
+%\texttt{d} & \texttt{float} & Inter-equation coupling (parameter 7) \\
+%\hline
+%
+%\texttt{chi} & \texttt{float} & Coupling strength (parameter 8) \\
+%\hline
+%
+%\texttt{lambda\_function} & \texttt{Optional[Callable]} & Nonlinear response $\lambda(\omega)$ \\
+%\hline
+%
+%\texttt{dlambda\_function} & \texttt{Optional[Callable]} & Derivative $\lambda'(\omega)$ \\
+%\hline
+%
+%\end{longtable}
+%
+%\subsubsection{Mathematical System (From MATLAB References)}
+%
+%The OrganOnChip system implements:
+%\begin{align}
+%\frac{\partial u}{\partial t} - \nu \nabla^2 u &= f_u \label{eq:ooc_u} \\
+%\frac{\partial \omega}{\partial t} + \epsilon \nabla \cdot \theta + c\omega &= f_\omega + d u \label{eq:ooc_omega} \\
+%\frac{\partial v}{\partial t} + \sigma \nabla \cdot q + \lambda(\bar{\omega}) v &= f_v \label{eq:ooc_v} \\
+%\frac{\partial \phi}{\partial t} + \mu \nabla \cdot \psi + a\phi &= f_\phi + b v \label{eq:ooc_phi}
+%\end{align}
+%
+%With auxiliary relations:
+%\begin{align}
+%\theta &= \epsilon(\nabla \omega - \hat{\omega}) \\
+%q &= \sigma(\nabla v - \hat{v}) \\
+%\psi &= \mu(\nabla \phi - \hat{\phi})
+%\end{align}
+
+\subsubsection{Matrix Construction (Based on MATLAB scBlocks.m)}
+
+\paragraph{build\_matrices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=OrganOnChip Build Matrices]
+def build_matrices(self) -> dict
+\end{lstlisting}
+
+\textbf{Returns:} Dictionary with OrganOnChip-specific matrices
+
+\textbf{Matrix Dictionary Keys (From MATLAB scBlocks.m):}
+\begin{itemize}
+    \item \texttt{'M'}: Mass matrix
+    \item \texttt{'T'}: Trace matrix
+    \item \texttt{'B1'}, \texttt{'L1'}: Matrices for $u$ equation
+    \item \texttt{'B2'}, \texttt{'C2'}, \texttt{'L2'}: Matrices for $\omega$ equation  
+    \item \texttt{'A3'}, \texttt{'S3'}, \texttt{'H3'}: Matrices for $v$ equation
+    \item \texttt{'B4'}, \texttt{'C4'}, \texttt{'L4'}: Matrices for $\phi$ equation
+    \item \texttt{'D1'}, \texttt{'D2'}: Flux jump matrices
+    \item \texttt{'Q'}: Coupling matrix
+    \item \texttt{'hB4'}, \texttt{'B5'}, \texttt{'B6'}, \texttt{'B7'}: Assembly matrices
+    \item \texttt{'hatB0'}, \texttt{'hatB1'}, \texttt{'hatB2'}: Final assembly matrices
+    \item \texttt{'Av'}: Averaging matrix for $\bar{\omega}$ computation
+\end{itemize}
+
+\paragraph{static\_condensation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=OrganOnChip Static Condensation]
+def static_condensation(self, 
+                       trace_values: np.ndarray, 
+                       rhs: np.ndarray, 
+                       time: float = 0.0) -> Tuple[np.ndarray, np.ndarray, np.ndarray]
+\end{lstlisting}
+
+\textbf{Algorithm (Following MATLAB StaticC.m):}
+\begin{enumerate}
+    \item \textbf{Step 1}: $\hat{U} \rightarrow U$ reconstruction
+    \begin{itemize}
+        \item $u = B_1 \hat{u} + y_1$ where $y_1 = L_1 g_u$
+        \item $\omega = C_2 \hat{u} + B_2 \hat{\omega} + y_2$ where $y_2 = L_2(g_\omega + dt \cdot d \cdot M y_1)$
+    \end{itemize}
+    
+    \item \textbf{Step 2}: Nonlinear coupling computation
+    \begin{itemize}
+        \item $\bar{\omega} = A_{av} \omega$ (averaging)
+        \item $\bar{\lambda}_\omega = \lambda(\bar{\omega})$ (nonlinear function evaluation)
+        \item $J_\lambda = \lambda'(\bar{\omega}) A_{av}$ (Jacobian contribution)
+    \end{itemize}
+    
+    \item \textbf{Step 3}: $v$ equation solution
+    \begin{itemize}
+        \item $L_3(\omega) = (A_3 + \bar{\lambda}_\omega S_3)^{-1}$ (nonlinear operator)
+        \item $v = B_3(\omega) \hat{v} + y_3(\omega)$ where $B_3(\omega) = L_3(\omega) H_3$
+    \end{itemize}
+    
+    \item \textbf{Step 4}: $\phi$ equation solution
+    \begin{itemize}
+        \item $\phi = B_4 \hat{\phi} + C_4 v + L_4 g_\phi$
+    \end{itemize}
+    
+    \item \textbf{Step 5}: Flux jump computation
+    \begin{itemize}
+        \item $\tilde{J} = D_1 U - D_2 \hat{U}$
+        \item $j = \hat{B}_4 \hat{U} + \tilde{J}^T Q U$
+    \end{itemize}
+    
+    \item \textbf{Step 6}: Final assembly
+    \begin{itemize}
+        \item $\hat{j} = B_5 j + B_6 U + B_7 \hat{U}$
+        \item $\hat{J} = \hat{B}_0 \tilde{J} + \hat{B}_1 U - \hat{B}_2 \hat{U}$
+    \end{itemize}
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=OrganOnChip Static Condensation Usage]
+# Prepare input (4 equations, matching MATLAB TestProblem.m)
+trace_vals = np.random.rand(4 * (n_elements + 1))  # u, omega, v, phi traces
+rhs = np.random.rand(2 * 4 * n_elements)  # RHS for all 4 equations
+
+# Set lambda function (from MATLAB TestProblem.m: constant function)
+ooc_sc.set_lambda_functions(
+    lambda_function=lambda omega: np.ones_like(omega),
+    dlambda_function=lambda omega: np.zeros_like(omega)
+)
+
+# Perform static condensation
+bulk_solution, flux_jump, jacobian = ooc_sc.static_condensation(
+    trace_values=trace_vals,
+    rhs=rhs,
+    time=0.0
+)
+
+print(f"Bulk solution shape: {bulk_solution.shape}")  # (8, n_elements)
+print(f"Flux jump shape: {flux_jump.shape}")  # (4,) 
+print(f"Jacobian shape: {jacobian.shape}")  # (8, 4*(n_elements+1))
+\end{lstlisting}
+
+
+\subsection{StaticCondensationFactory Usage}
+\label{subsec:factory_usage}
+
+The factory class provides automatic selection of appropriate static condensation implementation.
+
+\subsubsection{Factory Methods}
+
+\paragraph{create()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Factory Create Method]
+@classmethod
+def create(cls, problem: Problem, global_disc, elementary_matrices,
+           i: int = 0) -> StaticCondensationBase
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem}: Problem instance with \texttt{type} attribute
+    \item \texttt{global\_disc}: GlobalDiscretization instance
+    \item \texttt{elementary\_matrices}: ElementaryMatrices instance
+    \item \texttt{i}: Domain index (default: 0)
+\end{itemize}
+
+\textbf{Returns:} Appropriate StaticCondensation implementation
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Factory Usage Examples]
+from ooc1d.core.static_condensation_factory import StaticCondensationFactory
+
+# Automatic selection for Keller-Segel
+ks_problem = Problem(neq=2, ..., problem_type="keller_segel")
+ks_sc = StaticCondensationFactory.create(
+    problem=ks_problem,
+    global_disc=global_discretization,
+    elementary_matrices=elem_matrices,
+    i=0
+)
+# Returns: KellerSegelStaticCondensation instance
+
+# Automatic selection for OrganOnChip  
+ooc_problem = Problem(neq=4, ..., problem_type="organ_on_chip")
+ooc_sc = StaticCondensationFactory.create(
+    problem=ooc_problem,
+    global_disc=global_discretization,
+    elementary_matrices=elem_matrices,
+    i=0
+)
+# Returns: StaticCondensationOOC instance
+\end{lstlisting}
+
+\paragraph{register\_implementation()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Register Implementation Method]
+@classmethod
+def register_implementation(cls, problem_type: str, 
+                           implementation_class: Type[StaticCondensationBase])
+\end{lstlisting}
+
+\textbf{Purpose:} Register new static condensation implementations
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Register New Implementation]
+# Register custom implementation
+class CustomStaticCondensation(StaticCondensationBase):
+    # ... implementation ...
+    pass
+
+StaticCondensationFactory.register_implementation(
+    "custom_problem", CustomStaticCondensation
+)
+
+# Now available through factory
+custom_problem = Problem(neq=3, ..., problem_type="custom_problem")
+custom_sc = StaticCondensationFactory.create(custom_problem, ...)
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples}
+
+\subsubsection{Keller-Segel Complete Workflow}
+
+\begin{lstlisting}[language=Python, caption=Complete KellerSegel Workflow]
+import numpy as np
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization, GlobalDiscretization
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+from ooc1d.core.static_condensation_factory import StaticCondensationFactory
+
+# Step 1: Create Keller-Segel problem
+problem = Problem(
+    neq=2,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=np.array([2.0, 1.0, 0.1, 1.0]),  # [mu, nu, a, b]
+    problem_type="keller_segel",
+    name="chemotaxis_problem"
+)
+
+# Set chemotaxis functions
+problem.set_chemotaxis(
+    chi=lambda phi: np.ones_like(phi),
+    dchi=lambda phi: np.zeros_like(phi)
+)
+
+# Step 2: Create discretization
+discretization = Discretization(n_elements=20)
+discretization.set_tau([1.0, 1.0])  # [tau_u, tau_phi]
+global_disc = GlobalDiscretization([discretization])
+
+# Step 3: Create elementary matrices
+elementary_matrices = ElementaryMatrices()
+
+# Step 4: Create static condensation via factory
+static_condensation = StaticCondensationFactory.create(
+    problem=problem,
+    global_disc=global_disc,
+    elementary_matrices=elementary_matrices,
+    i=0
+)
+
+print(f"Created: {type(static_condensation).__name__}")  # KellerSegelStaticCondensation
+
+# Step 5: Build matrices
+matrices = static_condensation.build_matrices()
+print(f"Available matrices: {list(matrices.keys())}")
+
+# Step 6: Perform static condensation
+trace_values = np.random.rand(2 * 21)  # 2 equations, 21 nodes
+rhs = np.random.rand(2 * 2 * 20)  # 2 equations, 2 DOFs per element, 20 elements
+
+bulk_solution, flux_jump, jacobian = static_condensation.static_condensation(
+    trace_values=trace_values,
+    rhs=rhs,
+    time=0.0
+)
+
+print(f"Static condensation completed:")
+print(f"  Bulk solution: {bulk_solution.shape}")
+print(f"  Flux jump: {flux_jump.shape}")
+print(f"  Jacobian: {jacobian.shape}")
+\end{lstlisting}
+
+\subsubsection{OrganOnChip Complete Workflow (MATLAB Compatible)}
+
+\begin{lstlisting}[language=Python, caption=Complete OrganOnChip Workflow]
+# Step 1: Create OrganOnChip problem (matching MATLAB TestProblem.m)
+ooc_params = np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0])
+# [nu, mu, epsilon, sigma, a, b, c, d, chi]
+
+problem = Problem(
+    neq=4,
+    domain_start=0.0,  # A = 0 (MATLAB)
+    domain_length=1.0, # L = 1 (MATLAB)
+    parameters=ooc_params,
+    problem_type="organ_on_chip",
+    name="microfluidic_device"
+)
+
+# Set initial conditions (matching MATLAB TestProblem.m)
+problem.set_initial_condition(0, lambda x, t: np.sin(2*np.pi*x))  # u
+for eq_idx in [1, 2, 3]:  # omega, v, phi
+    problem.set_initial_condition(eq_idx, lambda x, t: np.zeros_like(x))
+
+# Set lambda function (matching MATLAB: constant_function)
+problem.set_function('lambda_function', lambda x: np.ones_like(x))
+problem.set_function('dlambda_function', lambda x: np.zeros_like(x))
+
+# Step 2: Create discretization
+discretization = Discretization(n_elements=40)  # Matching MATLAB
+discretization.set_tau([1.0, 1.0, 1.0, 1.0])  # [tu, to, tv, tp]
+global_disc = GlobalDiscretization([discretization])
+global_disc.set_time_parameters(dt=0.01, T=0.5)  # Matching MATLAB
+
+# Step 3: Create static condensation
+elementary_matrices = ElementaryMatrices()
+static_condensation = StaticCondensationFactory.create(
+    problem=problem,
+    global_disc=global_disc,
+    elementary_matrices=elementary_matrices,
+    i=0
+)
+
+print(f"Created: {type(static_condensation).__name__}")  # StaticCondensationOOC
+
+# Set lambda functions for nonlinear coupling
+static_condensation.set_lambda_functions(
+    lambda_function=lambda omega: np.ones_like(omega),  # Constant (MATLAB)
+    dlambda_function=lambda omega: np.zeros_like(omega)
+)
+
+# Step 4: Build matrices (following MATLAB scBlocks.m structure)
+matrices = static_condensation.build_matrices()
+required_matrices = ['M', 'T', 'B1', 'L1', 'B2', 'C2', 'L2', 'A3', 'S3', 'H3', 
+                    'B4', 'C4', 'L4', 'D1', 'D2', 'Q', 'Av']
+print(f"Required matrices available: {all(m in matrices for m in required_matrices)}")
+
+# Step 5: Perform static condensation (following MATLAB StaticC.m)
+trace_values = np.random.rand(4 * 41)  # 4 equations, 41 nodes
+rhs = np.random.rand(2 * 4 * 40)  # 4 equations, 2 DOFs per element, 40 elements
+
+bulk_solution, flux_jump, jacobian = static_condensation.static_condensation(
+    trace_values=trace_values,
+    rhs=rhs,
+    time=0.0
+)
+
+# Verify MATLAB compatibility
+print(f"OrganOnChip static condensation results:")
+print(f"  Bulk solution (U): {bulk_solution.shape}")  # Should be (8, 40)
+print(f"  Flux jump (hJ): {flux_jump.shape}")  # Should be (4,) or (8,)
+print(f"  Jacobian (dhJ): {jacobian.shape}")  # Should be (8, 4*41)
+
+# Check parameter extraction matches MATLAB
+params = static_condensation.get_problem_parameters()
+matlab_params = {'nu': params[0], 'mu': params[1], 'epsilon': params[2], 
+                'sigma': params[3], 'a': params[4], 'b': params[5], 
+                'c': params[6], 'd': params[7], 'chi': params[8]}
+print(f"MATLAB-compatible parameters: {matlab_params}")
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:static_condensation_method_summary}
+
+\subsubsection{StaticCondensationBase Methods}
+
+\begin{longtable}{|p{5.5cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize base class with common attributes \\
+\hline
+
+\texttt{build\_matrices} & \texttt{dict} & Abstract: build problem-specific matrices \\
+\hline
+
+\texttt{static\_condensation} & \texttt{Tuple} & Abstract: perform local static condensation \\
+\hline
+
+\texttt{get\_problem\_parameters} & \texttt{np.ndarray} & Extract problem parameter array \\
+\hline
+
+\texttt{get\_stabilization\_parameters} & \texttt{np.ndarray} & Extract stabilization parameters \\
+\hline
+
+\texttt{validate\_input} & \texttt{None} & Validate trace values and RHS dimensions \\
+\hline
+
+\end{longtable}
+
+\subsubsection{KellerSegelStaticCondensation Methods}
+
+\begin{longtable}{|p{4.7cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{build\_matrices} & \texttt{dict} & Build 2-equation Keller-Segel matrices \\
+\hline
+
+\texttt{static\_condensation} & \texttt{Tuple} & Perform Keller-Segel static condensation \\
+\hline
+
+\texttt{set\_chemotaxis\_functions} & \texttt{None} & Set nonlinear chemotaxis functions \\
+\hline
+
+\end{longtable}
+
+\subsubsection{StaticCondensationOOC Methods}
+
+\begin{longtable}{|p{4cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{build\_matrices} & \texttt{dict} & Build 4-equation OrganOnChip matrices (MATLAB compatible) \\
+\hline
+
+\texttt{static\_condensation} & \texttt{Tuple} & Perform OrganOnChip static condensation (MATLAB StaticC.m) \\
+\hline
+
+\texttt{set\_lambda\_functions} & \texttt{None} & Set nonlinear response functions $\lambda(\omega)$ \\
+\hline
+
+\end{longtable}
+
+This documentation provides a comprehensive reference for the static condensation module hierarchy, with implementations that follow the MATLAB reference files while integrating with the BioNetFlux Python architecture.
+
+% End of static condensation modules API documentation

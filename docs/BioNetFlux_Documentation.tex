@@ -14,6 +14,7 @@
 \usepackage{booktabs}
 \usepackage{array}
 \usepackage{longtable}
+\usepackage{tikz}
 
 % Page setup
 \geometry{margin=2.5cm}
@@ -104,27 +105,31 @@
 
 % Table of contents
 \tableofcontents
+
+
 \clearpage
 
 \section{Introduction}
 
-\bionetflux{} is a computational framework designed for simulating biological transport phenomena on complex network geometries. The framework specializes in solving coupled partial differential equations (PDEs) on multi-domain networks, with particular focus on:
+\bionetflux{} is a computational framework designed for simulating biological transport phenomena on complex one dimensional networks. Based on an Hybridized Discontinuous Galerkin (HDG) approach, the framework specializes in solving coupled partial differential equations (PDEs) on multi-arc (branch/channel) networks, with particular focus on:
 
 \begin{itemize}
     \item \textbf{Keller-Segel chemotaxis models}: Cell migration driven by chemical gradients
     \item \textbf{Organ-on-Chip systems}: Microfluidic device simulations with multiple compartments
-    \item \textbf{Multi-domain networks}: Complex geometries with junction conditions and interface constraints
+    \item \textbf{Multi-arc networks}: Complex geometries with different type of junction conditions and interface constraints
 \end{itemize}
 
 \subsection{Key Features}
 
 \begin{itemize}
-    \item \textbf{Multi-Domain Support}: Handle complex network topologies with arbitrary domain connections
+    \item \textbf{Multi-Arc Support}: Handle complex network topologies with arbitrary arc connections
+    \item \textbf{Arbitrary equation number}: Parametric handling of the number of equations per arc
     \item \textbf{Geometry Management}: Intuitive geometry definition using the \code{DomainGeometry} class
-    \item \textbf{Flexible Constraints}: Support for Neumann, Dirichlet, and Kedem-Katchalsky junction conditions
+    \item \textbf{Flexible Constraints}: Support for Neumann, Dirichlet, and Robin boundary conditions and  Kedem-Katchalsky junction conditions
     \item \textbf{Advanced Visualization}: 2D curve plots, 3D flat views, and bird's eye network visualization
-    \item \textbf{Time Evolution}: Implicit time stepping with Newton-Raphson nonlinear solver
+    \item \textbf{Time Evolution}: Euler implicit time stepping with nonlinear solver
     \item \textbf{Static Condensation}: Efficient element-level solution elimination
+   \item \textbf{Extensibility}: Adding new problem classes by writing problem specific static condensation modules 
 \end{itemize}
 
 \section{Architecture Overview}
@@ -150,7 +155,7 @@ BioNetFlux/
 \begin{enumerate}
     \item \textbf{Problem Definition}: Physical parameters, equations, and boundary conditions
     \item \textbf{Geometry Management}: Domain layout and network topology
-    \item \textbf{Discretization}: Finite element spatial discretization
+    \item \textbf{Discretization}: Spatial mesh and time discretization 
     \item \textbf{Constraint System}: Interface conditions and boundary constraints
     \item \textbf{Time Evolution}: Implicit time stepping with Newton solver
     \item \textbf{Visualization}: Multi-mode plotting system
@@ -574,9 +579,25 @@ plotter.plot_birdview(
 \end{itemize}
 
 
-\input{geometry_module}
-\input{problem_module}
-\input{discretization}
+\input{domain_geometry_api}
+\input{problem_module_api_accurate}
+\input{constraints_module_api}
+\input{discretization_module_api}
+\input{bulk_data_module_api}
+\input{lean_bulk_data_manager_api}
+\input{static_condensation_modules_api}
+\input{flux_jump_module_api}
+
+
+\input{lean_global_assembly_api}
+\input{elementary_matrices_module_api}
+
+
+\input{setup_solver_module_api}
+
+\input{lean_matplotlib_plotter_api}
+
+\input{problems_folder_detailed_api}
 
 
 \section{Example Applications}
@@ -757,6 +778,11 @@ class LeanMatplotlibPlotter:
                         final_time=1.0, 
                         save_filename=None) -> plt.Figure
 \end{lstlisting}
+
+
+
+\input{project_status_report}
+\input{project_todo_analysis}
 
 \section{Troubleshooting}
 

@@ -1,0 +1,600 @@
+% Problem Module API Documentation
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/problem_module_api}
+
+\section{Problem Module API Reference}
+\label{sec:problem_module_api}
+
+This section provides a comprehensive reference for the Problem class (\texttt{ooc1d.core.problem}), which encapsulates the mathematical problem specification for BioNetFlux solver including parameters, boundary conditions, initial conditions, and forcing terms.
+
+\subsection{Module Overview}
+
+The Problem class serves as the central container for:
+\begin{itemize}
+    \item Physical and mathematical parameters
+    \item Domain geometry specification
+    \item Initial condition functions
+    \item Forcing term (source) functions
+    \item Analytical solution functions (when available)
+    \item Problem-specific nonlinear functions (e.g., chemotaxis, OrganOnChip)
+\end{itemize}
+
+\subsection{Problem Class}
+\label{subsec:problem_class}
+
+The main class for problem specification, supporting both Keller-Segel chemotaxis (2 equations) and OrganOnChip (4 equations) systems based on MATLAB reference implementations.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}
+\begin{lstlisting}[language=Python, caption=Problem Constructor]
+def __init__(self, 
+             neq: int,
+             domain_start: float,
+             domain_length: float,
+             parameters: np.ndarray,
+             problem_type: str = "default",
+             name: str = "unnamed_problem")
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{neq}: Number of equations in the system (2 for Keller-Segel, 4 for OrganOnChip)
+    \item \texttt{domain\_start}: Start coordinate of the domain (corresponding to MATLAB \texttt{A})
+    \item \texttt{domain\_length}: Length of the domain (corresponding to MATLAB \texttt{L})
+    \item \texttt{parameters}: NumPy array of physical parameters
+    \item \texttt{problem\_type}: Problem identifier string ("keller\_segel", "organ\_on\_chip", etc.)
+    \item \texttt{name}: Descriptive name for the problem instance
+\end{itemize}
+
+\textbf{Parameter Array Structures:}
+
+For \textbf{Keller-Segel} problems (\texttt{neq=2}):
+\begin{lstlisting}[language=Python, caption=Keller-Segel Parameters]
+# parameters = [mu, nu, a, b]
+# mu: diffusion coefficient for phi equation  
+# nu: diffusion coefficient for u equation
+# a, b: reaction/coupling parameters
+parameters = np.array([2.0, 1.0, 0.0, 1.0])
+\end{lstlisting}
+
+For \textbf{OrganOnChip} problems (\texttt{neq=4}) - from MATLAB \texttt{TestProblem.m}:
+\begin{lstlisting}[language=Python, caption=OrganOnChip Parameters]
+# parameters = [nu, mu, epsilon, sigma, a, b, c, d, chi]
+# nu, mu: viscosity parameters
+# epsilon, sigma: coupling parameters
+# a, c: reaction parameters  
+# b, d: inter-equation coupling
+# chi: nonlinear coupling strength
+parameters = np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0])
+\end{lstlisting}
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Problem Creation Examples]
+# Keller-Segel chemotaxis problem
+ks_problem = Problem(
+    neq=2,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=np.array([2.0, 1.0, 0.0, 1.0]),
+    problem_type="keller_segel",
+    name="chemotaxis_migration"
+)
+
+# OrganOnChip problem (matching MATLAB TestProblem.m)
+ooc_problem = Problem(
+    neq=4,
+    domain_start=0.0,    # MATLAB: A = 0
+    domain_length=1.0,   # MATLAB: L = 1
+    parameters=np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0]),
+    problem_type="organ_on_chip",
+    name="microfluidic_device"
+)
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.7cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{neq} & \texttt{int} & Number of equations in the system \\
+\hline
+
+\texttt{domain\_start} & \texttt{float} & Start coordinate of the domain (MATLAB: \texttt{A}) \\
+\hline
+
+\texttt{domain\_length} & \texttt{float} & Domain length (MATLAB: \texttt{L}) \\
+\hline
+
+\texttt{domain\_end} & \texttt{float} & End coordinate: \texttt{domain\_start + domain\_length} \\
+\hline
+
+\texttt{parameters} & \texttt{np.ndarray} & Physical/mathematical parameters array \\
+\hline
+
+\texttt{problem\_type} & \texttt{str} & Problem type identifier \\
+\hline
+
+\texttt{name} & \texttt{str} & Descriptive problem name \\
+\hline
+
+\texttt{type} & \texttt{str} & Alias for \texttt{problem\_type} (legacy compatibility) \\
+\hline
+
+\texttt{initial\_conditions} & \texttt{List} & Initial condition functions for each equation \\
+\hline
+
+\texttt{forcing\_functions} & \texttt{List} & Source/forcing functions for each equation \\
+\hline
+
+\texttt{solution} & \texttt{List} & Analytical solution functions (when available) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Initial Condition Management}
+
+\paragraph{set\_initial\_condition()}
+\begin{lstlisting}[language=Python, caption=Set Initial Condition Method]
+def set_initial_condition(self, equation_index: int, 
+                         initial_function: Callable[[np.ndarray, float], np.ndarray])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number (0 to \texttt{neq-1})
+    \item \texttt{initial\_function}: Function \texttt{f(x, t)} returning initial values
+\end{itemize}
+
+\textbf{Function Signature:} \texttt{f(x: np.ndarray, t: float) -> np.ndarray}
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Initial Condition Examples]
+# Based on MATLAB TestProblem.m initial conditions
+# Equation 0 (u): sin wave initial condition
+ooc_problem.set_initial_condition(0, lambda x, t: np.sin(2*np.pi*x))
+
+# Equations 1,2,3 (omega, v, phi): zero initial conditions
+for eq_idx in [1, 2, 3]:
+    ooc_problem.set_initial_condition(eq_idx, lambda x, t: np.zeros_like(x))
+
+# Keller-Segel example: Gaussian initial distribution
+ks_problem.set_initial_condition(0, lambda x, t: np.exp(-(x-0.5)**2/0.1))
+ks_problem.set_initial_condition(1, lambda x, t: np.ones_like(x))
+\end{lstlisting}
+
+\paragraph{get\_initial\_condition()}
+\begin{lstlisting}[language=Python, caption=Get Initial Condition Method]
+def get_initial_condition(self, equation_index: int, 
+                         coordinates: np.ndarray, 
+                         time: float = 0.0) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{coordinates}: Spatial coordinate array
+    \item \texttt{time}: Time value (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Initial condition values at given coordinates
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+# Evaluate initial condition at specific points
+x_points = np.linspace(0, 1, 11)
+u_initial = ooc_problem.get_initial_condition(0, x_points, t=0.0)
+print(f"u(x, t=0) = {u_initial}")
+\end{lstlisting}
+
+\subsubsection{Forcing Function Management}
+
+\paragraph{set\_force()}
+\begin{lstlisting}[language=Python, caption=Set Force Method]
+def set_force(self, equation_index: int,
+              force_function: Callable[[np.ndarray, float], np.ndarray])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number (0 to \texttt{neq-1})
+    \item \texttt{force\_function}: Source term function \texttt{f(x, t)}
+\end{itemize}
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Forcing Function Examples]
+# Based on MATLAB TestProblem.m: all forcing terms are zero
+for eq_idx in range(4):
+    ooc_problem.set_force(eq_idx, lambda x, t: np.zeros_like(x))
+
+# Non-zero forcing example: time-dependent source
+def time_dependent_source(x, t):
+    return 0.1 * np.exp(-t) * np.sin(np.pi * x)
+
+ks_problem.set_force(0, time_dependent_source)
+ks_problem.set_force(1, lambda x, t: np.zeros_like(x))  # No source for phi
+\end{lstlisting}
+
+\paragraph{get\_force()}
+\begin{lstlisting}[language=Python, caption=Get Force Method]
+def get_force(self, equation_index: int,
+              coordinates: np.ndarray,
+              time: float) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{coordinates}: Spatial coordinate array
+    \item \texttt{time}: Time value
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Force values at given coordinates and time
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+# Evaluate forcing term at current time
+x_points = np.linspace(0, 1, 11)
+current_time = 0.5
+f_values = ooc_problem.get_force(0, x_points, current_time)
+\end{lstlisting}
+
+\subsubsection{Analytical Solution Management}
+
+\paragraph{set\_solution()}
+\begin{lstlisting}[language=Python, caption=Set Solution Method]
+def set_solution(self, equation_index: int,
+                 solution_function: Callable[[np.ndarray, float], np.ndarray])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{solution\_function}: Analytical solution function \texttt{u(x, t)}
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Analytical Solution Example]
+# Set analytical solution for validation (when known)
+def analytical_u(x, t):
+    return np.exp(-t) * np.sin(np.pi * x)
+
+def analytical_phi(x, t):
+    return np.ones_like(x) + 0.1 * np.cos(np.pi * x) * np.exp(-0.5 * t)
+
+ks_problem.set_solution(0, analytical_u)
+ks_problem.set_solution(1, analytical_phi)
+\end{lstlisting}
+
+\paragraph{get\_solution()}
+\begin{lstlisting}[language=Python, caption=Get Solution Method]
+def get_solution(self, equation_index: int,
+                 coordinates: np.ndarray,
+                 time: float) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_index}: Equation number
+    \item \texttt{coordinates}: Spatial coordinate array
+    \item \texttt{time}: Time value
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Analytical solution values
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+# Compare numerical with analytical solution
+x_test = np.linspace(0, 1, 21)
+t_test = 1.0
+analytical_values = ks_problem.get_solution(0, x_test, t_test)
+# numerical_values = ... (from solver)
+# error = np.abs(numerical_values - analytical_values)
+\end{lstlisting}
+
+\subsubsection{Problem-Specific Extensions}
+
+\paragraph{set\_chemotaxis() - Keller-Segel Specific}
+\begin{lstlisting}[language=Python, caption=Set Chemotaxis Functions]
+def set_chemotaxis(self, chi_function: Callable[[np.ndarray], np.ndarray],
+                   dchi_function: Callable[[np.ndarray], np.ndarray])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{chi\_function}: Chemotactic sensitivity function $\chi(\phi)$
+    \item \texttt{dchi\_function}: Derivative function $\chi'(\phi)$
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Chemotaxis Function Example]
+# Nonlinear chemotaxis with saturation
+def chi_function(phi):
+    k1, k2 = 3.9e-9, 5e-6
+    return k1 / (k2 + phi)**2
+
+def dchi_function(phi):
+    k1, k2 = 3.9e-9, 5e-6
+    return -2 * k1 / (k2 + phi)**3
+
+ks_problem.set_chemotaxis(chi_function, dchi_function)
+\end{lstlisting}
+
+\paragraph{set\_lambda\_function() - OrganOnChip Specific}
+\begin{lstlisting}[language=Python, caption=Set Lambda Function]
+def set_lambda_function(self, lambda_function: Callable[[np.ndarray], np.ndarray],
+                       dlambda_function: Callable[[np.ndarray], np.ndarray])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{lambda\_function}: Nonlinear response function $\lambda(\omega)$
+    \item \texttt{dlambda\_function}: Derivative function $\lambda'(\omega)$
+\end{itemize}
+
+\textbf{Usage (from MATLAB TestProblem.m):}
+\begin{lstlisting}[language=Python, caption=Lambda Function Example]
+# Constant lambda function (as in MATLAB reference)
+def constant_lambda(omega):
+    return np.ones_like(omega)
+
+def constant_dlambda(omega):
+    return np.zeros_like(omega)
+
+ooc_problem.set_lambda_function(constant_lambda, constant_dlambda)
+\end{lstlisting}
+
+\subsubsection{Utility Methods}
+
+\paragraph{validate\_setup()}
+\begin{lstlisting}[language=Python, caption=Validate Setup Method]
+def validate_setup(self) -> bool
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{bool} - True if problem setup is complete and consistent
+
+\textbf{Validation Checks:}
+\begin{itemize}
+    \item All equations have initial conditions defined
+    \item All equations have forcing functions defined
+    \item Parameter array has correct length for problem type
+    \item Domain geometry is valid (positive length)
+    \item Problem-specific functions are set when required
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+if ooc_problem.validate_setup():
+    print("Problem setup is complete")
+else:
+    print("Problem setup incomplete - check missing components")
+\end{lstlisting}
+
+\paragraph{summary()}
+\begin{lstlisting}[language=Python, caption=Problem Summary Method]
+def summary(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Multi-line summary of problem configuration
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+print(ooc_problem.summary())
+# Output:
+# Problem: microfluidic_device
+# Type: organ_on_chip
+# Equations: 4
+# Domain: [0.000, 1.000] (length: 1.000)
+# Parameters: [1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0]
+# Initial conditions: 4/4 set
+# Forcing functions: 4/4 set
+# Analytical solutions: 0/4 set
+\end{lstlisting}
+
+\paragraph{copy()}
+\begin{lstlisting}[language=Python, caption=Problem Copy Method]
+def copy(self) -> 'Problem'
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Problem} - Deep copy of the problem instance
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+# Create variant with different parameters
+variant_problem = ooc_problem.copy()
+variant_problem.parameters[0] = 2.0  # Change nu parameter
+variant_problem.name = "high_viscosity_variant"
+\end{lstlisting}
+
+\subsection{Integration with BioNetFlux Components}
+\label{subsec:problem_integration}
+
+\subsubsection{Integration with Static Condensation}
+
+\begin{lstlisting}[language=Python, caption=Static Condensation Integration]
+from ooc1d.core.static_condensation_ooc import StaticCondensationOOC
+from ooc1d.core.discretization import Discretization
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+
+# Create problem
+problem = Problem(
+    neq=4,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0]),
+    problem_type="organ_on_chip"
+)
+
+# Set up discretization
+discretization = Discretization(
+    n_elements=20,
+    domain_start=problem.domain_start,
+    domain_length=problem.domain_length,
+    stab_constant=1.0
+)
+
+# Create static condensation
+elementary_matrices = ElementaryMatrices()
+static_condensation = StaticCondensationOOC(
+    problem=problem,
+    discretization=discretization, 
+    elementary_matrices=elementary_matrices
+)
+\end{lstlisting}
+
+\subsubsection{Integration with BulkDataManager}
+
+\begin{lstlisting}[language=Python, caption=BulkDataManager Integration]
+from ooc1d.solver.bulk_data_manager import BulkDataManager
+
+# Initialize bulk data from problem
+bulk_manager = BulkDataManager()
+bulk_data = bulk_manager.create_bulk_data(
+    problem=problem,
+    discretization=discretization,
+    time=0.0,  # Initial time
+    initialization_method="initial_conditions"
+)
+
+# Compute forcing terms at specific time
+force_data = bulk_manager.create_bulk_data(
+    problem=problem,
+    discretization=discretization, 
+    time=0.5,  # Current time
+    initialization_method="forcing_functions"
+)
+\end{lstlisting}
+
+\subsection{Factory Methods and Problem Creation Patterns}
+\label{subsec:problem_factories}
+
+\subsubsection{Standard Problem Factory}
+
+\begin{lstlisting}[language=Python, caption=Problem Factory Functions]
+def create_keller_segel_problem(domain_length: float = 1.0,
+                               mu: float = 2.0,
+                               nu: float = 1.0,
+                               chemotaxis_strength: float = 1.0) -> Problem:
+    """Factory for Keller-Segel chemotaxis problems."""
+    parameters = np.array([mu, nu, 0.0, chemotaxis_strength])
+    
+    problem = Problem(
+        neq=2,
+        domain_start=0.0,
+        domain_length=domain_length,
+        parameters=parameters,
+        problem_type="keller_segel",
+        name="keller_segel_chemotaxis"
+    )
+    
+    # Set standard chemotaxis functions
+    problem.set_chemotaxis(
+        chi_function=lambda phi: np.ones_like(phi),
+        dchi_function=lambda phi: np.zeros_like(phi)
+    )
+    
+    return problem
+
+def create_organ_on_chip_problem(domain_length: float = 1.0,
+                                viscosity_params: Tuple[float, float] = (1.0, 2.0),
+                                coupling_params: Tuple[float, float] = (1.0, 1.0)) -> Problem:
+    """Factory for OrganOnChip problems matching MATLAB TestProblem.m."""
+    nu, mu = viscosity_params
+    epsilon, sigma = coupling_params
+    
+    # Parameters matching MATLAB: [nu, mu, epsilon, sigma, a, b, c, d, chi]
+    parameters = np.array([nu, mu, epsilon, sigma, 0.0, 1.0, 0.0, 1.0, 1.0])
+    
+    problem = Problem(
+        neq=4,
+        domain_start=0.0,  # MATLAB: A = 0
+        domain_length=domain_length,  # MATLAB: L = 1
+        parameters=parameters,
+        problem_type="organ_on_chip",
+        name="organ_on_chip_device"
+    )
+    
+    # Set constant lambda function (as in MATLAB)
+    problem.set_lambda_function(
+        lambda_function=lambda omega: np.ones_like(omega),
+        dlambda_function=lambda omega: np.zeros_like(omega)
+    )
+    
+    return problem
+\end{lstlisting}
+
+\subsubsection{Complete Problem Setup Example}
+
+\begin{lstlisting}[language=Python, caption=Complete Problem Setup]
+def setup_complete_ooc_problem():
+    """Complete OrganOnChip problem setup matching MATLAB TestProblem.m."""
+    
+    # Create problem with MATLAB parameters
+    problem = create_organ_on_chip_problem(domain_length=1.0)
+    
+    # Set initial conditions (matching MATLAB TestProblem.m)
+    problem.set_initial_condition(0, lambda x, t: np.sin(2*np.pi*x))  # u
+    problem.set_initial_condition(1, lambda x, t: np.zeros_like(x))   # omega
+    problem.set_initial_condition(2, lambda x, t: np.zeros_like(x))   # v  
+    problem.set_initial_condition(3, lambda x, t: np.zeros_like(x))   # phi
+    
+    # Set zero forcing functions (matching MATLAB)
+    for eq_idx in range(4):
+        problem.set_force(eq_idx, lambda x, t: np.zeros_like(x))
+    
+    # Validate setup
+    if not problem.validate_setup():
+        raise RuntimeError("Problem setup validation failed")
+    
+    print(f"✓ OrganOnChip problem setup complete:")
+    print(problem.summary())
+    
+    return problem
+
+# Usage
+ooc_problem = setup_complete_ooc_problem()
+\end{lstlisting}
+
+\subsection{Advanced Usage Patterns}
+\label{subsec:advanced_usage}
+
+\subsubsection{Time-Dependent Parameters}
+
+\begin{lstlisting}[language=Python, caption=Time-Dependent Problem Setup]
+class TimeDependentProblem(Problem):
+    """Extension for time-dependent parameters."""
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parameter_functions = {}
+    
+    def set_time_dependent_parameter(self, param_index: int,
+                                   param_function: Callable[[float], float]):
+        """Set time-dependent parameter function."""
+        self.parameter_functions[param_index] = param_function
+    
+    def get_parameters_at_time(self, time: float) -> np.ndarray:
+        """Get parameters evaluated at specific time."""
+        params = self.parameters.copy()
+        for idx, func in self.parameter_functions.items():
+            params[idx] = func(time)
+        return params
+
+# Usage example: time-dependent viscosity
+td_problem = TimeDependentProblem(
+    neq=4, domain_start=0.0, domain_length=1.0,
+    parameters=np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0]),
+    problem_type="organ_on_chip"
+)
+
+# Viscosity increases with time
+td_problem.set_time_dependent_parameter(0, lambda t: 1.0 + 0.1*t)
+\end{lstlisting}
+
+The Problem class provides a comprehensive interface for mathematical problem specification in BioNetFlux, with full compatibility with both Keller-Segel and OrganOnChip systems as demonstrated in the MATLAB reference implementations.
+
+% End of problem module API documentation

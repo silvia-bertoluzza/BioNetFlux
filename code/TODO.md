@@ -40,12 +40,50 @@
 - [ ] Develop proof-of-concept implementations for selected applications
 - [ ] Validate model predictions with experimental or clinical data
 
-### 3. BulkData Integration (UPDATED)
+### 3. **Advanced Numerical Methods** (NEW)
+- [ ] **Add Picard iteration method for arbitrary non-linearities**
+  - [ ] Design Picard iteration framework for general nonlinear problems
+  - [ ] Implement fixed-point iteration schemes for nonlinear PDEs
+  - [ ] Add convergence criteria and acceleration techniques
+  - [ ] Support for nested nonlinearities (e.g., nonlinear diffusion + reaction)
+  - [ ] Compare Picard vs Newton method performance for different problem types
+  - [ ] Add hybrid Picard-Newton switching strategies
+  - [ ] Test with Keller-Segel chemotaxis and other nonlinear biological models
+  - [ ] Implement underrelaxation and line search for improved convergence
+
+### 4. **Adaptive Time Stepping** (NEW)
+- [ ] **Add support for adaptive time stepping**
+  - [ ] Implement embedded Runge-Kutta methods for error estimation
+  - [ ] Add automatic time step size control based on local truncation error
+  - [ ] Support multiple time stepping strategies (constant, adaptive, event-driven)
+  - [ ] Implement time step rejection and retry mechanisms
+  - [ ] Add stability-based time step limiters
+  - [ ] Support for maximum/minimum time step constraints
+  - [ ] Create time step history tracking and analysis tools
+  - [ ] Test adaptive stepping with stiff biological problems
+  - [ ] Add interfaces for user-defined error tolerances and step size controls
+
+### 5. **Non-Uniform Mesh Support** (NEW)
+- [ ] **Add support for non-uniform meshes**
+  - [ ] Extend Discretization class to handle variable element sizes
+  - [ ] Implement adaptive mesh refinement (AMR) capabilities
+  - [ ] Add mesh grading and clustering around critical regions
+  - [ ] Support for user-defined mesh distribution functions
+  - [ ] Update elementary matrix computations for variable element sizes
+  - [ ] Modify static condensation for non-uniform element contributions
+  - [ ] Add mesh quality metrics and validation
+  - [ ] Implement load balancing for multi-domain non-uniform meshes
+  - [ ] Create mesh generation utilities for biological applications
+  - [ ] Test with problems requiring high resolution in specific regions
+  - [ ] **Add find_element_containing_point to discretization module**
+  - [ ] **Add summary method to discretization class**
+
+### 6. BulkData Integration (UPDATED)
 - [x] ~~Fix constructor signature mismatch in `BulkSolution.__init__()`~~ **RESOLVED: Replaced with BulkData**
 - [x] ~~Implement missing methods in `BulkSolution`~~ **RESOLVED: BulkData provides comprehensive API**
 - [ ] **CRITICAL**: The formula for the mass evaluation assumes the basis functions to be nodal. Extend to orthogonal basis functions
 - [x] ~~Update remaining modules to use BulkData instead of BulkSolution~~ **RESOLVED: GlobalAssembler updated for lean approach**
-- [ ] **NEW**: Consider implementing leaner BulkDataManager that doesn't store framework objects
+- [x] **NEW**: Consider implementing leaner BulkDataManager that doesn't store framework objects
   - [ ] Evaluate memory usage benefits of lean approach
   - [ ] Test performance impact of passing components vs storing them
   - [ ] Document when to use lean vs full BulkDataManager
@@ -55,20 +93,20 @@
   - [ ] Consider adding a BulkData.set_raw_data() method for direct array assignment (future enhancement)
   - [x] ~~Update time evolution loop to handle data format conversion properly~~ **RESOLVED**
 
-### 4. **Global Assembly Enhancement** (UPDATED)
-- [ ] **NEW - HIGH PRIORITY**: Add treatment of non-homogeneous boundary conditions
-  - [ ] Implement Dirichlet boundary condition handling with prescribed values g(t)
-  - [ ] Add Neumann boundary condition support with prescribed fluxes q(t)
-  - [ ] Support time-dependent boundary data evaluation
-  - [ ] Integrate boundary condition treatment with constraint residual computation
-  - [ ] Update GlobalAssembler._add_constraint_jacobian_contributions for non-homogeneous terms
-  - [ ] Add validation tests for non-homogeneous boundary conditions
+### 7. **Global Assembly Enhancement** (UPDATED)
+- [x] **NEW - HIGH PRIORITY**: Add treatment of non-homogeneous boundary conditions **COMPLETED**
+  - [x] Implement Dirichlet boundary condition handling with prescribed values g(t) **COMPLETED**
+  - [x] Add Neumann boundary condition support with prescribed fluxes q(t) **COMPLETED**
+  - [x] Support time-dependent boundary data evaluation **COMPLETED**
+  - [x] Integrate boundary condition treatment with constraint residual computation **COMPLETED**
+  - [x] Update GlobalAssembler._add_constraint_jacobian_contributions for non-homogeneous terms **COMPLETED**
+  - [x] Add validation tests for non-homogeneous boundary conditions **COMPLETED**
 - [x] ~~Complete constraint Jacobian implementation~~ **IMPROVED: Better integration with BulkData**
 - [ ] Update GlobalAssembler to use BulkDataManager instead of managing bulk solutions directly
 - [ ] Verify global DOF mapping works with BulkData format
 - [ ] Test multi-domain assembly with BulkDataManager coordination
 
-### 5. Flux Jump Implementation (UPDATED)
+### 8. Flux Jump Implementation (UPDATED)
 - [x] ~~Fix dimension mismatch in `flux_jump.py`~~ **PARTIALLY RESOLVED: Testing infrastructure added**
 - [x] ~~Test flux jump computation with lean framework approach~~ **COMPLETED: Comprehensive testing suite**
   - [x] Mock object integration validated
@@ -76,8 +114,8 @@
   - [x] Mathematical properties tested (linearity, zero input handling)
   - [x] Integration with elementary matrices validated
 
-### 6. Constraint Implementation 
-  - [ ] Check junction condition in T-junction double arc example - results are not convincing
+### 9. Constraint Implementation 
+  - [x] Check junction condition in T-junction double arc example - results are not convincing
 
 ## Medium Priority
 

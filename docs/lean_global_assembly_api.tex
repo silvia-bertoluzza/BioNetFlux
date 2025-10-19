@@ -1,0 +1,907 @@
+% Lean Global Assembly Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/lean_global_assembly_api}
+
+\section{Lean Global Assembly Module API Reference}
+\label{sec:lean_global_assembly_api}
+
+This section provides an exact reference for the lean global assembly module (\texttt{ooc1d.core.lean\_global\_assembly.GlobalAssembler}) based on detailed analysis of the actual implementation. This class provides global assembly functionality using the lean BulkDataManager approach where framework objects are passed as parameters.
+
+\subsection{Module Overview}
+
+The lean global assembly module provides:
+\begin{itemize}
+    \item Global residual and Jacobian assembly from domain flux jumps
+    \item Constraint integration for boundary and junction conditions
+    \item Memory-efficient operation using lean BulkDataManager
+    \item DOF management for multi-domain systems
+    \item Comprehensive testing infrastructure
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import List, Tuple, Optional
+
+from .discretization import GlobalDiscretization
+from .flux_jump import domain_flux_jump
+from .constraints import ConstraintManager
+from .lean_bulk_data_manager import BulkDataManager
+from .bulk_data import BulkData
+\end{lstlisting}
+
+\subsection{GlobalAssembler Class}
+\label{subsec:lean_global_assembler_class}
+
+Main class for lean global assembly that uses external framework objects as parameters.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=GlobalAssembler Constructor]
+def __init__(self, 
+             domain_data_list: List,
+             constraint_manager: Optional[ConstraintManager] = None)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_data\_list}: List of DomainData objects with essential information
+    \item \texttt{constraint\_manager}: Optional constraint manager for boundary/junction conditions
+\end{itemize}
+
+\textbf{Side Effects:}
+\begin{itemize}
+    \item Creates internal BulkDataManager with domain data
+    \item Computes DOF structure and domain offsets
+    \item Stores constraint manager reference
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage]
+# Extract domain data first
+domain_data_list = BulkDataManager.extract_domain_data_list(
+    problems, discretizations, static_condensations
+)
+
+# Create constraint manager
+constraint_manager = ConstraintManager()
+constraint_manager.add_dirichlet(0, 0, 0.0)
+constraint_manager.map_to_discretizations(discretizations)
+
+# Create lean assembler
+assembler = GlobalAssembler(domain_data_list, constraint_manager)
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{bulk\_manager} & \texttt{BulkDataManager} & Lean bulk data manager instance \\
+\hline
+
+\texttt{constraint\_manager} & \texttt{Optional[ConstraintManager]} & Constraint manager for boundary/junction conditions \\
+\hline
+
+\texttt{n\_domains} & \texttt{int} & Number of domains in the system \\
+\hline
+
+\texttt{domain\_trace\_sizes} & \texttt{List[int]} & Trace DOF count for each domain \\
+\hline
+
+\texttt{domain\_trace\_offsets} & \texttt{List[int]} & Starting indices for domain traces in global vector \\
+\hline
+
+\texttt{total\_trace\_dofs} & \texttt{int} & Total number of trace DOFs across all domains \\
+\hline
+
+\texttt{n\_multipliers} & \texttt{int} & Number of constraint multipliers \\
+\hline
+
+\texttt{total\_dofs} & \texttt{int} & Total DOFs: \texttt{total\_trace\_dofs + n\_multipliers} \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Factory Method}
+
+\paragraph{from\_framework\_objects()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Factory Method]
+@classmethod
+def from_framework_objects(cls,
+                          problems: List,
+                          global_discretization,
+                          static_condensations: List,
+                          constraint_manager: Optional[ConstraintManager] = None)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem instances for each domain
+    \item \texttt{global\_discretization}: GlobalDiscretization instance
+    \item \texttt{static\_condensations}: List of static condensation implementations
+    \item \texttt{constraint\_manager}: Optional constraint manager
+\end{itemize}
+
+\textbf{Returns:} \texttt{GlobalAssembler} - Configured assembler instance
+
+\textbf{Purpose:} Factory method to create assembler from framework objects
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Factory Method Usage]
+# Create assembler from framework objects
+assembler = GlobalAssembler.from_framework_objects(
+    problems=problems,
+    global_discretization=global_disc,
+    static_condensations=static_condensations,
+    constraint_manager=constraint_manager
+)
+
+print(f"Created assembler: {assembler}")
+\end{lstlisting}
+
+\subsubsection{Internal Initialization Methods}
+
+\paragraph{\_compute\_dof\_structure()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute DOF Structure Method]
+def _compute_dof_structure(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Compute global DOF structure from domain data
+
+\textbf{Side Effects:} Sets all DOF-related attributes
+
+\textbf{Algorithm:}
+\begin{enumerate}
+    \item For each domain: compute \texttt{trace\_size = neq * (n\_elements + 1)}
+    \item Compute cumulative offsets for global vector assembly
+    \item Calculate total trace DOFs and multipliers
+    \item Set total DOF count
+\end{enumerate}
+
+\subsection{Primary Assembly Methods}
+\label{subsec:primary_assembly_methods}
+
+\paragraph{assemble\_residual\_and\_jacobian()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Assemble Residual and Jacobian Method]
+def assemble_residual_and_jacobian(self, 
+                                 global_solution: np.ndarray,
+                                 forcing_terms: List[np.ndarray],
+                                 static_condensations: List,
+                                 time: float) -> Tuple[np.ndarray, np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{global\_solution}: Global solution vector \texttt{[trace\_solutions; multipliers]}
+    \item \texttt{forcing\_terms}: List of forcing term arrays for each domain (pre-computed)
+    \item \texttt{static\_condensations}: List of static condensation objects for flux jump computation
+    \item \texttt{time}: Current time for constraint evaluation
+\end{itemize}
+
+\textbf{Returns:} \texttt{Tuple[np.ndarray, np.ndarray]} - (residual, jacobian) global arrays
+
+\textbf{Purpose:} Assemble global residual and Jacobian from domain flux jumps and constraints
+
+\textbf{Mathematical Formulation:} Solves the nonlinear system $F(U; F_{ext}) = 0$ where:
+\begin{itemize}
+    \item $U$ is the trace solution
+    \item $F_{ext}$ are the forcing terms (pre-computed as $dt \cdot f + M \cdot u_{old}$)
+\end{itemize}
+
+\textbf{Algorithm:}
+\begin{enumerate}
+    \item Extract trace solutions and multipliers from global solution
+    \item Initialize global residual and Jacobian arrays
+    \item For each domain: compute flux jump using \texttt{domain\_flux\_jump()}
+    \item Add domain contributions to global arrays
+    \item Add constraint contributions (multiplier coupling and constraint residuals)
+    \item Add constraint Jacobian contributions
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Residual and Jacobian Assembly Usage]
+# Prepare inputs
+global_solution = np.random.rand(assembler.total_dofs)
+forcing_terms = [np.random.rand(2*neq, n_elements) for _ in range(n_domains)]
+
+# Assemble system
+residual, jacobian = assembler.assemble_residual_and_jacobian(
+    global_solution=global_solution,
+    forcing_terms=forcing_terms,
+    static_condensations=static_condensations,
+    time=0.5
+)
+
+print(f"System assembled:")
+print(f"  Residual shape: {residual.shape}")
+print(f"  Jacobian shape: {jacobian.shape}")
+print(f"  Residual norm: {np.linalg.norm(residual):.6e}")
+print(f"  Jacobian condition: {np.linalg.cond(jacobian):.2e}")
+\end{lstlisting}
+
+\paragraph{bulk\_by\_static\_condensation()}
+\leavevmode
+\begin{lstlisting}[language=Python, caption=Bulk by Static Condensation Method]
+def bulk_by_static_condensation(self, 
+                               global_solution: np.ndarray,
+                               forcing_terms: List[np.ndarray],
+                               static_condensations: List,
+                               time: float) -> Tuple[np.ndarray, np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:} Same as \texttt{assemble\_residual\_and\_jacobian()}
+
+\textbf{Returns:} \texttt{List[np.ndarray]} - List of bulk solution arrays for each domain
+
+\textbf{Purpose:} Compute bulk solutions from trace solutions using static condensation
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Bulk Solution Computation Usage]
+# Compute bulk solutions only
+bulk_solutions = assembler.bulk_by_static_condensation(
+    global_solution=global_solution,
+    forcing_terms=forcing_terms,
+    static_condensations=static_condensations,
+    time=0.5
+)
+
+for i, bulk_sol in enumerate(bulk_solutions):
+    print(f"Domain {i} bulk solution shape: {bulk_sol.shape}")
+\end{lstlisting}
+
+\subsubsection{Forcing Term Computation}
+
+\paragraph{compute\_forcing\_terms()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Forcing Terms Method]
+def compute_forcing_terms(self,
+                        bulk_data_list: List[BulkData],
+                        problems: List,
+                        discretizations: List,
+                        time: float,
+                        dt: float) -> List[np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData objects from previous time step
+    \item \texttt{problems}: List of Problem objects
+    \item \texttt{discretizations}: List of discretization objects
+    \item \texttt{time}: Current time
+    \item \texttt{dt}: Time step size
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[np.ndarray]} - Forcing term arrays for implicit Euler
+
+\textbf{Computation:} For each domain: $\text{forcing\_term} = dt \cdot f + M \cdot u_{old}$
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Forcing Terms Usage]
+# Previous time step solutions
+bulk_data_list = assembler.initialize_bulk_data(problems, discretizations, time=0.0)
+
+# Compute forcing terms for next time step
+forcing_terms = assembler.compute_forcing_terms(
+    bulk_data_list=bulk_data_list,
+    problems=problems,
+    discretizations=discretizations,
+    time=0.1,
+    dt=0.01
+)
+
+print(f"Computed {len(forcing_terms)} forcing term arrays")
+for i, ft in enumerate(forcing_terms):
+    print(f"  Domain {i}: {ft.shape}")
+\end{lstlisting}
+
+\subsection{Solution Vector Management}
+\label{subsec:solution_vector_management}
+
+\paragraph{\_extract\_trace\_solutions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Extract Trace Solutions Method]
+def _extract_trace_solutions(self, global_solution: np.ndarray) -> List[np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{global\_solution}: Global solution vector
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[np.ndarray]} - Individual domain trace solutions
+
+\textbf{Purpose:} Extract domain-specific trace solutions from global vector
+
+\paragraph{get\_domain\_solutions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Domain Solutions Method]
+def get_domain_solutions(self, global_solution: np.ndarray) -> List[np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{global\_solution}: Global solution vector
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[np.ndarray]} - Domain trace solutions (public interface)
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Solution Extraction Usage]
+# Extract individual domain solutions
+domain_solutions = assembler.get_domain_solutions(global_solution)
+
+for i, domain_sol in enumerate(domain_solutions):
+    print(f"Domain {i} solution shape: {domain_sol.shape}")
+    print(f"  Solution range: [{np.min(domain_sol):.6e}, {np.max(domain_sol):.6e}]")
+\end{lstlisting}
+
+\paragraph{get\_multipliers()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Multipliers Method]
+def get_multipliers(self, global_solution: np.ndarray) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{global\_solution}: Global solution vector
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Constraint multipliers (empty if no constraints)
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Multiplier Extraction Usage]
+multipliers = assembler.get_multipliers(global_solution)
+if len(multipliers) > 0:
+    print(f"Constraint multipliers: {multipliers}")
+else:
+    print("No constraints defined")
+\end{lstlisting}
+
+\subsection{Initial Guess Creation}
+\label{subsec:initial_guess_creation}
+
+\paragraph{create\_initial\_guess\_from\_bulk\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Initial Guess from BulkData Method]
+def create_initial_guess_from_bulk_data(self, 
+                                       bulk_data_list: List[BulkData]) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData objects
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Initial guess for global solution vector
+
+\textbf{Purpose:} Create initial guess from existing BulkData trace values
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=BulkData Initial Guess Usage]
+# Initialize BulkData from problems
+bulk_data_list = assembler.initialize_bulk_data(problems, discretizations, time=0.0)
+
+# Create initial guess
+initial_guess = assembler.create_initial_guess_from_bulk_data(bulk_data_list)
+print(f"Initial guess shape: {initial_guess.shape}")
+\end{lstlisting}
+
+\paragraph{create\_initial\_guess\_from\_problems()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Initial Guess from Problems Method]
+def create_initial_guess_from_problems(self, 
+                                     problems: List,
+                                     discretizations: List,
+                                     time: float = 0.0) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects
+    \item \texttt{discretizations}: List of discretization objects
+    \item \texttt{time}: Time for initial condition evaluation (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Initial guess for global solution vector
+
+\textbf{Purpose:} Create initial guess directly from problem initial conditions
+
+\textbf{Algorithm:}
+\begin{enumerate}
+    \item Initialize global solution vector with zeros
+    \item For each domain and equation: evaluate initial condition at mesh nodes
+    \item Fill corresponding entries in global vector
+    \item Set multipliers to zero
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Problem Initial Guess Usage]
+# Create initial guess directly from problem definitions
+initial_guess = assembler.create_initial_guess_from_problems(
+    problems=problems,
+    discretizations=discretizations,
+    time=0.0
+)
+
+print(f"Initial guess from problems: {initial_guess.shape}")
+print(f"Non-zero entries: {np.count_nonzero(initial_guess)}")
+\end{lstlisting}
+
+\subsection{Constraint Integration}
+\label{subsec:constraint_integration}
+
+\paragraph{\_add\_constraint\_jacobian\_contributions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Add Constraint Jacobian Contributions Method]
+def _add_constraint_jacobian_contributions(self, 
+                                         jacobian: np.ndarray,
+                                         trace_solutions: List[np.ndarray],
+                                         multipliers: np.ndarray,
+                                         time: float)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{jacobian}: Global Jacobian matrix to modify
+    \item \texttt{trace\_solutions}: List of trace solution arrays
+    \item \texttt{multipliers}: Array of constraint multipliers
+    \item \texttt{time}: Current time for constraint evaluation
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Modifies the global Jacobian matrix in place
+
+\textbf{Purpose:} Add constraint Jacobian contributions for different constraint types
+
+\textbf{Constraint Types Handled:}
+\begin{itemize}
+    \item \textbf{Dirichlet}: $\frac{\partial}{\partial u}(u - g) = 1$
+    \item \textbf{Neumann}: $\frac{\partial}{\partial \text{flux}}(\text{flux} - g) = 1$
+    \item \textbf{Trace Continuity}: $\frac{\partial}{\partial u_1}(u_1 - u_2) = 1$, $\frac{\partial}{\partial u_2}(u_1 - u_2) = -1$
+    \item \textbf{Kedem-Katchalsky}: $\frac{\partial}{\partial u_1}(\text{flux} + P(u_1 - u_2)) = P$
+\end{itemize}
+
+\subsection{BulkData Integration}
+\label{subsec_bulk_data_integration}
+
+\paragraph{initialize\_bulk\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Initialize BulkData Method]
+def initialize_bulk_data(self, 
+                       problems: List,
+                       discretizations: List,
+                       time: float = 0.0) -> List[BulkData]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects
+    \item \texttt{discretizations}: List of discretization objects
+    \item \texttt{time}: Initial time (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{List[BulkData]} - Initialized BulkData objects for all domains
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=BulkData Initialization Usage]
+# Initialize BulkData objects
+bulk_data_list = assembler.initialize_bulk_data(
+    problems=problems,
+    discretizations=discretizations,
+    time=0.0
+)
+
+print(f"Initialized {len(bulk_data_list)} BulkData objects")
+for i, bd in enumerate(bulk_data_list):
+    print(f"  Domain {i}: {bd}")
+\end{lstlisting}
+
+\paragraph{compute\_mass\_conservation()}
+\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Mass Conservation Method]
+def compute_mass_conservation(self, bulk_data_list: List[BulkData]) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{bulk\_data\_list}: List of BulkData instances
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Total mass across all domains
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Mass Conservation Usage]
+# Monitor mass conservation
+initial_bulk_data = assembler.initialize_bulk_data(problems, discretizations, time=0.0)
+initial_mass = assembler.compute_mass_conservation(initial_bulk_data)
+
+# After time evolution...
+current_mass = assembler.compute_mass_conservation(current_bulk_data)
+mass_change = abs(current_mass - initial_mass) / initial_mass
+
+print(f"Mass conservation check:")
+print(f"  Initial mass: {initial_mass:.6e}")
+print(f"  Current mass: {current_mass:.6e}")
+print(f"  Relative change: {mass_change:.6e}")
+\end{lstlisting}
+
+\subsection{Utility Methods}
+\label{subsec:utility_methods}
+
+\paragraph{get\_num\_domains()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Number of Domains Method]
+def get_num_domains(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Number of domains in the system
+
+\paragraph{get\_domain\_info()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Domain Info Method]
+def get_domain_info(self, domain_idx: int)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_idx}: Domain index
+\end{itemize}
+
+\textbf{Returns:} \texttt{DomainData} - Domain data object for inspection
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Domain Info Usage]
+for i in range(assembler.get_num_domains()):
+    domain_info = assembler.get_domain_info(i)
+    print(f"Domain {i}:")
+    print(f"  Equations: {domain_info.neq}")
+    print(f"  Elements: {domain_info.n_elements}")
+    print(f"  Element length: {domain_info.element_length}")
+\end{lstlisting}
+
+\subsection{Testing Infrastructure}
+\label{subsec:testing_infrastructure}
+
+\paragraph{test()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Test Method]
+def test(self, 
+         problems: List = None,
+         discretizations: List = None,
+         static_condensations: List = None) -> bool
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problems}: List of Problem objects for testing (optional)
+    \item \texttt{discretizations}: List of discretization objects for testing (optional)
+    \item \texttt{static\_condensations}: List of static condensation objects for testing (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{bool} - True if all tests pass, False otherwise
+
+\textbf{Test Suite:}
+\begin{enumerate}
+    \item \textbf{Parameter Validation}: Check list lengths match and equal \texttt{n\_domains}
+    \item \textbf{BulkDataManager Test}: Validate underlying BulkDataManager
+    \item \textbf{DOF Structure Validation}: Check trace DOF counts and offsets
+    \item \textbf{Initial Guess Tests}: Test BulkData-based and problem-based creation
+    \item \textbf{Forcing Term Tests}: Validate forcing term computation
+    \item \textbf{Assembly Tests}: Test residual and Jacobian assembly
+    \item \textbf{Solution Extraction Tests}: Validate domain solution and multiplier extraction
+    \item \textbf{Mass Conservation Tests}: Check mass computation
+    \item \textbf{Constraint Tests}: Validate constraint handling (if constraints exist)
+    \item \textbf{Factory Method Tests}: Test creation from framework objects
+\end{enumerate}
+
+\textbf{Sample Test Output:}
+\begin{lstlisting}[language=Python, caption=Sample Test Output]
+Testing LeanGlobalAssembler with 3 domains
+PASS: Parameter list lengths validated (3 domains)
+PASS: BulkDataManager test passed
+PASS: DOF structure validated (trace=84, multipliers=2)
+PASS: Domain offsets and sizes validated
+PASS: Initial guess creation tests passed
+PASS: Forcing term computation test passed
+PASS: Residual and Jacobian assembly test passed
+  Residual range: [-1.234567e-02, 2.345678e-02]
+  Jacobian range: [-5.432109e-01, 6.543210e-01]
+PASS: Zero forcing terms test passed
+  Zero residual range: [-9.876543e-03, 1.234567e-02]
+PASS: Solution extraction tests passed
+PASS: Mass conservation test passed (total_mass=2.345678e+00)
+PASS: Constraint handling test passed
+PASS: Factory method test passed
+✓ All LeanGlobalAssembler tests passed!
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Test Usage]
+# Comprehensive testing
+if assembler.test(problems, discretizations, static_condensations):
+    print("✓ LeanGlobalAssembler fully validated")
+else:
+    print("✗ LeanGlobalAssembler validation failed")
+
+# Basic testing without framework objects
+if assembler.test():
+    print("✓ Basic structure validation passed")
+\end{lstlisting}
+
+\subsection{Special Methods}
+\label{subsec:special_methods}
+
+\paragraph{\_\_str\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=String Representation Method]
+def __str__(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Human-readable representation
+
+\textbf{Format:} \texttt{"LeanGlobalAssembler(domains=N, trace\_dofs=M, multipliers=K, total\_dofs=T)"}
+
+\paragraph{\_\_repr\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Repr Method]
+def __repr__(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Developer-oriented representation
+
+\textbf{Format:} \texttt{"LeanGlobalAssembler(n\_domains=N, domain\_trace\_sizes=[...], n\_multipliers=K)"}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=String Methods Usage]
+print(str(assembler))
+# Output: LeanGlobalAssembler(domains=3, trace_dofs=84, multipliers=2, total_dofs=86)
+
+print(repr(assembler))
+# Output: LeanGlobalAssembler(n_domains=3, domain_trace_sizes=[28, 28, 28], n_multipliers=2)
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples}
+
+\subsubsection{Complete Newton Solver Integration}
+
+\begin{lstlisting}[language=Python, caption=Complete Newton Solver Integration]
+from ooc1d.core.lean_global_assembly import GlobalAssembler
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization, GlobalDiscretization
+from ooc1d.core.constraints import ConstraintManager
+from ooc1d.core.lean_bulk_data_manager import BulkDataManager
+import numpy as np
+
+def newton_solve_with_lean_assembler(problems, discretizations, static_condensations):
+    """Complete Newton solver using lean global assembler."""
+    
+    # Step 1: Create constraints
+    constraint_manager = ConstraintManager()
+    constraint_manager.add_dirichlet(0, 0, 0.0, lambda t: np.sin(t))
+    constraint_manager.add_neumann(0, -1, problems[-1].domain_end, lambda t: 0.0)
+    constraint_manager.map_to_discretizations(discretizations)
+    
+    # Step 2: Create lean assembler using factory method
+    global_disc = GlobalDiscretization(discretizations)
+    assembler = GlobalAssembler.from_framework_objects(
+        problems=problems,
+        global_discretization=global_disc,
+        static_condensations=static_condensations,
+        constraint_manager=constraint_manager
+    )
+    
+    print(f"Created assembler: {assembler}")
+    
+    # Step 3: Initialize solution
+    initial_guess = assembler.create_initial_guess_from_problems(
+        problems, discretizations, time=0.0
+    )
+    
+    # Step 4: Newton iteration
+    solution = initial_guess.copy()
+    tolerance = 1e-10
+    max_iterations = 20
+    
+    print("Starting Newton iterations...")
+    
+    for iteration in range(max_iterations):
+        # Initialize bulk data for forcing terms
+        bulk_data_list = assembler.initialize_bulk_data(problems, discretizations, time=0.0)
+        
+        # Compute forcing terms (for time-dependent case)
+        dt = 0.01
+        current_time = iteration * dt
+        forcing_terms = assembler.compute_forcing_terms(
+            bulk_data_list, problems, discretizations, current_time, dt
+        )
+        
+        # Assemble system
+        residual, jacobian = assembler.assemble_residual_and_jacobian(
+            global_solution=solution,
+            forcing_terms=forcing_terms,
+            static_condensations=static_condensations,
+            time=current_time
+        )
+        
+        # Check convergence
+        residual_norm = np.linalg.norm(residual)
+        print(f"  Iteration {iteration}: ||R|| = {residual_norm:.6e}")
+        
+        if residual_norm < tolerance:
+            print("✓ Newton solver converged")
+            break
+        
+        # Newton update
+        try:
+            delta = np.linalg.solve(jacobian, -residual)
+            solution += delta
+        except np.linalg.LinAlgError:
+            print("✗ Newton solver failed: singular Jacobian")
+            break
+    
+    # Step 5: Extract solutions
+    domain_solutions = assembler.get_domain_solutions(solution)
+    multipliers = assembler.get_multipliers(solution)
+    
+    print(f"\nSolver completed:")
+    print(f"  Final residual norm: {residual_norm:.6e}")
+    print(f"  Domain solutions: {len(domain_solutions)}")
+    print(f"  Constraint multipliers: {len(multipliers)}")
+    
+    return solution, domain_solutions, multipliers
+
+# Usage
+problems = [create_problem(i) for i in range(3)]  # User-defined
+discretizations = [create_discretization(i) for i in range(3)]  # User-defined
+static_condensations = [create_static_condensation(i) for i in range(3)]  # User-defined
+
+solution, domain_sols, multipliers = newton_solve_with_lean_assembler(
+    problems, discretizations, static_condensations
+)
+\end{lstlisting}
+
+\subsubsection{Time Evolution with Lean Assembler}
+
+\begin{lstlisting}[language=Python, caption=Time Evolution with Lean Assembler]
+def time_evolution_with_lean_assembler(problems, discretizations, static_condensations):
+    """Time evolution loop using lean global assembler."""
+    
+    # Setup
+    constraint_manager = ConstraintManager()
+    # Add constraints as needed...
+    
+    global_disc = GlobalDiscretization(discretizations)
+    global_disc.set_time_parameters(dt=0.01, T=1.0)
+    
+    assembler = GlobalAssembler.from_framework_objects(
+        problems, global_disc, static_condensations, constraint_manager
+    )
+    
+    # Initial conditions
+    current_solution = assembler.create_initial_guess_from_problems(
+        problems, discretizations, time=0.0
+    )
+    
+    # Time evolution
+    dt = global_disc.dt
+    time_points = global_disc.get_time_points()
+    
+    solution_history = [current_solution.copy()]
+    mass_history = []
+    
+    print(f"Starting time evolution: {len(time_points)} time steps")
+    
+    for step, current_time in enumerate(time_points[1:], 1):
+        print(f"Time step {step}: t = {current_time:.3f}")
+        
+        # Get current bulk data for forcing terms
+        domain_solutions = assembler.get_domain_solutions(current_solution)
+        bulk_data_list = []
+        
+        for i, domain_sol in enumerate(domain_solutions):
+            bulk_data = assembler.bulk_manager.create_bulk_data(
+                i, problems[i], discretizations[i], dual=False
+            )
+            bulk_data.set_data(domain_sol.reshape(-1, 1))
+            bulk_data_list.append(bulk_data)
+        
+        # Compute forcing terms
+        forcing_terms = assembler.compute_forcing_terms(
+            bulk_data_list, problems, discretizations, current_time, dt
+        )
+        
+        # Newton solve for this time step
+        tolerance = 1e-12
+        max_newton_iterations = 10
+        
+        for newton_iter in range(max_newton_iterations):
+            residual, jacobian = assembler.assemble_residual_and_jacobian(
+                current_solution, forcing_terms, static_condensations, current_time
+            )
+            
+            residual_norm = np.linalg.norm(residual)
+            if residual_norm < tolerance:
+                break
+            
+            delta = np.linalg.solve(jacobian, -residual)
+            current_solution += delta
+        
+        # Monitor mass conservation
+        current_mass = assembler.compute_mass_conservation(bulk_data_list)
+        mass_history.append(current_mass)
+        
+        # Store solution
+        solution_history.append(current_solution.copy())
+        
+        if step % 10 == 0:
+            print(f"  Mass: {current_mass:.6e}, Newton iterations: {newton_iter + 1}")
+    
+    print("✓ Time evolution completed")
+    
+    # Mass conservation check
+    initial_mass = mass_history[0] if mass_history else 0.0
+    final_mass = mass_history[-1] if mass_history else 0.0
+    mass_change = abs(final_mass - initial_mass) / initial_mass if initial_mass != 0 else 0.0
+    
+    print(f"Mass conservation: {mass_change:.6e} relative change")
+    
+    return solution_history, mass_history
+
+# Usage
+solution_history, mass_history = time_evolution_with_lean_assembler(
+    problems, discretizations, static_condensations
+)
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:lean_assembler_method_summary}
+
+\begin{longtable}{|p{7cm}|p{3cm}|p{4.8cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize lean assembler with domain data \\
+\hline
+
+\texttt{from\_framework\_objects} & \texttt{GlobalAssembler} & Factory method for creation from framework objects \\
+\hline
+
+\texttt{assemble\_residual\_and\_jacobian} & \texttt{Tuple} & Global system assembly for Newton solver \\
+\hline
+
+\texttt{bulk\_by\_static\_condensation} & \texttt{List} & Bulk solution computation from traces \\
+\hline
+
+\texttt{compute\_forcing\_terms} & \texttt{List} & Forcing term computation for implicit Euler \\
+\hline
+
+\texttt{create\_initial\_guess\_from\_bulk\_data} & \texttt{np.ndarray} & Initial guess from BulkData objects \\
+\hline
+
+\texttt{create\_initial\_guess\_from\_problems} & \texttt{np.ndarray} & Initial guess from problem definitions \\
+\hline
+
+\texttt{get\_domain\_solutions} & \texttt{List} & Extract domain solutions from global vector \\
+\hline
+
+\texttt{get\_multipliers} & \texttt{np.ndarray} & Extract constraint multipliers \\
+\hline
+
+\texttt{initialize\_bulk\_data} & \texttt{List} & Initialize BulkData objects from problems \\
+\hline
+
+\texttt{compute\_mass\_conservation} & \texttt{float} & Calculate total mass for conservation check \\
+\hline
+
+\texttt{get\_num\_domains} & \texttt{int} & Get number of domains in system \\
+\hline
+
+\texttt{get\_domain\_info} & \texttt{DomainData} & Access domain data for inspection \\
+\hline
+
+\texttt{test} & \texttt{bool} & Comprehensive validation and testing \\
+\hline
+
+\end{longtable}
+
+This documentation provides an exact reference for the lean global assembly module, emphasizing its memory-efficient design, integration with the lean BulkDataManager, and comprehensive constraint handling capabilities for multi-domain HDG systems.
+
+% End of lean global assembly module API documentation

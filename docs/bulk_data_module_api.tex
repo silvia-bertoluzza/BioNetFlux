@@ -1,0 +1,618 @@
+% Bulk Data Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/bulk_data_module_api}
+
+\section{Bulk Data Module API Reference (Accurate Analysis)}
+\label{sec:bulk_data_module_api}
+
+This section provides an exact reference for the BulkData class (\texttt{ooc1d.core.bulk\_data.BulkData}) based on detailed analysis of the actual implementation. The BulkData class manages bulk coefficients for HDG methods with flexible initialization options.
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from .problem import Problem 
+from .discretization import Discretization
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+from typing import List, Optional, Union, Callable
+\end{lstlisting}
+
+\subsection{BulkData Class Definition}
+\label{subsec:bulk_data_class_definition}
+
+\begin{lstlisting}[language=Python, caption=Class Declaration]
+class BulkData:
+    """
+    Manages bulk data for a single domain with flexible initialization.
+    
+    This class stores bulk coefficients in a 2*neq x n_elements array and provides
+    multiple ways to set the data depending on the input format.
+    """
+\end{lstlisting}
+
+\subsection{Constructor}
+\label{subsec:bulk_data_constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=BulkData Constructor]
+def __init__(self, problem: Problem, discretization: Discretization, dual: bool = False)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{problem}: Problem instance containing relevant information
+    \item \texttt{discretization}: Discretization instance containing mesh information
+    \item \texttt{dual}: Boolean flag for dual formulation (default: False)
+\end{itemize}
+
+\textbf{Side Effects:} Initializes all instance attributes and matrices
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization
+
+# Create problem and discretization
+problem = Problem(neq=2, domain_start=0.0, domain_length=1.0)
+discretization = Discretization(n_elements=10)
+
+# Primal formulation (default)
+bulk_data_primal = BulkData(problem, discretization, dual=False)
+
+# Dual formulation for forcing terms
+bulk_data_dual = BulkData(problem, discretization, dual=True)
+\end{lstlisting}
+
+\subsection{Instance Attributes}
+\label{subsec:bulk_data_attributes}
+
+\subsubsection{Core Attributes (Set by Constructor)}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{n\_elements} & \texttt{int} & Number of elements from discretization \\
+\hline
+
+\texttt{neq} & \texttt{int} & Number of equations from problem \\
+\hline
+
+\texttt{dual} & \texttt{bool} & Flag for dual formulation mode \\
+\hline
+
+\texttt{nodes} & \texttt{np.ndarray} & Node coordinates from discretization \\
+\hline
+
+\texttt{data} & \texttt{np.ndarray} & Main data array with shape \texttt{(2*neq, n\_elements)} \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Matrix Attributes (Computed from ElementaryMatrices)}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{trace\_matrix} & \texttt{np.ndarray} & Matrix T from ElementaryMatrices (shape: 2×2) \\
+\hline
+
+\texttt{mass\_matrix} & \texttt{np.ndarray} & Scaled mass matrix: \texttt{h * M} \\
+\hline
+
+\texttt{quad\_matrix} & \texttt{np.ndarray} & Scaled quadrature matrix: \texttt{h * QUAD} \\
+\hline
+
+\texttt{quad\_nodes} & \texttt{np.ndarray} & Quadrature nodes from ElementaryMatrices \\
+\hline
+
+\end{longtable}
+
+\textbf{Matrix Initialization:}
+\begin{lstlisting}[language=Python, caption=Matrix Initialization Code]
+h = problem.domain_length / discretization.n_elements
+elementary_matrices = ElementaryMatrices(orthonormal_basis=False)
+self.trace_matrix = elementary_matrices.get_matrix('T')
+self.mass_matrix = h * elementary_matrices.get_matrix('M')
+self.quad_matrix = h * elementary_matrices.get_matrix('QUAD')
+self.quad_nodes = elementary_matrices.get_matrix('qnodes')
+\end{lstlisting}
+
+\subsection{Primary Data Setting Method}
+\label{subsec:set_data_method}
+
+\paragraph{set\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Set Data Method]
+def set_data(self, 
+             input_data: Union[np.ndarray, List[Callable]], 
+             time: float = 0.0)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{input\_data}: Multi-format input (see detailed formats below)
+    \item \texttt{time}: Time for function evaluation (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Updates \texttt{self.data} array
+
+\textbf{Supported Input Formats:}
+
+\textbf{Format 1: Direct Coefficient Array}
+\begin{lstlisting}[language=Python, caption=Direct Array Input]
+# Shape: (2*neq, n_elements)
+coeffs = np.random.rand(2*neq, n_elements)
+bulk_data.set_data(coeffs)
+\end{lstlisting}
+
+\textbf{Format 2: List of Callable Functions}
+\begin{lstlisting}[language=Python, caption=Function List Input]
+# List of neq functions f(s,t) -> scalar or array
+functions = [
+    lambda s, t: np.sin(np.pi * s),           # u equation
+    lambda s, t: np.cos(np.pi * s) * np.exp(-t)  # phi equation
+]
+bulk_data.set_data(functions, time=0.5)
+\end{lstlisting}
+
+\textbf{Format 3: Trace Values Vector}
+\begin{lstlisting}[language=Python, caption=Trace Vector Input]
+# Size: neq*(n_elements+1) - trace values at all nodes
+trace_values = np.random.rand(neq * (n_elements + 1))
+bulk_data.set_data(trace_values)
+\end{lstlisting}
+
+\textbf{Dual vs Primal Formulation Behavior:}
+\begin{itemize}
+    \item \textbf{Primal} (\texttt{dual=False}): Direct coefficient reconstruction
+    \item \textbf{Dual} (\texttt{dual=True}): Integration-based coefficient computation
+\end{itemize}
+
+\subsection{Internal Data Setting Methods}
+\label{subsec:internal_data_methods}
+
+\subsubsection{Dual Formulation Methods}
+
+\paragraph{\_set\_data\_dual()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Dual Data Setting Method]
+def _set_data_dual(self, input_data, time)
+\end{lstlisting}
+
+\textbf{Purpose:} Handle data setting for dual formulation (integration-based)
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{input\_data}: Same formats as \texttt{set\_data()}
+    \item \texttt{time}: Time for function evaluation
+\end{itemize}
+
+\paragraph{\_integrate\_from\_functions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Function Integration Method]
+def _integrate_from_functions(self, functions: List[Callable], time: float, 
+                             quad_matrix: np.ndarray, quad_nodes: np.ndarray)
+\end{lstlisting}
+
+\textbf{Purpose:} Integrate functions using quadrature for dual formulation
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{functions}: List of neq callable functions
+    \item \texttt{time}: Time for evaluation
+    \item \texttt{quad\_matrix}: Quadrature weights matrix
+    \item \texttt{quad\_nodes}: Quadrature node locations
+\end{itemize}
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Function Integration Algorithm]
+for k in range(self.n_elements):  
+    # Get element nodes
+    left_node = self.nodes[k]
+    right_node = self.nodes[k + 1]
+    
+    # Map quadrature nodes to element
+    a, b = left_node, right_node
+    mapped_nodes = 0.5 * (b - a) * quad_nodes + 0.5 * (a + b)
+    
+    for eq in range(self.neq):
+        # Evaluate function at quadrature nodes
+        f_values = functions[eq](mapped_nodes, time)
+        
+        # Compute integral using quadrature weights
+        integral = quad_matrix @ f_values
+        # Store result in data array
+\end{lstlisting}
+
+\paragraph{\_integrate\_from\_trace\_vector()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Trace Integration Method]
+def _integrate_from_trace_vector(self, trace_vector: np.ndarray, 
+                                trace_matrix: np.ndarray, mass_matrix: np.ndarray)
+\end{lstlisting}
+
+\textbf{Purpose:} Integrate from trace values using mass matrix for dual formulation
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{trace\_vector}: Flattened trace values array
+    \item \texttt{trace\_matrix}: Trace reconstruction matrix
+    \item \texttt{mass\_matrix}: Mass matrix for integration
+\end{itemize}
+
+\subsubsection{Primal Formulation Methods}
+
+\paragraph{\_set\_data\_primal()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Primal Data Setting Method]
+def _set_data_primal(self, input_data, time)
+\end{lstlisting}
+
+\textbf{Purpose:} Handle data setting for primal formulation (direct reconstruction)
+
+\textbf{Error Handling:} Raises \texttt{ValueError} for invalid input formats
+
+\paragraph{\_construct\_from\_functions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Function Construction Method]
+def _construct_from_functions(self, functions: List[Callable], time: float)
+\end{lstlisting}
+
+\textbf{Purpose:} Construct bulk coefficients from functions evaluated at nodes
+
+\textbf{Algorithm:} For each element and equation:
+\begin{enumerate}
+    \item Evaluate function at element endpoints
+    \item Solve \texttt{trace\_matrix @ bulk\_coeffs = [u\_left, u\_right]}
+    \item Store coefficients in data array
+\end{enumerate}
+
+\textbf{Exception Handling:}
+\begin{lstlisting}[language=Python, caption=Function Construction Error Handling]
+try:
+    local_bulk = np.linalg.solve(trace_matrix, local_trace)
+    element_coeffs.extend(local_bulk)
+except np.linalg.LinAlgError:
+    print(f"Warning: Singular trace matrix at element {k}, using zeros")
+    element_coeffs.extend([0.0, 0.0])
+\end{lstlisting}
+
+\paragraph{\_construct\_from\_trace\_vector()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Trace Construction Method]
+def _construct_from_trace_vector(self, trace_vector: np.ndarray, trace_matrix: np.ndarray)
+\end{lstlisting}
+
+\textbf{Purpose:} Construct bulk coefficients from trace values at nodes
+
+\textbf{Input Validation:}
+\begin{lstlisting}[language=Python, caption=Trace Vector Validation]
+# Flatten and verify size
+trace_flat = trace_vector.flatten()
+expected_size = self.neq * (self.n_elements + 1)
+if trace_flat.size != expected_size:
+    raise ValueError(f"Trace vector has size {trace_flat.size}, "
+                   f"expected {expected_size}")
+\end{lstlisting}
+
+\subsection{Utility and Validation Methods}
+\label{subsec:utility_methods}
+
+\paragraph{\_validate\_trace\_matrix()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Trace Matrix Validation Method]
+def _validate_trace_matrix(self, trace_matrix: np.ndarray)
+\end{lstlisting}
+
+\textbf{Purpose:} Validate trace matrix dimensions and non-singularity
+
+\textbf{Validation Checks:}
+\begin{itemize}
+    \item Matrix is not None
+    \item Shape is (2, 2)
+    \item Determinant is not near zero (> 1e-14)
+\end{itemize}
+
+\textbf{Raises:} \texttt{ValueError} for invalid matrices
+
+\subsection{Data Access Methods}
+\label{subsec:data_access_methods}
+
+\paragraph{get\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Data Method]
+def get_data(self) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{np.ndarray} - Copy of bulk data array with shape \texttt{(2*neq, n\_elements)}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Data Usage]
+data_copy = bulk_data.get_data()
+print(f"Data shape: {data_copy.shape}")
+print(f"Data range: [{np.min(data_copy):.6e}, {np.max(data_copy):.6e}]")
+\end{lstlisting}
+
+\paragraph{get\_trace\_values()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Trace Values Method]
+def get_trace_values(self) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{np.ndarray} - Flattened array of size \texttt{neq*(n\_elements+1)} with trace values
+
+\textbf{Purpose:} Extract trace values at nodes (inverse of trace-based construction)
+
+\textbf{Note:} Current implementation provides approximation using bulk coefficients
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Trace Values Usage]
+trace_vals = bulk_data.get_trace_values()
+print(f"Trace values size: {trace_vals.size}")
+print(f"Expected size: {bulk_data.neq * (bulk_data.n_elements + 1)}")
+\end{lstlisting}
+
+\paragraph{get\_element\_data()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Element Data Method]
+def get_element_data(self, element_idx: int) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{element\_idx}: Element index (0 to \texttt{n\_elements-1})
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Array of shape \texttt{(2*neq,)} with bulk coefficients for specified element
+
+\textbf{Raises:} \texttt{IndexError} for invalid element indices
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Element Data Usage]
+# Get coefficients for first element
+element_0_data = bulk_data.get_element_data(0)
+print(f"Element 0 coefficients: {element_0_data}")
+
+# Get coefficients for last element
+last_element_data = bulk_data.get_element_data(bulk_data.n_elements - 1)
+\end{lstlisting}
+
+\subsection{Analysis Methods}
+\label{subsec:analysis_methods}
+
+\paragraph{compute\_mass()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Compute Mass Method]
+def compute_mass(self, mass_matrix: np.ndarray) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{mass\_matrix}: Mass matrix for integration
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Total mass across all equations and elements
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Mass Computation Algorithm]
+total_mass = 0.0
+for eq in range(self.neq):
+    start_row = eq * 2
+    end_row = start_row + 2
+    eq_coeffs = self.data[start_row:end_row, :]
+    
+    # Mass contribution: integrate over all elements
+    eq_mass = np.sum(mass_matrix @ eq_coeffs)
+    total_mass += eq_mass
+
+return total_mass
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Mass Computation Usage]
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+
+# Get mass matrix
+elementary_matrices = ElementaryMatrices()
+mass_matrix = elementary_matrices.get_matrix('M')
+
+# Compute total mass
+total_mass = bulk_data.compute_mass(mass_matrix)
+print(f"Total mass: {total_mass:.6e}")
+\end{lstlisting}
+
+\subsection{Special Methods}
+\label{subsec:special_methods}
+
+\paragraph{\_\_str\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=String Representation Method]
+def __str__(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Human-readable string representation
+
+\textbf{Format:} \texttt{"BulkData(neq=N, elements=M, dual=Bool, data\_range=[min, max])"}
+
+\paragraph{\_\_repr\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Repr Method]
+def __repr__(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Developer-oriented string representation
+
+\textbf{Format:} \texttt{"BulkData(n\_elements=M, neq=N, dual=Bool, data\_shape=(X,Y))"}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=String Methods Usage]
+print(str(bulk_data))
+# Output: BulkData(neq=2, elements=10, dual=False, data_range=[0.000000e+00, 1.234567e+00])
+
+print(repr(bulk_data))
+# Output: BulkData(n_elements=10, neq=2, dual=False, data_shape=(4, 10))
+\end{lstlisting}
+
+\subsection{Testing and Validation}
+\label{subsec:testing_method}
+
+\paragraph{test()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Test Method]
+def test(self) -> bool
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{bool} - True if all tests pass, False otherwise
+
+\textbf{Test Suite:}
+\begin{enumerate}
+    \item \textbf{Data Shape Test}: Verifies \texttt{data.shape == (2*neq, n\_elements)}
+    \item \textbf{Finite Values Test}: Checks for NaN or infinite values
+    \item \textbf{Matrix Properties Test}: Validates trace matrix conditioning
+    \item \textbf{Method Functionality Test}: Tests \texttt{get\_data()} method
+    \item \textbf{Element Access Test}: Tests \texttt{get\_element\_data()} method
+    \item \textbf{Bounds Checking Test}: Validates IndexError handling
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Test Method Usage]
+# Run comprehensive test suite
+if bulk_data.test():
+    print("✓ BulkData instance is valid and functional")
+else:
+    print("✗ BulkData instance has issues")
+\end{lstlisting}
+
+\textbf{Sample Test Output:}
+\begin{lstlisting}[language=Python, caption=Sample Test Output]
+Testing BulkData instance: BulkData(neq=2, elements=10, dual=False, ...)
+PASS: Data shape (4, 10)
+PASS: No NaN or infinite values in data
+PASS: Trace matrix is well-conditioned (det=2.000000e+00)
+PASS: get_data() returns correct copy
+PASS: get_element_data() returns correct shape
+PASS: IndexError raised for negative element index
+PASS: IndexError raised for out-of-bounds element index
+All tests passed!
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples}
+
+\subsubsection{Primal Formulation Example}
+
+\begin{lstlisting}[language=Python, caption=Complete Primal Usage Example]
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization
+from ooc1d.core.bulk_data import BulkData
+import numpy as np
+
+# Setup problem and discretization
+problem = Problem(
+    neq=2, 
+    domain_start=0.0, 
+    domain_length=1.0,
+    parameters=np.array([2.0, 1.0, 0.0, 1.0])
+)
+discretization = Discretization(n_elements=20)
+
+# Create BulkData instance (primal formulation)
+bulk_data = BulkData(problem, discretization, dual=False)
+
+# Method 1: Set from functions
+initial_conditions = [
+    lambda s, t: np.sin(np.pi * s),      # u equation
+    lambda s, t: np.exp(-s) * np.cos(t)  # phi equation
+]
+bulk_data.set_data(initial_conditions, time=0.0)
+
+# Method 2: Set from direct array
+coeffs = np.random.rand(4, 20)  # 2*neq=4, n_elements=20
+bulk_data.set_data(coeffs)
+
+# Method 3: Set from trace values
+trace_vals = np.random.rand(42)  # neq*(n_elements+1) = 2*21 = 42
+bulk_data.set_data(trace_vals)
+
+# Access data
+data_array = bulk_data.get_data()
+element_5_data = bulk_data.get_element_data(5)
+trace_values = bulk_data.get_trace_values()
+
+# Compute mass
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+elementary_matrices = ElementaryMatrices()
+mass_matrix = elementary_matrices.get_matrix('M')
+total_mass = bulk_data.compute_mass(mass_matrix)
+
+# Validate instance
+is_valid = bulk_data.test()
+print(f"BulkData validation: {is_valid}")
+\end{lstlisting}
+
+\subsubsection{Dual Formulation Example}
+
+\begin{lstlisting}[language=Python, caption=Complete Dual Usage Example]
+# Setup for dual formulation (forcing terms)
+bulk_data_dual = BulkData(problem, discretization, dual=True)
+
+# Set forcing functions using integration
+forcing_functions = [
+    lambda s, t: 0.1 * np.sin(2*np.pi*s) * np.exp(-t),  # Source for u
+    lambda s, t: 0.05 * np.cos(np.pi*s)                  # Source for phi
+]
+bulk_data_dual.set_data(forcing_functions, time=0.5)
+
+# Check integration results
+print(f"Dual formulation data range: "
+      f"[{np.min(bulk_data_dual.data):.6e}, {np.max(bulk_data_dual.data):.6e}]")
+
+# Compute integrated mass (should represent total source)
+source_mass = bulk_data_dual.compute_mass(mass_matrix)
+print(f"Total integrated source: {source_mass:.6e}")
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:bulk_data_method_summary}
+
+\begin{longtable}{|p{5cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize BulkData instance with matrices \\
+\hline
+
+\texttt{set\_data} & \texttt{None} & Set bulk data from multiple input formats \\
+\hline
+
+\texttt{get\_data} & \texttt{np.ndarray} & Get copy of bulk coefficient array \\
+\hline
+
+\texttt{get\_trace\_values} & \texttt{np.ndarray} & Extract trace values at nodes \\
+\hline
+
+\texttt{get\_element\_data} & \texttt{np.ndarray} & Get coefficients for specific element \\
+\hline
+
+\texttt{compute\_mass} & \texttt{float} & Compute total mass using mass matrix \\
+\hline
+
+\texttt{test} & \texttt{bool} & Run comprehensive validation tests \\
+\hline
+
+\texttt{\_validate\_trace\_matrix} & \texttt{None} & Validate trace matrix properties \\
+\hline
+
+\texttt{\_set\_data\_primal} & \texttt{None} & Handle primal formulation data setting \\
+\hline
+
+\texttt{\_set\_data\_dual} & \texttt{None} & Handle dual formulation data setting \\
+\hline
+
+\texttt{\_construct\_from\_functions} & \texttt{None} & Build coefficients from function evaluation \\
+\hline
+
+\texttt{\_integrate\_from\_functions} & \texttt{None} & Build coefficients from function integration \\
+\hline
+
+\end{longtable}
+
+This documentation provides an exact reference for the BulkData class based on the actual implementation, with comprehensive examples showing all supported input formats and usage patterns for both primal and dual formulations.
+
+% End of bulk data module API documentation

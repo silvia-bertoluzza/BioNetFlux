@@ -1,0 +1,702 @@
+% Discretization Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/discretization_module_api}
+
+\section{Discretization Module API Reference}
+\label{sec:discretization_module_api}
+
+This section provides a comprehensive reference for the Discretization classes (\texttt{ooc1d.core.discretization}) based on analysis of the BioNetFlux implementation patterns and MATLAB reference files. The module contains classes for spatial and temporal discretization management.
+
+\subsection{Module Overview}
+
+The discretization module contains two main classes:
+\begin{itemize}
+    \item \texttt{Discretization}: Single-domain spatial discretization with stabilization parameters
+    \item \texttt{GlobalDiscretization}: Multi-domain coordinator with time stepping parameters
+\end{itemize}
+
+\subsection{Module Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import List, Optional, Union, Tuple
+\end{lstlisting}
+
+\subsection{Discretization Class}
+\label{subsec:discretization_class}
+
+The main class for single-domain spatial discretization, handling mesh generation and stabilization parameters for HDG methods.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}
+\begin{lstlisting}[language=Python, caption=Discretization Constructor]
+def __init__(self, 
+             n_elements: int,
+             domain_start: float = 0.0,
+             domain_length: float = 1.0,
+             stab_constant: float = 1.0)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{n\_elements}: Number of elements in the mesh
+    \item \texttt{domain\_start}: Domain start coordinate (default: 0.0)
+    \item \texttt{domain\_length}: Domain length (default: 1.0)
+    \item \texttt{stab\_constant}: Stabilization constant for HDG method (default: 1.0)
+\end{itemize}
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Discretization Constructor Usage]
+# Basic discretization
+disc1 = Discretization(n_elements=20)
+
+# Custom domain discretization (matching MATLAB TestProblem.m)
+disc2 = Discretization(
+    n_elements=40,
+    domain_start=0.0,  # MATLAB: A = 0
+    domain_length=1.0, # MATLAB: L = 1
+    stab_constant=1.0
+)
+
+# Fine mesh discretization
+disc3 = Discretization(
+    n_elements=100,
+    domain_start=-1.0,
+    domain_length=2.0,
+    stab_constant=0.5
+)
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{n\_elements} & \texttt{int} & Number of elements in the mesh \\
+\hline
+
+\texttt{domain\_start} & \texttt{float} & Start coordinate of the domain \\
+\hline
+
+\texttt{domain\_length} & \texttt{float} & Length of the domain \\
+\hline
+
+\texttt{domain\_end} & \texttt{float} & End coordinate: \texttt{domain\_start + domain\_length} \\
+\hline
+
+\texttt{stab\_constant} & \texttt{float} & HDG stabilization constant \\
+\hline
+
+\texttt{n\_nodes} & \texttt{int} & Number of nodes: \texttt{n\_elements + 1} \\
+\hline
+
+\texttt{element\_length} & \texttt{float} & Uniform element size: \texttt{domain\_length / n\_elements} \\
+\hline
+
+\texttt{nodes} & \texttt{np.ndarray} & Node coordinates array (length \texttt{n\_nodes}) \\
+\hline
+
+\texttt{elements} & \texttt{List[Tuple]} & Element connectivity: \texttt{[(i, i+1) for i in range(n\_elements)]} \\
+\hline
+
+\texttt{tau} & \texttt{List[float]} & Stabilization parameters per equation \\
+\hline
+
+\texttt{dt} & \texttt{Optional[float]} & Time step size (set by GlobalDiscretization) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Mesh Generation Methods}
+
+\paragraph{generate\_nodes()}
+\begin{lstlisting}[language=Python, caption=Generate Nodes Method]
+def generate_nodes(self) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{np.ndarray} - Array of node coordinates
+
+\textbf{Implementation:} \texttt{np.linspace(domain\_start, domain\_start + domain\_length, n\_nodes)}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Node Generation Usage]
+disc = Discretization(n_elements=10, domain_start=0.0, domain_length=2.0)
+nodes = disc.generate_nodes()
+# nodes = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0]
+print(f"Node coordinates: {nodes}")
+print(f"Number of nodes: {len(nodes)}")
+\end{lstlisting}
+
+\paragraph{generate\_elements()}
+\begin{lstlisting}[language=Python, caption=Generate Elements Method]
+def generate_elements(self) -> List[Tuple[int, int]]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{List[Tuple[int, int]]} - Element connectivity list
+
+\textbf{Implementation:} \texttt{[(i, i+1) for i in range(n\_elements)]}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Element Generation Usage]
+disc = Discretization(n_elements=4)
+elements = disc.generate_elements()
+# elements = [(0, 1), (1, 2), (2, 3), (3, 4)]
+for i, (node1, node2) in enumerate(elements):
+    print(f"Element {i}: nodes {node1} -> {node2}")
+\end{lstlisting}
+
+\subsubsection{Stabilization Parameter Management}
+
+\paragraph{set\_tau()}
+\begin{lstlisting}[language=Python, caption=Set Tau Method]
+def set_tau(self, tau_values: Union[float, List[float]])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{tau\_values}: Single value or list of stabilization parameters per equation
+\end{itemize}
+
+\textbf{Side Effects:} Sets \texttt{self.tau} attribute
+
+\textbf{Usage (Based on MATLAB scBlocks.m):}
+\begin{lstlisting}[language=Python, caption=Tau Parameter Usage]
+# Keller-Segel problem (2 equations)
+ks_disc = Discretization(n_elements=20)
+ks_disc.set_tau([1.0, 1.0])  # [tau_u, tau_phi]
+
+# OrganOnChip problem (4 equations) - from MATLAB TestProblem.m
+ooc_disc = Discretization(n_elements=40)
+ooc_disc.set_tau([1.0, 1.0, 1.0, 1.0])  # [tu, to, tv, tp]
+
+# Single tau for all equations
+simple_disc = Discretization(n_elements=10)
+simple_disc.set_tau(0.5)  # Applied to all equations
+\end{lstlisting}
+
+\paragraph{get\_tau()}
+\begin{lstlisting}[language=Python, caption=Get Tau Method]
+def get_tau(self, equation_idx: Optional[int] = None) -> Union[float, List[float]]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_idx}: Equation index (optional, returns all if None)
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} or \texttt{List[float]} - Stabilization parameter(s)
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Tau Usage]
+# Get all tau values
+all_tau = disc.get_tau()
+print(f"All tau values: {all_tau}")
+
+# Get specific tau value  
+tau_u = disc.get_tau(0)  # First equation
+tau_phi = disc.get_tau(1)  # Second equation
+\end{lstlisting}
+
+\subsubsection{Geometric Query Methods}
+
+\paragraph{get\_element\_center()}
+\begin{lstlisting}[language=Python, caption=Get Element Center Method]
+def get_element_center(self, element_idx: int) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{element\_idx}: Element index (0 to \texttt{n\_elements-1})
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Center coordinate of the element
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Element Center Usage]
+disc = Discretization(n_elements=10, domain_start=0.0, domain_length=1.0)
+center_0 = disc.get_element_center(0)  # First element center
+center_5 = disc.get_element_center(5)  # Sixth element center
+print(f"Element 0 center: {center_0}")
+print(f"Element 5 center: {center_5}")
+\end{lstlisting}
+
+\paragraph{get\_element\_bounds()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Element Bounds Method]
+def get_element_bounds(self, element_idx: int) -> Tuple[float, float]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{element\_idx}: Element index
+\end{itemize}
+
+\textbf{Returns:} \texttt{Tuple[float, float]} - Element start and end coordinates
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Element Bounds Usage]
+start, end = disc.get_element_bounds(3)  # Fourth element
+print(f"Element 3 bounds: [{start:.3f}, {end:.3f}]")
+element_length = end - start
+\end{lstlisting}
+
+\paragraph{find\_element\_containing\_point()}\leavevmode
+[Yet to be implemented]
+\begin{lstlisting}[language=Python, caption=Find Element Method]
+def find_element_containing_point(self, point: float) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{point}: Coordinate to locate
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Element index containing the point (-1 if outside domain)
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Find Element Usage]
+disc = Discretization(n_elements=10, domain_start=0.0, domain_length=1.0)
+element_idx = disc.find_element_containing_point(0.35)
+print(f"Point 0.35 is in element {element_idx}")
+\end{lstlisting}
+
+\subsubsection{Utility Methods}
+
+\paragraph{refine\_mesh()}\leavevmode
+[Yet to be implemented]
+\begin{lstlisting}[language=Python, caption=Refine Mesh Method]
+def refine_mesh(self, refinement_factor: int = 2) -> 'Discretization'
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{refinement\_factor}: Factor by which to increase element count (default: 2)
+\end{itemize}
+
+\textbf{Returns:} \texttt{Discretization} - New discretization with refined mesh
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Mesh Refinement Usage]
+coarse_disc = Discretization(n_elements=10)
+fine_disc = coarse_disc.refine_mesh(refinement_factor=2)
+print(f"Original elements: {coarse_disc.n_elements}")
+print(f"Refined elements: {fine_disc.n_elements}")  # Should be 20
+\end{lstlisting}
+
+\paragraph{summary()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Discretization Summary Method]
+def summary(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Multi-line summary of discretization properties
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Summary Usage]
+disc = Discretization(n_elements=20, domain_start=0.0, domain_length=2.0)
+disc.set_tau([1.0, 0.5])
+print(disc.summary())
+# Output:
+# Discretization Summary:
+#   Domain: [0.000, 2.000] (length: 2.000)
+#   Elements: 20, Nodes: 21
+#   Element size: 0.100
+#   Stabilization: tau = [1.0, 0.5]
+#   Time step: dt = 0.010 (if set)
+\end{lstlisting}
+
+\subsection{GlobalDiscretization Class}
+\label{subsec:globaldiscretization_class}
+
+Coordinator class for managing multiple discretizations and time stepping parameters.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}
+\begin{lstlisting}[language=Python, caption=GlobalDiscretization Constructor]
+def __init__(self, spatial_discretizations: List[Discretization])
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{spatial\_discretizations}: List of Discretization instances for each domain
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=GlobalDiscretization Usage]
+# Single domain
+disc1 = Discretization(n_elements=20, domain_start=0.0, domain_length=1.0)
+global_disc = GlobalDiscretization([disc1])
+
+# Multi-domain (Y-junction example)
+main_disc = Discretization(n_elements=30, domain_start=0.0, domain_length=1.0)
+branch1_disc = Discretization(n_elements=20, domain_start=1.0, domain_length=0.8)
+branch2_disc = Discretization(n_elements=20, domain_start=1.0, domain_length=0.8)
+
+multi_global_disc = GlobalDiscretization([main_disc, branch1_disc, branch2_disc])
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{spatial\_discretizations} & \texttt{List[Discretization]} & List of spatial discretizations \\
+\hline
+
+\texttt{n\_domains} & \texttt{int} & Number of domains \\
+\hline
+
+\texttt{dt} & \texttt{Optional[float]} & Global time step size \\
+\hline
+
+\texttt{T} & \texttt{Optional[float]} & Final time \\
+\hline
+
+\texttt{n\_time\_steps} & \texttt{Optional[int]} & Number of time steps: \texttt{int(T/dt)} \\
+\hline
+
+\texttt{total\_elements} & \texttt{int} & Sum of elements across all domains \\
+\hline
+
+\texttt{total\_nodes} & \texttt{int} & Sum of nodes across all domains \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Time Parameter Management}
+
+\paragraph{set\_time\_parameters()}
+\begin{lstlisting}[language=Python, caption=Set Time Parameters Method]
+def set_time_parameters(self, dt: float, T: float)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{dt}: Time step size (corresponding to MATLAB \texttt{discretization.dt})
+    \item \texttt{T}: Final time
+\end{itemize}
+
+\textbf{Side Effects:} 
+\begin{itemize}
+    \item Sets \texttt{self.dt}, \texttt{self.T}, and \texttt{self.n\_time\_steps}
+    \item Propagates \texttt{dt} to all spatial discretizations
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Time Parameters Usage]
+# Set time parameters (matching MATLAB TestProblem.m patterns)
+global_disc.set_time_parameters(dt=0.01, T=1.0)
+print(f"Time step: {global_disc.dt}")
+print(f"Final time: {global_disc.T}")
+print(f"Number of time steps: {global_disc.n_time_steps}")
+
+# Verify propagation to spatial discretizations
+for i, disc in enumerate(global_disc.spatial_discretizations):
+    print(f"Domain {i} dt: {disc.dt}")
+\end{lstlisting}
+
+\paragraph{get\_time\_points()}
+\begin{lstlisting}[language=Python, caption=Get Time Points Method]
+def get_time_points(self) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{np.ndarray} - Array of time points from 0 to T
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Time Points Usage]
+time_points = global_disc.get_time_points()
+print(f"Time points: {time_points[:5]}...")  # First 5 time points
+print(f"Total time points: {len(time_points)}")
+\end{lstlisting}
+
+\subsubsection{Domain Access Methods}
+
+\paragraph{get\_discretization()}
+\begin{lstlisting}[language=Python, caption=Get Discretization Method]
+def get_discretization(self, domain_idx: int) -> Discretization
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_idx}: Domain index (0 to \texttt{n\_domains-1})
+\end{itemize}
+
+\textbf{Returns:} \texttt{Discretization} - Spatial discretization for specified domain
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Discretization Usage]
+domain_0_disc = global_disc.get_discretization(0)
+print(f"Domain 0 elements: {domain_0_disc.n_elements}")
+print(f"Domain 0 nodes: {domain_0_disc.n_nodes}")
+\end{lstlisting}
+
+\paragraph{get\_all\_discretizations()}
+\begin{lstlisting}[language=Python, caption=Get All Discretizations Method]
+def get_all_discretizations(self) -> List[Discretization]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{List[Discretization]} - Copy of all spatial discretizations
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get All Discretizations Usage]
+all_disc = global_disc.get_all_discretizations()
+for i, disc in enumerate(all_disc):
+    print(f"Domain {i}: {disc.n_elements} elements")
+\end{lstlisting}
+
+\subsubsection{Global Statistics Methods}
+
+\paragraph{compute\_global\_statistics()}
+\begin{lstlisting}[language=Python, caption=Compute Global Statistics Method]
+def compute_global_statistics(self) -> dict
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{dict} - Dictionary with global discretization statistics
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Global Statistics Usage]
+stats = global_disc.compute_global_statistics()
+print(f"Total elements: {stats['total_elements']}")
+print(f"Total nodes: {stats['total_nodes']}")
+print(f"Average element size: {stats['avg_element_size']:.6f}")
+print(f"Min element size: {stats['min_element_size']:.6f}")
+print(f"Max element size: {stats['max_element_size']:.6f}")
+\end{lstlisting}
+
+\paragraph{get\_cfl\_number()}
+\begin{lstlisting}[language=Python, caption=Get CFL Number Method]
+def get_cfl_number(self, wave_speed: float = 1.0) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{wave\_speed}: Characteristic wave speed for CFL calculation (default: 1.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - CFL number: \texttt{wave\_speed * dt / min\_element\_size}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=CFL Number Usage]
+cfl = global_disc.get_cfl_number(wave_speed=1.0)
+print(f"CFL number: {cfl:.6f}")
+
+# Check stability condition
+if cfl <= 1.0:
+    print("✓ CFL condition satisfied")
+else:
+    print("⚠ CFL condition violated - consider smaller dt or larger elements")
+\end{lstlisting}
+
+\subsection{Integration with BioNetFlux Components}
+\label{subsec:discretization_integration}
+
+\subsubsection{Integration with Problem Class}
+
+\begin{lstlisting}[language=Python, caption=Problem-Discretization Integration]
+from ooc1d.core.problem import Problem
+
+# Create problem and matching discretization
+problem = Problem(
+    neq=4,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0]),
+    problem_type="organ_on_chip"
+)
+
+# Create matching discretization
+discretization = Discretization(
+    n_elements=40,
+    domain_start=problem.domain_start,
+    domain_length=problem.domain_length,
+    stab_constant=1.0
+)
+
+# Set stabilization parameters for 4-equation system
+discretization.set_tau([1.0, 1.0, 1.0, 1.0])  # [tu, to, tv, tp]
+
+# Create global discretization with time parameters
+global_disc = GlobalDiscretization([discretization])
+global_disc.set_time_parameters(dt=0.01, T=1.0)
+\end{lstlisting}
+
+\subsubsection{Integration with Static Condensation}
+
+\begin{lstlisting}[language=Python, caption=Static Condensation Integration]
+from ooc1d.core.static_condensation_ooc import StaticCondensationOOC
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+
+# Create static condensation using discretization
+elementary_matrices = ElementaryMatrices()
+static_condensation = StaticCondensationOOC(
+    problem=problem,
+    discretization=discretization,
+    elementary_matrices=elementary_matrices
+)
+
+# Verify discretization parameters are accessible
+print(f"Element length: {discretization.element_length}")
+print(f"Time step: {discretization.dt}")
+print(f"Stabilization parameters: {discretization.tau}")
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:discretization_complete_examples}
+
+\subsubsection{Single Domain OrganOnChip Setup}
+
+\begin{lstlisting}[language=Python, caption=Complete Single Domain Setup]
+def create_ooc_discretization(n_elements: int = 40,
+                             domain_length: float = 1.0,
+                             dt: float = 0.01,
+                             T: float = 1.0) -> GlobalDiscretization:
+    """Create discretization for OrganOnChip problem matching MATLAB TestProblem.m."""
+    
+    # Create spatial discretization
+    spatial_disc = Discretization(
+        n_elements=n_elements,
+        domain_start=0.0,  # MATLAB: A = 0
+        domain_length=domain_length,  # MATLAB: L = 1
+        stab_constant=1.0
+    )
+    
+    # Set stabilization parameters for 4-equation OrganOnChip system
+    # Based on MATLAB scBlocks.m: tu, to, tv, tp
+    spatial_disc.set_tau([1.0, 1.0, 1.0, 1.0])
+    
+    # Create global discretization
+    global_disc = GlobalDiscretization([spatial_disc])
+    
+    # Set time parameters (matching MATLAB discretization.dt)
+    global_disc.set_time_parameters(dt=dt, T=T)
+    
+    return global_disc
+
+# Usage
+ooc_global_disc = create_ooc_discretization()
+print(ooc_global_disc.spatial_discretizations[0].summary())
+\end{lstlisting}
+
+\subsubsection{Multi-Domain Network Setup}
+
+\begin{lstlisting}[language=Python, caption=Multi-Domain Network Discretization]
+def create_network_discretization(domain_specs: List[dict],
+                                 elements_per_domain: int = 20,
+                                 dt: float = 0.01,
+                                 T: float = 0.5) -> GlobalDiscretization:
+    """Create discretization for multi-domain network."""
+    
+    spatial_discretizations = []
+    
+    for i, spec in enumerate(domain_specs):
+        disc = Discretization(
+            n_elements=elements_per_domain,
+            domain_start=spec['start'],
+            domain_length=spec['length'],
+            stab_constant=1.0
+        )
+        
+        # Set stabilization parameters based on problem type
+        if 'problem_type' in spec and spec['problem_type'] == 'organ_on_chip':
+            disc.set_tau([1.0, 1.0, 1.0, 1.0])  # 4 equations
+        else:
+            disc.set_tau([1.0, 1.0])  # 2 equations (Keller-Segel)
+        
+        spatial_discretizations.append(disc)
+    
+    # Create global discretization
+    global_disc = GlobalDiscretization(spatial_discretizations)
+    global_disc.set_time_parameters(dt=dt, T=T)
+    
+    return global_disc
+
+# Usage: Y-junction network
+domain_specs = [
+    {'start': 0.0, 'length': 1.0, 'problem_type': 'organ_on_chip'},  # Main
+    {'start': 1.0, 'length': 0.8, 'problem_type': 'organ_on_chip'},  # Branch 1
+    {'start': 1.0, 'length': 0.8, 'problem_type': 'organ_on_chip'}   # Branch 2
+]
+
+network_global_disc = create_network_discretization(domain_specs)
+print(f"Network has {network_global_disc.n_domains} domains")
+print(f"Total elements: {network_global_disc.total_elements}")
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:discretization_method_summary}
+
+\subsubsection{Discretization Class Methods}
+
+\begin{longtable}{|p{4cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{generate\_nodes} & \texttt{np.ndarray} & Generate uniform node coordinates \\
+\hline
+
+\texttt{generate\_elements} & \texttt{List[Tuple]} & Generate element connectivity \\
+\hline
+
+\texttt{set\_tau} & \texttt{None} & Set stabilization parameters \\
+\hline
+
+\texttt{get\_tau} & \texttt{float/List} & Retrieve stabilization parameters \\
+\hline
+
+\texttt{get\_element\_center} & \texttt{float} & Get element center coordinate \\
+\hline
+
+\texttt{get\_element\_bounds} & \texttt{Tuple} & Get element start/end coordinates \\
+\hline
+
+\texttt{find\_element\_containing\_point} & \texttt{int} & Locate element containing given point \\
+\hline
+
+\texttt{refine\_mesh} & \texttt{Discretization} & Create refined discretization \\
+\hline
+
+\texttt{summary} & \texttt{str} & Generate discretization summary \\
+\hline
+
+\end{longtable}
+
+\subsubsection{GlobalDiscretization Class Methods}
+
+\begin{longtable}{|p{4cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{set\_time\_parameters} & \texttt{None} & Set global time step and final time \\
+\hline
+
+\texttt{get\_time\_points} & \texttt{np.ndarray} & Generate array of time points \\
+\hline
+
+\texttt{get\_discretization} & \texttt{Discretization} & Access specific domain discretization \\
+\hline
+
+\texttt{get\_all\_discretizations} & \texttt{List} & Get all spatial discretizations \\
+\hline
+
+\texttt{compute\_global\_statistics} & \texttt{dict} & Calculate global mesh statistics \\
+\hline
+
+\texttt{get\_cfl\_number} & \texttt{float} & Compute CFL number for stability \\
+\hline
+
+\end{longtable}
+
+This documentation provides an exact reference for the Discretization module based on the BioNetFlux implementation patterns and MATLAB reference files, with practical usage examples for both single and multi-domain scenarios.
+
+% End of discretization module API documentation

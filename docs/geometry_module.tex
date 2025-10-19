@@ -1,0 +1,452 @@
+\section{Geometry Module}
+\label{sec:geometry_module}
+
+The geometry module provides network topology support for BioNetFlux, enabling multi-domain biological transport problems. It integrates with the existing Problem, Discretization, and ConstraintManager classes to support complex network geometries while maintaining compatibility with the HDG solver framework.
+
+\subsection{Overview}
+\label{subsec:geometry_overview}
+
+The geometry module extends BioNetFlux to support:
+
+\begin{itemize}
+	\item Multi-domain network topologies for biological applications
+	\item Integration with existing Problem and Discretization classes
+	\item Junction constraint generation for ConstraintManager
+	\item Compatibility with OrganOnChip 4-equation systems
+	\item Support for Keller-Segel chemotaxis networks
+	\item Seamless integration with static condensation methods
+\end{itemize}
+
+\subsection{Integration with BioNetFlux Architecture}
+\label{subsec:bionetflux_integration}
+
+Unlike standalone geometry systems, the BioNetFlux geometry module is designed to work within the existing framework:
+
+\subsubsection{Problem Class Integration}
+
+\begin{lstlisting}[language=Python, caption=Problem Class Extension for Networks]
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization, GlobalDiscretization
+from ooc1d.core.constraints import ConstraintManager
+
+class NetworkProblem:
+    """Network extension for existing Problem class."""
+    
+    def __init__(self, problem_type="organ_on_chip"):
+        self.problem_type = problem_type
+        self.domains = []
+        self.domain_problems = []
+        
+    def add_domain(self, domain_id, domain_start, domain_length, parameters):
+        """Add domain using existing Problem class structure."""
+        problem = Problem(
+            neq=4,  # OrganOnChip: u, omega, v, phi
+            domain_start=domain_start,
+            domain_length=domain_length, 
+            parameters=parameters,
+            problem_type=self.problem_type,
+            name=f"domain_{domain_id}"
+        )
+        self.domain_problems.append(problem)
+        
+        # Store domain specification
+        domain_spec = {
+            'id': domain_id,
+            'start': domain_start,
+            'length': domain_length,
+            'end': domain_start + domain_length
+        }
+        self.domains.append(domain_spec)
+        
+        return problem
+\end{lstlisting}
+
+\subsubsection{Discretization Integration}
+
+\begin{lstlisting}[language=Python, caption=Network Discretization]
+def create_network_discretization(network_problem, n_elements_per_domain=10):
+    """Create GlobalDiscretization from network specification."""
+    discretizations = []
+    
+    for domain_spec in network_problem.domains:
+        discretization = Discretization(
+            n_elements=n_elements_per_domain,
+            domain_start=domain_spec['start'],
+            domain_length=domain_spec['length'],
+            stab_constant=1.0
+        )
+        
+        # Set stabilization parameters for 4-equation OrganOnChip system
+        discretization.set_tau([1.0, 1.0, 1.0, 1.0])  # tu, to, tv, tp
+        
+        discretizations.append(discretization)
+    
+    return GlobalDiscretization(discretizations)
+\end{lstlisting}
+
+\subsection{Junction Management Compatible with ConstraintManager}
+\label{subsec:junction_constraints}
+
+Rather than creating a separate junction system, the geometry module generates constraints for the existing ConstraintManager:
+
+\subsubsection{Junction Constraint Generation}
+
+\begin{lstlisting}[language=Python, caption=Junction Constraint Integration]
+class NetworkConstraintGenerator:
+    """Generate constraints for network junctions using existing ConstraintManager."""
+    
+    def __init__(self, network_problem):
+        self.network = network_problem
+        
+    def setup_junction_constraints(self, constraint_manager):
+        """Setup junction constraints using existing ConstraintManager API."""
+        
+        # Find connected domains (adjacent domain boundaries)
+        for i in range(len(self.network.domains) - 1):
+            domain1 = self.network.domains[i]
+            domain2 = self.network.domains[i + 1]
+            
+            # Check if domains are connected (end of domain1 = start of domain2)
+            if abs(domain1['end'] - domain2['start']) < 1e-12:
+                junction_position = domain1['end']
+                
+                # Add continuity constraints for all equations
+                neq = self.network.domain_problems[0].neq
+                for eq_idx in range(neq):
+                    constraint_manager.add_trace_continuity(
+                        eq_idx, i, i+1, 
+                        domain1['end'], domain2['start']
+                    )
+        
+        return constraint_manager
+        
+    def setup_bifurcation_constraints(self, constraint_manager, 
+                                    parent_domain, child_domains, junction_pos):
+        """Setup bifurcation constraints for Y-junctions."""
+        
+        neq = self.network.domain_problems[0].neq
+        
+        # Continuity of primary variables (u, phi)
+        primary_equations = [0, 3]  # u and phi in OrganOnChip system
+        
+        for eq_idx in primary_equations:
+            for child_idx in child_domains:
+                constraint_manager.add_trace_continuity(
+                    eq_idx, parent_domain, child_idx,
+                    junction_pos, junction_pos
+                )
+        
+        # Mass conservation at junction
+        constraint_manager.add_mass_conservation_constraint(
+            domains=[parent_domain] + child_domains,
+            position=junction_pos,
+            equation=0  # Conservation for u equation
+        )
+        
+        return constraint_manager
+\end{lstlisting}
+
+\subsection{OrganOnChip Network Support}
+\label{subsec:ooc_network}
+
+Based on the MATLAB reference files (TestProblem.m, EmptyProblem.m), the geometry module supports OrganOnChip networks:
+
+\subsubsection{OrganOnChip Parameters Integration}
+
+\begin{lstlisting}[language=Python, caption=OrganOnChip Network Parameters]
+def create_ooc_network_problem(domain_specs):
+    """Create OrganOnChip network problem from MATLAB TestProblem.m."""
+    
+    # Physical parameters from MATLAB reference
+    nu = 1.0      # viscosity
+    mu = 2.0      # viscosity
+    epsilon = 1.0 # coupling parameter
+    sigma = 1.0   # coupling parameter
+    
+    # Reaction parameters
+    a = 0.0       # reaction parameter
+    c = 0.0       # reaction parameter
+    
+    # Coupling parameters  
+    b = 1.0       # coupling parameter
+    d = 1.0       # coupling parameter
+    chi = 1.0     # coupling parameter
+    
+    # Parameter vector matching MATLAB OoC_pbParameters
+    parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, chi])
+    
+    network = NetworkProblem(problem_type="organ_on_chip")
+    
+    for i, domain_spec in enumerate(domain_specs):
+        domain_problem = network.add_domain(
+            domain_id=i,
+            domain_start=domain_spec['start'],
+            domain_length=domain_spec['length'],
+            parameters=parameters
+        )
+        
+        # Set initial conditions from MATLAB reference
+        if i == 0:  # First domain gets sin initial condition
+            domain_problem.set_initial_condition(0, lambda s, t=0.0: np.sin(2*np.pi*s))
+        else:
+            domain_problem.set_initial_condition(0, lambda s, t=0.0: np.zeros_like(s))
+            
+        # All other equations start at zero (matching EmptyProblem.m)
+        for eq_idx in [1, 2, 3]:  # omega, v, phi
+            domain_problem.set_initial_condition(eq_idx, lambda s, t=0.0: np.zeros_like(s))
+        
+        # Set zero forcing terms (matching MATLAB)
+        for eq_idx in range(4):
+            domain_problem.set_force(eq_idx, lambda s, t: np.zeros_like(s))
+    
+    return network
+\end{lstlisting}
+
+\subsubsection{Boundary Condition Integration}
+
+\begin{lstlisting}[language=Python, caption=Network Boundary Conditions]
+def setup_network_boundary_conditions(network_problem, constraint_manager):
+    """Setup boundary conditions matching MATLAB fluxu0/fluxu1 specification."""
+    
+    n_domains = len(network_problem.domains)
+    
+    # External boundaries (network inlet and outlet)
+    for eq_idx in range(4):  # All four OrganOnChip equations
+        
+        # Inlet boundary (start of first domain) - zero flux from MATLAB
+        constraint_manager.add_neumann(
+            eq_idx, 0, network_problem.domains[0]['start'],
+            lambda t: 0.0  # fluxu0 = 0 from MATLAB
+        )
+        
+        # Outlet boundary (end of last domain) - zero flux from MATLAB  
+        constraint_manager.add_neumann(
+            eq_idx, n_domains-1, network_problem.domains[-1]['end'],
+            lambda t: 0.0  # fluxu1 = 0 from MATLAB
+        )
+    
+    return constraint_manager
+\end{lstlisting}
+
+\subsection{Simple Network Topologies}
+\label{subsec:simple_topologies}
+
+The geometry module provides factory methods for common biological network patterns:
+
+\subsubsection{Linear Network Chain}
+
+\begin{lstlisting}[language=Python, caption=Linear Domain Chain]
+def create_linear_network(n_domains=3, total_length=3.0):
+    """Create linear chain of domains (matching double_arc examples)."""
+    
+    domain_length = total_length / n_domains
+    domain_specs = []
+    
+    for i in range(n_domains):
+        domain_specs.append({
+            'start': i * domain_length,
+            'length': domain_length
+        })
+    
+    network = create_ooc_network_problem(domain_specs)
+    
+    # Setup connectivity constraints
+    constraint_manager = ConstraintManager()
+    constraint_generator = NetworkConstraintGenerator(network)
+    constraint_generator.setup_junction_constraints(constraint_manager)
+    
+    return network, constraint_manager
+\end{lstlisting}
+
+\subsubsection{Y-Junction Bifurcation}
+
+\begin{lstlisting}[language=Python, caption=Y-Junction Network]
+def create_y_junction_network(main_length=1.0, branch_length=1.0):
+    """Create Y-junction bifurcation network."""
+    
+    # Three domains: main vessel + two branches
+    domain_specs = [
+        {'start': 0.0, 'length': main_length},           # Main vessel
+        {'start': main_length, 'length': branch_length}, # Branch 1  
+        {'start': main_length, 'length': branch_length}  # Branch 2
+    ]
+    
+    network = create_ooc_network_problem(domain_specs)
+    
+    # Setup bifurcation constraints
+    constraint_manager = ConstraintManager()
+    constraint_generator = NetworkConstraintGenerator(network)
+    
+    # Setup bifurcation at junction between domain 0 and domains 1,2
+    constraint_generator.setup_bifurcation_constraints(
+        constraint_manager,
+        parent_domain=0,
+        child_domains=[1, 2], 
+        junction_pos=main_length
+    )
+    
+    return network, constraint_manager
+\end{lstlisting}
+
+\subsection{Integration with Static Condensation}
+\label{subsec:static_condensation_integration}
+
+The geometry module works seamlessly with existing static condensation classes:
+
+\subsubsection{StaticCondensationOOC Compatibility}
+
+\begin{lstlisting}[language=Python, caption=Static Condensation Integration]
+def setup_network_static_condensation(network_problem, discretizations, 
+                                    elementary_matrices):
+    """Setup static condensation for network domains."""
+    
+    from ooc1d.core.static_condensation_ooc import StaticCondensationOOC
+    
+    static_condensations = []
+    
+    for i, (problem, discretization) in enumerate(
+            zip(network_problem.domain_problems, discretizations)):
+        
+        # Use existing StaticCondensationOOC for each domain
+        static_cond = StaticCondensationOOC(
+            problem=problem,
+            discretization=discretization,
+            elementary_matrices=elementary_matrices
+        )
+        
+        static_condensations.append(static_cond)
+    
+    return static_condensations
+\end{lstlisting}
+
+\subsection{Visualization Integration}
+\label{subsec:visualization_integration}
+
+The geometry module integrates with the existing MultiDomainPlotter:
+
+\subsubsection{Network Plotting}
+
+\begin{lstlisting}[language=Python, caption=Network Visualization]
+def plot_network_solution(network_problem, trace_solutions, time=0.0):
+    """Plot network solution using existing MultiDomainPlotter."""
+    
+    from ooc1d.visualization.multi_domain_plotter import MultiDomainPlotter
+    
+    # Create discretizations for plotting
+    discretizations = []
+    for domain_spec in network_problem.domains:
+        disc = Discretization(
+            n_elements=10,
+            domain_start=domain_spec['start'],
+            domain_length=domain_spec['length'],
+            stab_constant=1.0
+        )
+        discretizations.append(disc)
+    
+    # Use existing MultiDomainPlotter
+    plotter = MultiDomainPlotter(
+        problems=network_problem.domain_problems,
+        discretizations=discretizations,
+        equation_names=['u', 'ω', 'v', 'φ']  # OrganOnChip equations
+    )
+    
+    # Create continuous plot across network
+    fig = plotter.plot_continuous_solution(
+        trace_solutions=trace_solutions,
+        time=time,
+        title_prefix="Network Solution",
+        show_domain_boundaries=True,
+        show_domain_labels=True
+    )
+    
+    return fig
+\end{lstlisting}
+
+\subsection{Usage Examples}
+\label{subsec:usage_examples}
+
+Complete examples showing integration with BioNetFlux workflow:
+
+\subsubsection{Complete Network Setup}
+
+\begin{lstlisting}[language=Python, caption=Complete Network Problem Setup]
+def create_complete_network_problem():
+    """Complete example matching BioNetFlux test_time_evolution structure."""
+    
+    # Create linear 3-domain network
+    network, constraint_manager = create_linear_network(n_domains=3)
+    
+    # Create discretizations
+    discretizations = []
+    for domain_spec in network.domains:
+        disc = Discretization(
+            n_elements=10,
+            domain_start=domain_spec['start'], 
+            domain_length=domain_spec['length'],
+            stab_constant=1.0
+        )
+        disc.set_tau([1.0, 1.0, 1.0, 1.0])  # OrganOnChip stabilization
+        discretizations.append(disc)
+    
+    global_disc = GlobalDiscretization(discretizations)
+    global_disc.set_time_parameters(dt=0.01, T=0.5)
+    
+    # Setup network boundary conditions
+    constraint_manager = setup_network_boundary_conditions(
+        network, constraint_manager
+    )
+    
+    # Map constraints to discretizations
+    constraint_manager.map_to_discretizations(discretizations)
+    
+    return network.domain_problems, global_disc, constraint_manager
+\end{lstlisting}
+
+\subsubsection{Integration with Existing Solver}
+
+\begin{lstlisting}[language=Python, caption=Solver Integration]
+# This integrates directly with existing BioNetFlux solver setup
+problems, global_disc, constraint_manager = create_complete_network_problem()
+
+# Use existing setup_solver.py infrastructure
+from setup_solver import SolverSetup
+
+setup = SolverSetup(
+    problems=problems,
+    global_discretization=global_disc, 
+    constraint_manager=constraint_manager
+)
+
+# Continue with normal BioNetFlux workflow
+trace_solutions, multipliers = setup.create_initial_conditions()
+global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
+
+# Time evolution using existing infrastructure
+# ... (standard BioNetFlux time evolution loop)
+\end{lstlisting}
+
+\subsection{Limitations and Future Extensions}
+\label{subsec:limitations}
+
+The current geometry module is designed for compatibility with existing BioNetFlux architecture:
+
+\subsubsection{Current Limitations}
+
+\begin{itemize}
+	\item 1D domains only (consistent with current BioNetFlux scope)
+	\item Linear domain arrangements (extensions needed for complex branching)
+	\item Manual junction specification (automatic detection future work)
+	\item Limited to sequential domain connectivity
+\end{itemize}
+
+\subsubsection{Planned Extensions}
+
+\begin{itemize}
+	\item Automatic junction detection from domain connectivity
+	\item Complex branching pattern support
+	\item Integration with adaptive mesh refinement
+	\item Support for time-dependent network geometries
+	\item Optimization tools for network design
+\end{itemize}
+
+The geometry module provides essential network topology support while maintaining full compatibility with BioNetFlux's existing HDG solver framework, enabling multi-domain biological transport modeling without disrupting the established architecture.

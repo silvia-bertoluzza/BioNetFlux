@@ -1,0 +1,650 @@
+% Elementary Matrices Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/elementary_matrices_module_api}
+
+\section{Elementary Matrices Module API Reference}
+\label{sec:elementary_matrices_module_api}
+
+This section provides reference  based on detailed analysis of the actual implementation for the  module \texttt{ooc1d.utils.elementary\_matrices.ElementaryMatrices}. The module computes elementary matrices for HDG methods on the reference element, serving as the Python equivalent of MATLAB \texttt{build\_eMatrices.m}.
+
+\subsection{Module Overview}
+
+The elementary matrices module provides:
+\begin{itemize}
+    \item Elementary matrix computation for HDG methods on reference element [0,1]
+    \item Support for both Lagrange and orthonormal basis functions
+    \item Symbolic computation using SymPy for exact mathematical operations
+    \item Quadrature integration using Legendre-Gauss-Lobatto nodes
+    \item Comprehensive matrix validation and testing
+    \item MATLAB compatibility for existing HDG implementations
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+import sympy as sp
+from typing import Dict, Any
+\end{lstlisting}
+
+\subsection{ElementaryMatrices Class}
+\label{subsec:elementary_matrices_class}
+
+Main class for computing and managing elementary matrices on the reference element.
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=ElementaryMatrices Constructor]
+def __init__(self, orthonormal_basis: bool = False)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{orthonormal\_basis}: Use orthonormal basis if True, Lagrange basis if False (default: False)
+\end{itemize}
+
+\textbf{Side Effects:}
+\begin{itemize}
+    \item Initializes all elementary matrices
+    \item Stores matrices in internal dictionary
+    \item Performs matrix validation tests
+    \item Sets up quadrature rules
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
+# Standard Lagrange basis (default)
+elem_matrices = ElementaryMatrices()
+
+# Orthonormal basis
+elem_matrices_ortho = ElementaryMatrices(orthonormal_basis=True)
+
+# Access matrices immediately after construction
+mass_matrix = elem_matrices.get_matrix('M')
+trace_matrix = elem_matrices.get_matrix('T')
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{5.5cm}|p{2.5cm}|p{6cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{orthonormal\_basis} & \texttt{bool} & Flag indicating basis type used \\
+\hline
+
+\texttt{matrices} & \texttt{Dict[str, np.ndarray]} & Dictionary of all computed elementary matrices \\
+\hline
+
+\texttt{base} & \texttt{sp.Matrix} & SymPy symbolic basis functions \\
+\hline
+
+\texttt{hbase} & \texttt{sp.Matrix} & SymPy symbolic hat basis functions \\
+\hline
+
+\texttt{normali} & \texttt{sp.Matrix} & SymPy normal vectors at boundaries \\
+\hline
+
+\texttt{test\_integration\_by\_parts} & \texttt{np.ndarray} & Test matrix: $D + D^T - \tilde{N}$ (should be zero) \\
+\hline
+
+\texttt{test\_dxx\_zero} & \texttt{np.ndarray} & Test matrix for $\frac{d^2}{dx^2} = 0$ for linear functions \\
+\hline
+
+\texttt{test\_mb\_gb} & \texttt{np.ndarray} & Test matrix: $M^{\partial} - G^b T$ (should be zero) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Matrix Construction Methods}
+
+\paragraph{\_build\_matrices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Build Matrices Method]
+def _build_matrices(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Build all elementary matrices on reference element [0,1]
+
+\textbf{Process:}
+\begin{enumerate}
+    \item Define symbolic variable and reference interval
+    \item Construct basis functions (Lagrange or orthonormal)
+    \item Build basic matrices using symbolic integration
+    \item Perform validation tests
+    \item Build quadrature matrices
+\end{enumerate}
+
+\textbf{Basis Functions:}
+
+\textbf{Lagrange Basis (default):}
+\begin{align}
+e_0(y) &= 1 - y \\
+e_1(y) &= y
+\end{align}
+
+\textbf{Orthonormal Basis:} Constructed by solving orthogonality conditions:
+\begin{align}
+e_0 &= 1 \\
+e_1 &= c \cdot y + d
+\end{align}
+Subject to: $\int_0^1 e_0 e_1 \, dy = 0$ and $\int_0^1 e_1^2 \, dy = 1$
+
+\paragraph{\_build\_basic\_matrices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Build Basic Matrices Method]
+def _build_basic_matrices(self, y, base, hbase, normali, x0, x1)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{y}: SymPy symbolic variable
+    \item \texttt{base}: Basis functions matrix
+    \item \texttt{hbase}: Hat basis functions matrix
+    \item \texttt{normali}: Normal vectors matrix
+    \item \texttt{x0, x1}: Reference interval endpoints (0, 1)
+\end{itemize}
+
+\textbf{Matrices Computed:}
+
+\textbf{Mass Matrix:} $M_{ij} = \int_0^1 e_j e_i \, dy$
+\begin{lstlisting}[language=Python, caption=Mass Matrix Computation]
+M = sp.integrate(base * base.T, (y, 0, 1))
+M_numeric = np.array(M).astype(float)
+# For Lagrange basis: M = [[1/3, 1/6], [1/6, 1/3]]
+\end{lstlisting}
+
+\textbf{Trace Matrix:} $T_{ij} = e_j(x_i)$ (transpose of Gramian)
+\begin{lstlisting}[language=Python, caption=Trace Matrix Computation]
+Gb = base.subs(y, x0) * hbase.T.subs(y, x0) + base.subs(y, x1) * hbase.T.subs(y, x1)
+Trace = Gb.T
+# For Lagrange basis: T = [[1, 0], [0, 1]]
+\end{lstlisting}
+
+\textbf{Derivative Matrix:} $D_{ij} = \int_0^1 e_j \frac{\partial e_i}{\partial x} \, dy$
+\begin{lstlisting}[language=Python, caption=Derivative Matrix Computation]
+D = sp.integrate(sp.diff(base, y) * base.T, (y, x0, x1))
+# For Lagrange basis: D = [[1, -1], [1, -1]]
+\end{lstlisting}
+
+\paragraph{\_build\_quadrature()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Build Quadrature Method]
+def _build_quadrature(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Build quadrature matrices using Legendre-Gauss-Lobatto nodes
+
+\textbf{Quadrature Rule:} 4-point Legendre-Gauss-Lobatto on [-1,1], transformed to [0,1]
+\begin{lstlisting}[language=Python, caption=Quadrature Setup]
+# LGL nodes on [-1,1]
+qnodes = np.array([-1.0, -0.4472136, 0.4472136, 1.0])
+qweights = np.array([1/6, 5/6, 5/6, 1/6])
+
+# Transform to [0,1]
+xi_01 = (qnodes + 1) / 2
+
+# Build quadrature matrix: QUAD[i,j] = e_i(ξ_j) * w_j / 2
+\end{lstlisting}
+
+\subsubsection{Matrix Access Methods}
+
+\paragraph{get\_matrix()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get Matrix Method]
+def get_matrix(self, name: str) -> np.ndarray
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{name}: Matrix name (see available matrices table below)
+\end{itemize}
+
+\textbf{Returns:} \texttt{np.ndarray} - Requested elementary matrix
+
+\textbf{Raises:} \texttt{KeyError} if matrix name not found
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Matrix Usage]
+elem_matrices = ElementaryMatrices()
+
+# Get individual matrices
+M = elem_matrices.get_matrix('M')        # Mass matrix
+T = elem_matrices.get_matrix('T')        # Trace matrix  
+D = elem_matrices.get_matrix('D')        # Derivative matrix
+QUAD = elem_matrices.get_matrix('QUAD')  # Quadrature matrix
+
+# Error handling
+try:
+    invalid = elem_matrices.get_matrix('INVALID')
+except KeyError as e:
+    print(f"Matrix not found: {e}")
+\end{lstlisting}
+
+\paragraph{get\_all\_matrices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Get All Matrices Method]
+def get_all_matrices(self) -> Dict[str, np.ndarray]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Dict[str, np.ndarray]} - Copy of all elementary matrices
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get All Matrices Usage]
+all_matrices = elem_matrices.get_all_matrices()
+
+print("Available matrices:")
+for name, matrix in all_matrices.items():
+    print(f"  {name}: {matrix.shape}")
+
+# Safe to modify returned dictionary
+all_matrices['M'] *= 2.0  # Doesn't affect internal matrices
+\end{lstlisting}
+
+\subsubsection{Available Elementary Matrices}
+
+\begin{longtable}{|p{2cm}|p{2.5cm}|p{8.5cm}|}
+\hline
+\textbf{Name} & \textbf{Shape} & \textbf{Description and Formula} \\
+\hline
+\endhead
+
+\texttt{Z} & $(2, 2)$ & Zero matrix \\
+\hline
+
+\texttt{M} & $(2, 2)$ & Mass matrix: $M_{ij} = \int_0^1 e_j e_i \, dy$ \\
+\hline
+
+\texttt{IM} & $(2, 2)$ & Inverse mass matrix: $M^{-1}$ \\
+\hline
+
+\texttt{Gb} & $(2, 2)$ & Gramian matrix: $G^b_{ij} = e_i(0)\hat{e}_j(0) + e_i(1)\hat{e}_j(1)$ \\
+\hline
+
+\texttt{Mb} & $(2, 2)$ & Boundary mass matrix: $M^{\partial}_{ij} = e_i(0)e_j(0) + e_i(1)e_j(1)$ \\
+\hline
+
+\texttt{T} & $(2, 2)$ & Trace matrix: $T_{ij} = e_j(x_i)$ (transpose of Gramian) \\
+\hline
+
+\texttt{Av} & $(1, 2)$ & Averaging matrix: $(T^{-1} \mathbf{1})^T M$ where $\mathbf{1} = [1, 1]^T$ \\
+\hline
+
+\texttt{Ntil} & $(2, 2)$ & Normal matrix: $\tilde{N}_{ij} = e_j(1)e_i(1)n_1 + e_j(0)e_i(0)n_0$ \\
+\hline
+
+\texttt{Nhat} & $(2, 2)$ & Hat normal matrix: boundary basis times normal matrix \\
+\hline
+
+\texttt{D} & $(2, 2)$ & Derivative matrix: $D_{ij} = \int_0^1 e_j \frac{\partial e_i}{\partial x} \, dy$ \\
+\hline
+
+\texttt{qnodes} & $(4,)$ & Quadrature nodes on [-1,1]: $[-1, -0.4472136, 0.4472136, 1]$ \\
+\hline
+
+\texttt{QUAD} & $(2, 4)$ & Quadrature matrix: $QUAD_{ij} = e_i(\xi_j) w_j / 2$ \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Matrix Values for Lagrange Basis}
+
+For the standard Lagrange basis $e_0(y) = 1-y$, $e_1(y) = y$:
+
+\begin{lstlisting}[language=Python, caption=Lagrange Basis Matrix Values]
+# Mass matrix
+M = [[1/3, 1/6],
+     [1/6, 1/3]]
+
+# Trace matrix  
+T = [[1, 0],
+     [0, 1]]
+
+# Derivative matrix
+D = [[-1, -1],
+     [ 1,  1]]
+
+# Normal matrix (with n0=-1, n1=1)
+Ntil = [[ 1,  0],
+        [ 0, -1]]
+
+# Averaging matrix
+Av = [[1/2, 1/2]]
+
+# Quadrature matrix (for 4 LGL points)
+QUAD = [[0.91666667, 0.62360680, 0.37639320, 0.08333333],
+        [0.08333333, 0.37639320, 0.62360680, 0.91666667]]
+\end{lstlisting}
+
+\subsubsection{Validation and Testing}
+
+\paragraph{\_test\_matrices()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Test Matrices Method]
+def _test_matrices(self, D, Ntil, M, Trace, Nhat, Gb)
+\end{lstlisting}
+
+\textbf{Purpose:} Perform mathematical validation tests (same as MATLAB code)
+
+\textbf{Tests Performed:}
+
+\textbf{Test 1: Integration by Parts}
+\begin{align}
+D + D^T - \tilde{N} = 0
+\end{align}
+This verifies the integration by parts identity for the derivative matrix.
+
+\textbf{Test 2: Second Derivative Zero}
+\begin{align}
+(\tilde{N} - D) M^{-1} (D - \hat{N} T) = 0
+\end{align}
+This verifies that $\frac{d^2}{dx^2} = 0$ for linear functions.
+
+\textbf{Test 3: Boundary Mass Consistency}
+\begin{align}
+M^{\partial} - G^b T = 0
+\end{align}
+
+\paragraph{print\_tests()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Print Tests Method]
+def print_tests(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Print validation test results
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Print Tests Usage]
+elem_matrices = ElementaryMatrices()
+elem_matrices.print_tests()
+
+# Sample output:
+# Test: Integration by parts (should be zero):
+# [[ 0.00000000e+00  0.00000000e+00]
+#  [ 0.00000000e+00  0.00000000e+00]]
+# 
+# Test: d²x/dx² = 0 (should be zero):
+# [[ 0.00000000e+00  0.00000000e+00]
+#  [ 0.00000000e+00  0.00000000e+00]]
+#
+# Test: Mb - Gb*T (should be zero):
+# [[ 0.00000000e+00  0.00000000e+00]
+#  [ 0.00000000e+00  0.00000000e+00]]
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:elementary_matrices_complete_examples}
+
+\subsubsection{Basic Usage with HDG Method}
+
+\begin{lstlisting}[language=Python, caption=Basic HDG Usage Example]
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+import numpy as np
+
+# Create elementary matrices
+elem_matrices = ElementaryMatrices()
+
+# Validate matrices
+elem_matrices.print_tests()
+
+# Get matrices for HDG implementation
+M = elem_matrices.get_matrix('M')        # Mass matrix
+T = elem_matrices.get_matrix('T')        # Trace matrix
+D = elem_matrices.get_matrix('D')        # Derivative matrix
+QUAD = elem_matrices.get_matrix('QUAD')  # Quadrature matrix
+qnodes = elem_matrices.get_matrix('qnodes')  # Quadrature nodes
+
+print("Elementary matrices for HDG:")
+print(f"Mass matrix M:\n{M}")
+print(f"Trace matrix T:\n{T}")
+print(f"Derivative matrix D:\n{D}")
+print(f"Quadrature nodes: {qnodes}")
+print(f"Quadrature matrix shape: {QUAD.shape}")
+
+# Element length scaling (for physical elements)
+h = 0.1  # Element length
+M_scaled = h * M           # Scaled mass matrix
+D_scaled = D               # Derivative matrix unchanged
+QUAD_scaled = h * QUAD     # Scaled quadrature matrix
+
+print(f"\nScaled matrices (h={h}):")
+print(f"Scaled mass matrix:\n{M_scaled}")
+print(f"Scaled quadrature matrix shape: {QUAD_scaled.shape}")
+\end{lstlisting}
+
+\subsubsection{Integration with BulkData}
+
+\begin{lstlisting}[language=Python, caption=BulkData Integration Example]
+from ooc1d.core.bulk_data import BulkData
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+
+# Setup problem and discretization
+problem = Problem(neq=2, domain_start=0.0, domain_length=1.0)
+discretization = Discretization(n_elements=10)
+
+# Create elementary matrices
+elem_matrices = ElementaryMatrices()
+
+# Create BulkData with elementary matrices
+bulk_data = BulkData(problem, discretization, dual=False)
+
+# The BulkData constructor automatically uses ElementaryMatrices
+print("BulkData created with elementary matrices:")
+print(f"  Trace matrix from BulkData: {bulk_data.trace_matrix}")
+print(f"  Mass matrix from BulkData: {bulk_data.mass_matrix}")
+
+# Verify matrices match
+T_elem = elem_matrices.get_matrix('T')
+M_elem = elem_matrices.get_matrix('M')
+
+print("Matrix consistency check:")
+print(f"  Trace matrices match: {np.allclose(bulk_data.trace_matrix, T_elem)}")
+print(f"  Mass matrices match: {np.allclose(bulk_data.mass_matrix / discretization.element_length, M_elem)}")
+\end{lstlisting}
+
+\subsubsection{Quadrature Integration Example}
+
+\begin{lstlisting}[language=Python, caption=Quadrature Integration Example]
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+import numpy as np
+
+# Create elementary matrices
+elem_matrices = ElementaryMatrices()
+
+# Get quadrature data
+QUAD = elem_matrices.get_matrix('QUAD')
+qnodes = elem_matrices.get_matrix('qnodes')
+
+print("Quadrature integration example:")
+print(f"Quadrature nodes on [-1,1]: {qnodes}")
+print(f"Quadrature matrix shape: {QUAD.shape}")
+
+# Define a test function to integrate
+def test_function(x):
+    """Test function: f(x) = x^2"""
+    return x**2
+
+# Transform quadrature nodes to [0,1] for integration
+xi_01 = (qnodes + 1) / 2
+f_values = test_function(xi_01)
+
+print(f"Function values at quadrature points: {f_values}")
+
+# Integrate using quadrature matrix
+# For each basis function: ∫₀¹ eᵢ(x) f(x) dx ≈ Σⱼ eᵢ(ξⱼ) f(ξⱼ) wⱼ
+integrated_coeffs = QUAD @ f_values
+
+print(f"Integrated coefficients: {integrated_coeffs}")
+
+# Analytical result for ∫₀¹ f(x) dx where f(x) = x²
+analytical = 1/3
+numerical = np.sum(integrated_coeffs)  # Sum of coefficients gives total integral
+print(f"Analytical integral: {analytical:.6f}")
+print(f"Numerical integral: {numerical:.6f}")
+print(f"Error: {abs(numerical - analytical):.6e}")
+\end{lstlisting}
+
+\subsubsection{Orthonormal vs Lagrange Basis Comparison}
+
+\begin{lstlisting}[language=Python, caption=Basis Comparison Example]
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+import numpy as np
+
+# Create both types of elementary matrices
+lagrange_matrices = ElementaryMatrices(orthonormal_basis=False)
+ortho_matrices = ElementaryMatrices(orthonormal_basis=True)
+
+print("Basis function comparison:")
+print("="*50)
+
+# Compare mass matrices
+M_lagrange = lagrange_matrices.get_matrix('M')
+M_ortho = ortho_matrices.get_matrix('M')
+
+print("Lagrange mass matrix:")
+print(M_lagrange)
+print("\nOrthonormal mass matrix:")
+print(M_ortho)
+
+# Compare trace matrices
+T_lagrange = lagrange_matrices.get_matrix('T')
+T_ortho = ortho_matrices.get_matrix('T')
+
+print("\nLagrange trace matrix:")
+print(T_lagrange)
+print("\nOrthonormal trace matrix:")
+print(T_ortho)
+
+# Test orthonormality
+print("\nOrthonormality test for orthonormal basis:")
+if np.allclose(M_ortho, np.eye(2), atol=1e-10):
+    print("✓ Orthonormal mass matrix is identity")
+else:
+    print("✗ Orthonormal mass matrix is not identity")
+    print(f"Difference from identity:\n{M_ortho - np.eye(2)}")
+
+# Run tests for both
+print("\nLagrange basis tests:")
+lagrange_matrices.print_tests()
+
+print("\nOrthonormal basis tests:")
+ortho_matrices.print_tests()
+\end{lstlisting}
+
+\subsubsection{Static Condensation Integration}
+
+\begin{lstlisting}[language=Python, caption=Static Condensation Integration Example]
+# This example shows how ElementaryMatrices integrates with static condensation
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+
+def create_static_condensation_matrices(h, tau_values):
+    """
+    Create matrices for static condensation using elementary matrices.
+    
+    Args:
+        h: Element length
+        tau_values: List of stabilization parameters [tau_u, tau_phi, ...]
+    
+    Returns:
+        Dictionary of static condensation matrices
+    """
+    # Get elementary matrices
+    elem_matrices = ElementaryMatrices()
+    
+    # Basic matrices
+    M = elem_matrices.get_matrix('M')
+    T = elem_matrices.get_matrix('T')
+    D = elem_matrices.get_matrix('D')
+    Ntil = elem_matrices.get_matrix('Ntil')
+    Mb = elem_matrices.get_matrix('Mb')
+    
+    # Scale by element length
+    M_scaled = h * M
+    Mb_scaled = h * Mb
+    # D and T are scale-invariant for this element type
+    
+    # Build static condensation matrices
+    sc_matrices = {}
+    
+    # Mass matrix with stabilization
+    for i, tau in enumerate(tau_values):
+        sc_matrices[f'A{i+1}'] = M_scaled + tau * Mb_scaled
+        sc_matrices[f'L{i+1}'] = np.linalg.inv(sc_matrices[f'A{i+1}'])
+        sc_matrices[f'B{i+1}'] = sc_matrices[f'L{i+1}'] @ T
+    
+    # Store basic matrices
+    sc_matrices['M'] = M_scaled
+    sc_matrices['T'] = T
+    sc_matrices['D'] = D
+    sc_matrices['Ntil'] = Ntil
+    
+    return sc_matrices
+
+# Usage example
+h = 0.1  # Element length
+tau_values = [1.0, 1.0]  # Stabilization parameters for 2-equation system
+
+sc_matrices = create_static_condensation_matrices(h, tau_values)
+
+print("Static condensation matrices created:")
+for name, matrix in sc_matrices.items():
+    print(f"  {name}: {matrix.shape}")
+
+# Example: compute bulk solution from trace values
+trace_values = np.array([1.0, 0.5])  # Trace values at element boundaries
+bulk_coeffs = sc_matrices['B1'] @ trace_values
+
+print(f"\nTrace values: {trace_values}")
+print(f"Bulk coefficients: {bulk_coeffs}")
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:elementary_matrices_method_summary}
+
+\begin{longtable}{|p{4.5cm}|p{2cm}|p{7cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize and compute all elementary matrices \\
+\hline
+
+\texttt{\_build\_matrices} & \texttt{None} & Build matrices using symbolic computation \\
+\hline
+
+\texttt{\_build\_basic\_matrices} & \texttt{None} & Compute mass, trace, derivative, and other basic matrices \\
+\hline
+
+\texttt{\_build\_quadrature} & \texttt{None} & Setup Legendre-Gauss-Lobatto quadrature \\
+\hline
+
+\texttt{\_test\_matrices} & \texttt{None} & Perform mathematical validation tests \\
+\hline
+
+\texttt{get\_matrix} & \texttt{np.ndarray} & Retrieve specific elementary matrix by name \\
+\hline
+
+\texttt{get\_all\_matrices} & \texttt{Dict} & Get all computed matrices as dictionary \\
+\hline
+
+\texttt{print\_tests} & \texttt{None} & Print validation test results \\
+\hline
+
+\end{longtable}
+
+\subsection{Key Features and Mathematical Properties}
+
+\begin{itemize}
+    \item \textbf{MATLAB Compatibility}: Direct Python equivalent of MATLAB \texttt{build\_eMatrices.m}
+    \item \textbf{Symbolic Computation}: Uses SymPy for exact mathematical operations
+    \item \textbf{Multiple Basis Support}: Both Lagrange and orthonormal basis functions
+    \item \textbf{Automatic Validation}: Built-in mathematical consistency tests
+    \item \textbf{Quadrature Integration}: 4-point Legendre-Gauss-Lobatto rule
+    \item \textbf{HDG Method Support}: All matrices needed for HDG static condensation
+    \item \textbf{Element Scaling}: Proper scaling factors for physical element lengths
+    \item \textbf{Reference Element}: All computations on standard interval [0,1]
+\end{itemize}
+
+This documentation provides an exact reference for the elementary matrices module, emphasizing its role as the foundation for HDG method computations and its seamless integration with other BioNetFlux components.
+
+% End of elementary matrices module API documentation

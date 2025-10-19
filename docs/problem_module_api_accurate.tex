@@ -1,0 +1,630 @@
+% Problem Module API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/problem_module_api_accurate}
+
+\section{Problem Module API Reference (Accurate Analysis)}
+\label{sec:problem_module_api_accurate}
+
+This section provides an exact reference for the Problem class (\texttt{ooc1d.core.problem.Problem}) based on detailed analysis of the actual implementation. The Problem class serves as the central container for mathematical problem specification in BioNetFlux.
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+import numpy as np
+from typing import Callable, List, Optional, Union
+from .discretization import Discretization, GlobalDiscretization
+\end{lstlisting}
+
+\subsection{Problem Class Definition}
+\label{subsec:problem_class_definition}
+
+\begin{lstlisting}[language=Python, caption=Class Declaration]
+class Problem:
+    """
+    Problem definition class for 1D Keller-Segel type problems.
+    
+    Equivalent to MATLAB problem{ipb} structure.
+    """
+\end{lstlisting}
+
+\subsection{Constructor}
+\label{subsec:constructor}
+
+\paragraph{\_\_init\_\_()}
+\begin{lstlisting}[language=Python, caption=Problem Constructor]
+def __init__(self, 
+             neq: int = 2,
+             domain_start: float = 0.0,
+             domain_length: float = 1.0,
+             parameters: np.ndarray = None,
+             problem_type: str = "keller_segel",
+             name: str = "unnamed_problem")
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{neq}: Number of equations (default: 2)
+    \item \texttt{domain\_start}: Domain start coordinate corresponding to MATLAB \texttt{A} (default: 0.0)
+    \item \texttt{domain\_length}: Domain length corresponding to MATLAB \texttt{L} (default: 1.0)
+    \item \texttt{parameters}: NumPy array of physical parameters (default: \texttt{[1.0, 1.0, 0.0, 0.0]})
+    \item \texttt{problem\_type}: Problem type identifier (default: "keller\_segel")
+    \item \texttt{name}: Descriptive problem name (default: "unnamed\_problem")
+\end{itemize}
+
+\textbf{Default Parameter Array:} \texttt{[mu, nu, a, b] = [1.0, 1.0, 0.0, 0.0]}
+
+\textbf{Usage Examples:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
+# Basic Keller-Segel problem (default)
+problem1 = Problem()
+
+# Custom Keller-Segel problem
+problem2 = Problem(
+    neq=2,
+    domain_start=0.0,
+    domain_length=2.0,
+    parameters=np.array([2.0, 1.0, 0.1, 1.5]),
+    problem_type="keller_segel",
+    name="chemotaxis_problem"
+)
+
+# OrganOnChip problem (based on MATLAB TestProblem.m)
+ooc_params = np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0])
+problem3 = Problem(
+    neq=4,
+    domain_start=0.0,  # MATLAB: A = 0
+    domain_length=1.0, # MATLAB: L = 1
+    parameters=ooc_params,
+    problem_type="organ_on_chip",
+    name="microfluidic_device"
+)
+\end{lstlisting}
+
+\subsection{Instance Attributes}
+\label{subsec:instance_attributes}
+
+\subsubsection{Core Attributes (Set by Constructor)}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{neq} & \texttt{int} & Number of equations in the system \\
+\hline
+
+\texttt{domain\_start} & \texttt{float} & Start coordinate of the domain (MATLAB: \texttt{A}) \\
+\hline
+
+\texttt{domain\_length} & \texttt{float} & Length of the domain (MATLAB: \texttt{L}) \\
+\hline
+
+\texttt{domain\_end} & \texttt{float} & Computed as \texttt{domain\_start + domain\_length} \\
+\hline
+
+\texttt{name} & \texttt{str} & Descriptive name for the problem instance \\
+\hline
+
+\texttt{parameters} & \texttt{np.ndarray} & Physical/mathematical parameters array \\
+\hline
+
+\texttt{n\_parameters} & \texttt{int} & Length of parameters array \\
+\hline
+
+\texttt{type} & \texttt{str} & Problem type identifier (alias for \texttt{problem\_type}) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Derived Attributes (Set by Constructor)}
+
+\begin{longtable}{|p{3.5cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{u\_names} & \texttt{List[str]} & Variable names: \texttt{['u', 'phi']} for \texttt{neq=2}, \texttt{[f'u\{i\}']} for \texttt{neq>2} \\
+\hline
+
+\texttt{unknown\_names} & \texttt{List[str]} & List of strings: \texttt{[f"Unknown n. \{i+1\}" for i in range(neq)]} \\
+\hline
+
+\texttt{extrema} & \texttt{List[Tuple]} & Domain endpoints: \texttt{[(domain\_start, 0.0), (domain\_end, 0.0)]} \\
+\hline
+
+\texttt{neumann\_data} & \texttt{np.ndarray} & Boundary data array initialized as \texttt{np.zeros(4)} \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Function Attributes (Initialized with Defaults)}
+
+\begin{longtable}{|p{3.5cm}|p{3cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{chi} & \texttt{Optional[Callable]} & Chemotactic sensitivity function (default: \texttt{None}) \\
+\hline
+
+\texttt{dchi} & \texttt{Optional[Callable]} & Derivative of chemotactic sensitivity (default: \texttt{None}) \\
+\hline
+
+\texttt{force} & \texttt{List[Callable]} & Source term functions, length \texttt{neq} (default: zero functions) \\
+\hline
+
+\texttt{u0} & \texttt{List[Callable]} & Initial condition functions, length \texttt{neq} (default: zero functions) \\
+\hline
+
+\texttt{solution} & \texttt{List[Callable]} & Analytical solution functions, length \texttt{neq} (default: zero functions) \\
+\hline
+
+\texttt{flux\_u0} & \texttt{List[Callable]} & Left boundary flux functions, length \texttt{neq} (default: zero functions) \\
+\hline
+
+\texttt{flux\_u1} & \texttt{List[Callable]} & Right boundary flux functions, length \texttt{neq} (default: zero functions) \\
+\hline
+
+\end{longtable}
+
+\textbf{Default Function Initializations:}
+\begin{lstlisting}[language=Python, caption=Default Function Initializations]
+# All function lists initialized with zero functions
+self.force = [lambda s, t: np.zeros_like(s)] * neq
+self.u0 = [lambda s: np.zeros_like(s)] * neq  
+self.solution = [lambda s, t: np.zeros_like(s)] * neq
+self.flux_u0 = [lambda t: 0.0] * neq
+self.flux_u1 = [lambda t: 0.0] * neq
+\end{lstlisting}
+
+\subsection{Public Methods}
+\label{subsec:public_methods}
+
+\subsubsection{Chemotaxis Function Management}
+
+\paragraph{set\_chemotaxis()}\leavevmode
+
+\begin{lstlisting}[language=Python, caption=Set Chemotaxis Method]
+def set_chemotaxis(self, chi: Callable, dchi: Callable)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{chi}: Chemotactic sensitivity function $\chi(\phi)$
+    \item \texttt{dchi}: Derivative function $\chi'(\phi)$
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.chi} and \texttt{self.dchi} attributes
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Chemotaxis Usage Example]
+# Define chemotaxis functions
+def chi_function(phi):
+    return 1.0 / (1.0 + phi**2)
+
+def dchi_function(phi):
+    return -2.0 * phi / (1.0 + phi**2)**2
+
+# Set chemotaxis
+problem.set_chemotaxis(chi_function, dchi_function)
+\end{lstlisting}
+
+\subsubsection{Source Term Management}
+
+\paragraph{set\_force()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Set Force Method]
+def set_force(self, equation_idx: int, force_func: Callable)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_idx}: Equation index (0 to \texttt{neq-1})
+    \item \texttt{force\_func}: Source term function with signature \texttt{f(s, t) -> np.ndarray}
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.force[equation\_idx]} to the provided function
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Force Function Usage]
+# Based on MATLAB TestProblem.m - zero forcing terms
+for eq_idx in range(4):  # OrganOnChip has 4 equations
+    problem.set_force(eq_idx, lambda s, t: np.zeros_like(s))
+
+# Time-dependent source term example
+def time_source(s, t):
+    return 0.1 * np.exp(-t) * np.sin(np.pi * s)
+
+problem.set_force(0, time_source)
+\end{lstlisting}
+
+\subsubsection{Analytical Solution Management}
+
+\paragraph{set\_solution()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Set Solution Method]
+def set_solution(self, equation_idx: int, solution_func: Callable)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_idx}: Equation index (0 to \texttt{neq-1})
+    \item \texttt{solution\_func}: Analytical solution function with signature \texttt{f(s, t) -> np.ndarray}
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.solution[equation\_idx]} to the provided function
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Analytical Solution Usage]
+# Set analytical solution for validation
+def analytical_u(s, t):
+    return np.exp(-t) * np.sin(np.pi * s)
+
+def analytical_phi(s, t):
+    return np.cos(np.pi * s) * np.exp(-0.5 * t)
+
+problem.set_solution(0, analytical_u)
+problem.set_solution(1, analytical_phi)
+\end{lstlisting}
+
+\subsubsection{Initial Condition Management}
+
+\paragraph{set\_initial\_condition()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Set Initial Condition Method]
+def set_initial_condition(self, equation_idx: int, u0_func: Callable)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_idx}: Equation index (0 to \texttt{neq-1})
+    \item \texttt{u0\_func}: Initial condition function with signature \texttt{f(s) -> np.ndarray}
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.u0[equation\_idx]} to the provided function
+
+\textbf{Usage (Based on MATLAB TestProblem.m):}
+\begin{lstlisting}[language=Python, caption=Initial Condition Usage]
+# OrganOnChip initial conditions from MATLAB TestProblem.m
+problem.set_initial_condition(0, lambda s: np.sin(2*np.pi*s))  # u
+problem.set_initial_condition(1, lambda s: np.zeros_like(s))   # omega
+problem.set_initial_condition(2, lambda s: np.zeros_like(s))   # v
+problem.set_initial_condition(3, lambda s: np.zeros_like(s))   # phi
+\end{lstlisting}
+
+\subsubsection{Boundary Condition Management}
+
+\paragraph{set\_boundary\_flux()}
+\begin{lstlisting}[language=Python, caption=Set Boundary Flux Method]
+def set_boundary_flux(self, equation_idx: int, 
+                     left_flux: Optional[Callable] = None,
+                     right_flux: Optional[Callable] = None)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{equation\_idx}: Equation index (0 to \texttt{neq-1})
+    \item \texttt{left\_flux}: Left boundary flux function \texttt{f(t) -> float} (optional)
+    \item \texttt{right\_flux}: Right boundary flux function \texttt{f(t) -> float} (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.flux\_u0[equation\_idx]} and/or \texttt{self.flux\_u1[equation\_idx]}
+
+\textbf{Usage (Based on MATLAB TestProblem.m):}
+\begin{lstlisting}[language=Python, caption=Boundary Flux Usage]
+# Zero flux boundary conditions for all equations (MATLAB TestProblem.m)
+for eq_idx in range(4):
+    problem.set_boundary_flux(
+        eq_idx,
+        left_flux=lambda t: 0.0,   # fluxu0 = 0
+        right_flux=lambda t: 0.0   # fluxu1 = 0
+    )
+\end{lstlisting}
+
+\subsubsection{Parameter Management}
+
+\paragraph{get\_parameter()}
+\begin{lstlisting}[language=Python, caption=Get Parameter Method]
+def get_parameter(self, index: int) -> float
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{index}: Parameter index (0 to \texttt{n\_parameters-1})
+\end{itemize}
+
+\textbf{Returns:} \texttt{float} - Parameter value at specified index
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Parameter Usage]
+mu = problem.get_parameter(0)  # First parameter
+nu = problem.get_parameter(1)  # Second parameter
+\end{lstlisting}
+
+\paragraph{set\_parameter()}
+\begin{lstlisting}[language=Python, caption=Set Parameter Method]
+def set_parameter(self, index: int, value: float)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{index}: Parameter index (0 to \texttt{n\_parameters-1})
+    \item \texttt{value}: New parameter value
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.parameters[index]} to the provided value
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Set Parameter Usage]
+problem.set_parameter(0, 2.5)  # Change first parameter to 2.5
+problem.set_parameter(1, 1.8)  # Change second parameter to 1.8
+\end{lstlisting}
+
+\paragraph{set\_parameters()}
+\begin{lstlisting}[language=Python, caption=Set Parameters Method]
+def set_parameters(self, parameters: np.ndarray)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{parameters}: New parameter array
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.parameters} and updates \texttt{self.n\_parameters}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Set Parameters Usage]
+# Update all parameters at once
+new_params = np.array([1.5, 2.0, 0.1, 0.8])
+problem.set_parameters(new_params)
+\end{lstlisting}
+
+\subsubsection{Geometric Management}
+
+\paragraph{set\_extrema()}
+\begin{lstlisting}[language=Python, caption=Set Extrema Method]
+def set_extrema(self, point1: tuple, point2: tuple)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{point1}: Tuple \texttt{(x, y)} for left endpoint (corresponding to \texttt{A})
+    \item \texttt{point2}: Tuple \texttt{(x, y)} for right endpoint (corresponding to \texttt{A+L})
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Sets \texttt{self.extrema} to \texttt{[point1, point2]}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Set Extrema Usage]
+# Set domain endpoints for visualization
+problem.set_extrema((0.0, 0.0), (1.0, 0.5))  # Diagonal domain
+\end{lstlisting}
+
+\paragraph{get\_extrema()}
+\begin{lstlisting}[language=Python, caption=Get Extrema Method]
+def get_extrema(self)
+\end{lstlisting}
+
+\textbf{Parameters:} None
+
+\textbf{Returns:} \texttt{List[Tuple[float, float]]} - List of two tuples representing domain endpoints
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Get Extrema Usage]
+endpoints = problem.get_extrema()
+start_point = endpoints[0]  # (x1, y1)
+end_point = endpoints[1]    # (x2, y2)
+\end{lstlisting}
+
+\subsubsection{Generic Function Management}
+
+\paragraph{set\_function()}
+\begin{lstlisting}[language=Python, caption=Set Function Method]
+def set_function(self, function_name: str, function: Callable)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{function\_name}: String name for the attribute to create
+    \item \texttt{function}: Callable function to assign to the attribute
+\end{itemize}
+
+\textbf{Returns:} \texttt{None}
+
+\textbf{Side Effects:} Creates or updates \texttt{self.function\_name} attribute
+
+\textbf{Raises:}
+\begin{itemize}
+    \item \texttt{TypeError}: If \texttt{function\_name} is not a string
+    \item \texttt{TypeError}: If \texttt{function} is not callable
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Set Function Usage]
+# Set lambda function for OrganOnChip (from MATLAB TestProblem.m)
+problem.set_function('lambda_function', lambda x: np.ones_like(x))
+problem.set_function('dlambda_function', lambda x: np.zeros_like(x))
+
+# Set custom problem-specific functions
+problem.set_function('custom_diffusion', lambda x, t: 1.0 + 0.1*x)
+problem.set_function('reaction_term', lambda u, v: u*v - u**2)
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_usage_examples}
+
+\subsubsection{Keller-Segel Problem Setup}
+
+\begin{lstlisting}[language=Python, caption=Complete Keller-Segel Setup]
+# Create Keller-Segel chemotaxis problem
+ks_problem = Problem(
+    neq=2,
+    domain_start=0.0,
+    domain_length=1.0,
+    parameters=np.array([2.0, 1.0, 0.1, 1.5]),  # [mu, nu, a, b]
+    problem_type="keller_segel",
+    name="chemotaxis_problem"
+)
+
+# Set chemotactic sensitivity
+ks_problem.set_chemotaxis(
+    chi=lambda phi: 1.0 / (1.0 + phi**2),
+    dchi=lambda phi: -2.0 * phi / (1.0 + phi**2)**2
+)
+
+# Set initial conditions
+ks_problem.set_initial_condition(0, lambda s: np.exp(-(s-0.5)**2/0.1))  # u
+ks_problem.set_initial_condition(1, lambda s: np.ones_like(s))          # phi
+
+# Set source terms
+ks_problem.set_force(0, lambda s, t: 0.1 * np.exp(-t) * np.sin(np.pi*s))
+ks_problem.set_force(1, lambda s, t: np.zeros_like(s))
+
+# Set boundary conditions (zero flux)
+for eq_idx in range(2):
+    ks_problem.set_boundary_flux(eq_idx, 
+                                left_flux=lambda t: 0.0,
+                                right_flux=lambda t: 0.0)
+\end{lstlisting}
+
+\subsubsection{OrganOnChip Problem Setup (MATLAB TestProblem.m)}
+
+\begin{lstlisting}[language=Python, caption=Complete OrganOnChip Setup]
+# Parameters from MATLAB TestProblem.m
+# [nu, mu, epsilon, sigma, a, b, c, d, chi]
+ooc_params = np.array([1.0, 2.0, 1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 1.0])
+
+# Create OrganOnChip problem
+ooc_problem = Problem(
+    neq=4,
+    domain_start=0.0,  # MATLAB: A = 0
+    domain_length=1.0, # MATLAB: L = 1
+    parameters=ooc_params,
+    problem_type="organ_on_chip",
+    name="microfluidic_device"
+)
+
+# Set initial conditions (from MATLAB TestProblem.m)
+ooc_problem.set_initial_condition(0, lambda s: np.sin(2*np.pi*s))  # u
+ooc_problem.set_initial_condition(1, lambda s: np.zeros_like(s))   # omega
+ooc_problem.set_initial_condition(2, lambda s: np.zeros_like(s))   # v
+ooc_problem.set_initial_condition(3, lambda s: np.zeros_like(s))   # phi
+
+# Set zero forcing terms (from MATLAB TestProblem.m)
+for eq_idx in range(4):
+    ooc_problem.set_force(eq_idx, lambda s, t: np.zeros_like(s))
+
+# Set zero flux boundary conditions (from MATLAB TestProblem.m)
+for eq_idx in range(4):
+    ooc_problem.set_boundary_flux(eq_idx,
+                                 left_flux=lambda t: 0.0,   # fluxu0 = 0
+                                 right_flux=lambda t: 0.0)  # fluxu1 = 0
+
+# Set lambda function (from MATLAB TestProblem.m)
+ooc_problem.set_function('lambda_function', lambda x: np.ones_like(x))
+ooc_problem.set_function('dlambda_function', lambda x: np.zeros_like(x))
+\end{lstlisting}
+
+\subsection{Integration with BioNetFlux Components}
+\label{subsec:bionetflux_integration_examples}
+
+\subsubsection{Integration with Discretization}
+
+\begin{lstlisting}[language=Python, caption=Discretization Integration]
+from ooc1d.core.discretization import Discretization
+
+# Create discretization matching problem domain
+discretization = Discretization(
+    n_elements=20,
+    domain_start=problem.domain_start,
+    domain_length=problem.domain_length,
+    stab_constant=1.0
+)
+
+# Set stabilization parameters for OrganOnChip
+if problem.type == "organ_on_chip":
+    discretization.set_tau([1.0, 1.0, 1.0, 1.0])  # [tu, to, tv, tp]
+elif problem.type == "keller_segel":
+    discretization.set_tau([1.0, 1.0])  # [tu, tp]
+\end{lstlisting}
+
+\subsubsection{Integration with Static Condensation}
+
+\begin{lstlisting}[language=Python, caption=Static Condensation Integration]
+from ooc1d.core.static_condensation_ooc import StaticCondensationOOC
+from ooc1d.utils.elementary_matrices import ElementaryMatrices
+
+# Create static condensation for OrganOnChip problem
+if problem.type == "organ_on_chip":
+    elementary_matrices = ElementaryMatrices()
+    static_condensation = StaticCondensationOOC(
+        problem=problem,
+        discretization=discretization,
+        elementary_matrices=elementary_matrices
+    )
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:method_summary}
+
+\begin{longtable}{|p{4,3cm}|p{3cm}|p{6cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{set\_chemotaxis} & \texttt{None} & Set chemotactic sensitivity functions \\
+\hline
+
+\texttt{set\_force} & \texttt{None} & Set source term for specific equation \\
+\hline
+
+\texttt{set\_solution} & \texttt{None} & Set analytical solution for specific equation \\
+\hline
+
+\texttt{set\_initial\_condition} & \texttt{None} & Set initial condition for specific equation \\
+\hline
+
+\texttt{set\_boundary\_flux} & \texttt{None} & Set boundary flux functions \\
+\hline
+
+\texttt{get\_parameter} & \texttt{float} & Retrieve parameter by index \\
+\hline
+
+\texttt{set\_parameter} & \texttt{None} & Set single parameter by index \\
+\hline
+
+\texttt{set\_parameters} & \texttt{None} & Set entire parameter array \\
+\hline
+
+\texttt{set\_extrema} & \texttt{None} & Set domain endpoint coordinates \\
+\hline
+
+\texttt{get\_extrema} & \texttt{List[Tuple]} & Get domain endpoint coordinates \\
+\hline
+
+\texttt{set\_function} & \texttt{None} & Generic method to set any function attribute \\
+\hline
+
+\end{longtable}
+
+This documentation provides an exact reference for the Problem class based on the actual implementation, with usage examples matching the MATLAB reference files provided.
+
+% End of accurate problem module API documentation

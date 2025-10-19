@@ -1,0 +1,676 @@
+% Problems Folder API Documentation (Accurate Analysis)
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/problems_folder_api}
+
+\section{Problems Folder API Reference}
+\label{sec:problems_folder_api}
+
+This section provides detailed documentation for the problem modules in the BioNetFlux problems folder, including their mathematical formulations, parameter specifications, and implementation details based on MATLAB reference implementations.
+
+\subsection{Problems Folder Overview}
+
+The problems folder contains:
+\begin{itemize}
+    \item \textbf{Organ-on-Chip (OoC) Models}: Multi-equation coupled systems for biological transport
+    \item \textbf{MATLAB Reference Implementations}: Original MATLAB problem definitions
+    \item \textbf{Python Port Modules}: Corresponding Python implementations using BioNetFlux framework
+    \item \textbf{Parameter Configuration}: Physical and numerical parameter specifications
+    \item \textbf{Boundary Condition Setup}: Dirichlet, Neumann, and coupling conditions
+\end{itemize}
+
+\subsection{Mathematical Model: Organ-on-Chip System}
+\label{subsec:ooc_mathematical_model}
+
+The Organ-on-Chip system consists of four coupled partial differential equations describing biological transport phenomena:
+
+\subsubsection{Governing Equations}
+
+\textbf{Cell Density Equation (u):}
+\begin{align}
+\frac{\partial u}{\partial t} &= \nu \nabla^2 u - \chi \nabla \cdot (u \nabla \phi) + a u + f_u(x,t)
+\end{align}
+
+\textbf{Chemical Gradient Equation ($\omega$):}
+\begin{align}
+\frac{\partial \omega}{\partial t} &= \epsilon \nabla^2 \omega + c \omega + d u + f_\omega(x,t)
+\end{align}
+
+\textbf{Velocity Field Equation (v):}
+\begin{align}
+\frac{\partial v}{\partial t} &= \sigma \nabla^2 v + \lambda(\bar{\omega}) v + f_v(x,t)
+\end{align}
+
+\textbf{Potential Field Equation ($\phi$):}
+\begin{align}
+\frac{\partial \phi}{\partial t} &= \mu \nabla^2 \phi + a \phi + b v + f_\phi(x,t)
+\end{align}
+
+where $\bar{\omega} = \frac{1}{|K|} \int_K \omega \, dx$ is the cell-averaged value of $\omega$.
+
+\subsubsection{Parameter Definitions}
+
+\begin{longtable}{|p{2cm}|p{3cm}|p{8cm}|}
+\hline
+\textbf{Parameter} & \textbf{Physical Meaning} & \textbf{Mathematical Role} \\
+\hline
+\endhead
+
+$\nu$ & Cell diffusion coefficient & Viscosity/diffusion in u equation \\
+\hline
+
+$\mu$ & Potential diffusion & Viscosity/diffusion in $\phi$ equation \\
+\hline
+
+$\epsilon$ & Chemical diffusion & Viscosity/diffusion in $\omega$ equation \\
+\hline
+
+$\sigma$ & Velocity diffusion & Viscosity/diffusion in v equation \\
+\hline
+
+$\chi$ & Chemotactic sensitivity & Coupling strength between u and $\phi$ \\
+\hline
+
+$a$ & Growth/decay rate & Reaction term in u and $\phi$ equations \\
+\hline
+
+$b$ & Velocity coupling & Coupling strength from v to $\phi$ \\
+\hline
+
+$c$ & Chemical reaction rate & Reaction term in $\omega$ equation \\
+\hline
+
+$d$ & Cell-chemical coupling & Coupling strength from u to $\omega$ \\
+\hline
+
+$\lambda(\cdot)$ & Nonlinear velocity function & Nonlinear reaction in v equation \\
+\hline
+
+\end{longtable}
+
+\subsection{MATLAB Reference Problems}
+\label{subsec:matlab_reference_problems}
+
+\subsubsection{TestProblem.m}
+
+\paragraph{Problem Configuration}
+\begin{lstlisting}[language=Matlab, caption=MATLAB TestProblem.m Parameters]
+% Physical parameters (viscosity)
+nu = 1.0;
+mu = 2.0;
+epsilon = 1.0;
+sigma = 1.0;
+
+% Reaction parameters
+a = 0.0;
+c = 0.0;
+
+% Domain
+A = 0;      % Domain start
+L = 1.0;    % Domain length
+
+% Coupling parameters
+b = 1.0;
+d = 1.0;
+chi = 1.0;
+lambda = @(x) constant_function(x);  % Constant nonlinearity
+\end{lstlisting}
+
+\paragraph{Initial Conditions}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Initial Conditions]
+% Initial data functions u0{i}(x,t)
+problem.u0{1} = @(x,t) sin(2*pi*x);  % Non-trivial for cell density
+problem.u0{2} = @(x,t) zeros(size(x)); % Zero chemical
+problem.u0{3} = @(x,t) zeros(size(x)); % Zero velocity  
+problem.u0{4} = @(x,t) zeros(size(x)); % Zero potential
+
+% Gradient initial condition
+problem.phix0 = @(x,t) zeros(size(x));
+\end{lstlisting}
+
+\paragraph{Source Terms}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Source Terms]
+% All source terms are zero
+force{1} = @(x,t) zeros(size(x));  % f_u = 0
+force{2} = @(x,t) zeros(size(x));  % f_omega = 0
+force{3} = @(x,t) zeros(size(x));  % f_v = 0
+force{4} = @(x,t) zeros(size(x));  % f_phi = 0
+\end{lstlisting}
+
+\paragraph{Boundary Conditions}
+\begin{lstlisting}[language=Matlab, caption=TestProblem.m Boundary Conditions]
+% Neumann flux conditions at both boundaries
+% fluxu0{i}(t) = flux at left boundary (x = A)
+% fluxu1{i}(t) = flux at right boundary (x = A + L)
+
+problem.fluxu0{1} = @(t) 0.;  % Zero flux for u at x=0
+problem.fluxu1{1} = @(t) 0.;  % Zero flux for u at x=1
+problem.fluxu0{2} = @(t) 0.;  % Zero flux for omega
+problem.fluxu1{2} = @(t) 0.;
+problem.fluxu0{3} = @(t) 0.;  % Zero flux for v
+problem.fluxu1{3} = @(t) 0.;
+problem.fluxu0{4} = @(t) 0.;  % Zero flux for phi
+problem.fluxu1{4} = @(t) 0.;
+
+problem.NeumannData = zeros(8,1);  % 2 boundaries × 4 equations
+\end{lstlisting}
+
+\subsubsection{EmptyProblem.m}
+
+\paragraph{Differences from TestProblem.m}
+\begin{lstlisting}[language=Matlab, caption=EmptyProblem.m Differences]
+% Same parameter configuration as TestProblem.m
+% Key difference: All initial conditions are zero
+problem.u0{1} = @(x,t) zeros(size(x));  % Zero initial cell density
+problem.u0{2} = @(x,t) zeros(size(x));
+problem.u0{3} = @(x,t) zeros(size(x));
+problem.u0{4} = @(x,t) zeros(size(x));
+
+% Updated source terms (if any modifications needed)
+force_u = @(x,t) zeros(size(x));
+force_phi = @(x,t) zeros(size(x));
+force_v = @(x,t) zeros(size(x));
+force_omega = @(x,t) zeros(size(x));
+\end{lstlisting}
+
+\textbf{Purpose:} EmptyProblem.m serves as a baseline/template with zero initial conditions for testing the numerical framework without initial transients.
+
+\subsection{Python Problem Implementation}
+\label{subsec:python_problem_implementation}
+
+\subsubsection{ooc\_test\_problem.py}
+
+\paragraph{Module Structure}
+\begin{lstlisting}[language=Python, caption=Python OoC Problem Structure]
+# Core imports
+from ..core.problem import Problem
+from ..core.discretization import Discretization, GlobalDiscretization
+from ..core.constraints import ConstraintManager
+
+def create_global_framework():
+    """
+    OrganOnChip test problem - Python port from MATLAB TestProblem.m
+    """
+    # Returns: problems, global_discretization, constraint_manager, problem_name
+\end{lstlisting}
+
+\paragraph{Parameter Configuration}
+\begin{lstlisting}[language=Python, caption=Python Parameter Setup]
+# Physical parameters from MATLAB (viscosity)
+nu = 1.0
+mu = 1.0      # Note: Different from MATLAB (mu = 2.0)
+epsilon = 1.0
+sigma = 1.0
+
+# Reaction parameters
+a = 1.0       # Note: Different from MATLAB (a = 0.0)
+c = 1.0       # Note: Different from MATLAB (c = 0.0)
+
+# Coupling parameters
+b = 1.0
+d = 1.0
+chi = 1.0
+
+# Nonlinear lambda function
+lambda_function = lambda x: 1.0/(1.0 + x**2)
+dlambda_function = lambda x: -2.0*x/(1.0 + x**2)**2
+
+# Parameter vector [nu, mu, epsilon, sigma, a, b, c, d, chi]
+parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, chi])
+\end{lstlisting}
+
+\paragraph{Domain and Discretization}
+\begin{lstlisting}[language=Python, caption=Python Domain Setup]
+# Domain definition
+domain_start = 1.0   # Note: Different from MATLAB (A = 0)
+domain_length = 1.0  # Same as MATLAB (L = 1.0)
+
+# Mesh parameters
+n_elements = 20      # Spatial discretization
+neq = 4             # Four equations
+
+# Time parameters
+T = 1.0             # Final time
+dt = 0.1            # Time step
+\end{lstlisting}
+
+\paragraph{Initial Conditions}
+\begin{lstlisting}[language=Python, caption=Python Initial Conditions]
+# Initial conditions - more complex than MATLAB version
+def initial_u(s, t=0.0):
+    s = np.asarray(s)
+    return 0.0 * s                    # Zero (like EmptyProblem.m)
+
+def initial_omega(s, t=0.0):
+    s = np.asarray(s)
+    return np.sin(2 * np.pi * s + np.pi * t)  # Time-dependent
+
+def initial_v(s, t=0.0):
+    s = np.asarray(s)
+    return t * s                      # Time-dependent
+
+def initial_phi(s, t=0.0):
+    return s ** 2                     # Quadratic profile
+\end{lstlisting}
+
+\paragraph{Source Terms}
+\begin{lstlisting}[language=Python, caption=Python Source Terms]
+# Non-zero source terms (unlike MATLAB versions)
+def force_u(s, t):
+    s = np.asarray(s)
+    return np.zeros_like(s)           # Still zero for u
+
+def force_omega(s, t):
+    s = np.asarray(s)
+    x = 2 * np.pi * s + np.pi * t
+    return np.sin(x) + 4 * np.pi**2 * np.sin(x) + np.pi * np.cos(x)
+
+def force_v(s, t):
+    omega_val = initial_omega(s, t)
+    lambda_val = lambda_function(omega_val)
+    s = np.asarray(s)
+    return s + lambda_val * t * s
+
+def force_phi(s, t):
+    s = np.asarray(s)
+    return - mu * 2.0 * np.ones_like(s) + a * s**2 - b * t * s
+\end{lstlisting}
+
+\paragraph{Boundary Conditions}
+\begin{lstlisting}[language=Python, caption=Python Boundary Conditions]
+# Analytical flux functions for Neumann conditions
+flux_u = lambda s, t: 0.0
+flux_omega = lambda s, t: 2 * np.pi * np.cos(2 * np.pi * s + np.pi * t) 
+flux_v = lambda s, t: t
+flux_phi = lambda s, t: 2 * s
+
+# Setup Neumann boundary conditions for all equations
+constraint_manager.add_neumann(0, 0, domain_start, lambda t: -flux_u(domain_start, t))
+constraint_manager.add_neumann(0, 0, domain_end, lambda t: flux_u(domain_end, t))
+
+constraint_manager.add_neumann(1, 0, domain_start, lambda t: -flux_omega(domain_start, t))
+constraint_manager.add_neumann(1, 0, domain_end, lambda t: flux_omega(domain_end, t))
+
+constraint_manager.add_neumann(2, 0, domain_start, lambda t: -flux_v(domain_start, t))
+constraint_manager.add_neumann(2, 0, domain_end, lambda t: flux_v(domain_end, t))
+
+constraint_manager.add_neumann(3, 0, domain_start, lambda t: -flux_phi(domain_start, t))
+constraint_manager.add_neumann(3, 0, domain_end, lambda t: flux_phi(domain_end, t))
+\end{lstlisting}
+
+\paragraph{Framework Integration}
+\begin{lstlisting}[language=Python, caption=BioNetFlux Framework Integration]
+# Create Problem instance
+problem = Problem(
+    neq=neq,
+    domain_start=domain_start,
+    domain_length=domain_length,
+    parameters=parameters,
+    problem_type="organ_on_chip",
+    name="ooc_test"
+)
+
+# Set lambda functions using flexible method
+problem.set_function('lambda_function', lambda_function)  
+problem.set_function('dlambda_function', dlambda_function)
+
+# Set source terms for all 4 equations
+problem.set_force(0, lambda s, t: force_u(s, t))
+problem.set_force(1, lambda s, t: force_omega(s, t))
+problem.set_force(2, lambda s, t: force_v(s, t))
+problem.set_force(3, lambda s, t: force_phi(s, t))
+
+# Set initial conditions
+problem.set_initial_condition(0, initial_u)
+problem.set_initial_condition(1, initial_omega)
+problem.set_initial_condition(2, initial_v) 
+problem.set_initial_condition(3, initial_phi)
+
+# Create discretization with stabilization parameters
+discretization = Discretization(
+    n_elements=n_elements,
+    domain_start=domain_start,
+    domain_length=domain_length,
+    stab_constant=1.0
+)
+
+# Set stabilization parameters for all 4 equations
+tau_u = 1.0 / discretization.element_length
+tau_omega = 1.0
+tau_v = 1.0  
+tau_phi = 1.0
+discretization.set_tau([tau_u, tau_omega, tau_v, tau_phi])
+\end{lstlisting}
+
+\subsection{Comparison: MATLAB vs Python Implementations}
+\label{subsec:matlab_vs_python_comparison}
+
+\subsubsection{Parameter Differences}
+
+\begin{longtable}{|p{3cm}|p{2cm}|p{2cm}|p{6cm}|}
+\hline
+\textbf{Parameter} & \textbf{MATLAB} & \textbf{Python} & \textbf{Impact} \\
+\hline
+\endhead
+
+$\mu$ & 2.0 & 1.0 & Reduced potential diffusion in Python \\
+\hline
+
+$a$ & 0.0 & 1.0 & Added growth term in Python u and $\phi$ equations \\
+\hline
+
+$c$ & 0.0 & 1.0 & Added reaction term in Python $\omega$ equation \\
+\hline
+
+Domain start & 0.0 & 1.0 & Shifted domain in Python implementation \\
+\hline
+
+$\lambda(x)$ & constant & $\frac{1}{1+x^2}$ & Nonlinear saturation in Python \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Initial Condition Differences}
+
+\begin{longtable}{|p{2cm}|p{4cm}|p{4cm}|p{3cm}|}
+\hline
+\textbf{Variable} & \textbf{MATLAB TestProblem.m} & \textbf{Python ooc\_test\_problem.py} & \textbf{Complexity} \\
+\hline
+\endhead
+
+$u$ & $\sin(2\pi x)$ & $0$ & MATLAB: Non-trivial \\
+\hline
+
+$\omega$ & $0$ & $\sin(2\pi x + \pi t)$ & Python: Time-dependent \\
+\hline
+
+$v$ & $0$ & $t \cdot x$ & Python: Space-time coupling \\
+\hline
+
+$\phi$ & $0$ & $x^2$ & Python: Quadratic profile \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Source Term Complexity}
+
+\begin{longtable}{|p{2cm}|p{5.5cm}|p{5.5cm}|}
+\hline
+\textbf{Equation} & \textbf{MATLAB} & \textbf{Python} \\
+\hline
+\endhead
+
+$f_u$ & $0$ & $0$ \\
+\hline
+
+$f_\omega$ & $0$ & $\sin(x) + 4\pi^2\sin(x) + \pi\cos(x)$ \\
+\hline
+
+$f_v$ & $0$ & $x + \lambda(\omega(x,t)) \cdot t \cdot x$ \\
+\hline
+
+$f_\phi$ & $0$ & $-\mu \cdot 2 + a x^2 - b t x$ \\
+\hline
+
+\end{longtable}
+
+\subsection{Static Condensation Implementation}
+\label{subsec:static_condensation_implementation}
+
+\subsubsection{StaticC.m Overview}
+
+The MATLAB static condensation implementation performs HDG local assembly:
+
+\paragraph{Input/Output Structure}
+\begin{lstlisting}[language=Matlab, caption=StaticC.m Interface]
+function [U,hJ,dhJ] = StaticC(hU,rhs,problem,discretization,scMatrices)
+% Inputs:
+%   hU - Local trace values [hat_u; hat_omega; hat_v; hat_phi] (8×1)
+%   rhs - Right-hand side [g_u; g_omega; g_v; g_phi] (8×1)
+%   problem - Problem parameters structure
+%   discretization - Time and stabilization parameters
+%   scMatrices - Pre-computed static condensation matrices
+%
+% Outputs:
+%   U - Local bulk solution [u; omega; v; phi] (8×1)
+%   hJ - Local flux jump [hat_j; hat_psi] (8×1)
+%   dhJ - Jacobian of flux jump (8×8)
+\end{lstlisting}
+
+\paragraph{Static Condensation Steps}
+\begin{lstlisting}[language=Matlab, caption=StaticC.m Algorithm Steps]
+% Step 1: Solve for u
+% (M + dt*tau*M_partial) u = g_u + dt*tau*G_partial*hat_u
+u{1} = scMatrices.B1 * hu{1} + scMatrices.L1 * g{1};
+
+% Step 2: Solve for omega (coupled with u)
+% Include coupling term dt*d*M*u
+y{2} = scMatrices.L2*(g{2} + dt * d * scMatrices.M * y{1});
+u{2} = scMatrices.C2 * hu{1} + scMatrices.B2 * hu{2} + y{2};
+
+% Step 3: Compute nonlinear lambda(bar_omega)
+bar_omega = scMatrices.Av * u{2};      % Cell average
+bl = problem.lambda(bar_omega);        % lambda(bar_omega)
+dbl = problem.dlambda(bar_omega);      % lambda'(bar_omega)
+
+% Step 4: Solve for v (nonlinear)
+% (A_3 + lambda(bar_omega)*S_3) v = H_3*hat_v + g_v
+L3 = (scMatrices.A3 + bl * scMatrices.S3)\eye(2);
+u{3} = L3 * scMatrices.H3 * hu{3} + L3 * g{3};
+
+% Step 5: Solve for phi (coupled with v)
+u{4} = scMatrices.B4 * hu{4} + scMatrices.C4 * u{3} + scMatrices.L4 * g{4};
+\end{lstlisting}
+
+\paragraph{Jacobian Computation}
+\begin{lstlisting}[language=Matlab, caption=StaticC.m Jacobian Assembly]
+% Build Jacobian dU/d(hat_U) through chain rule
+JAC = zeros(8);
+
+% Contribution from each step
+JAC = JAC + R{1}' * scMatrices.B1 * R{1};                    % Step 1
+JAC = JAC + R{2}' * (scMatrices.C2*R{1} + scMatrices.B2*R{2}); % Step 2
+
+% Nonlinear contribution from lambda'(bar_omega)
+J1 = dbl * L3 * scMatrices.S3 * (scMatrices.H3 * hu{3} + g{3}) * scMatrices.Av;
+JAC = JAC + R{3}' * (J0 * R{3} + J1 * R{3} * JAC);          % Step 3
+
+JAC = JAC + R{4}' * (scMatrices.B4 * R{4} + scMatrices.C4 * R{3} * JAC); % Step 4
+\end{lstlisting}
+
+\subsection{Problem Module Usage Patterns}
+\label{subsec:problem_usage_patterns}
+
+\subsubsection{Integration with BioNetFlux Framework}
+
+\begin{lstlisting}[language=Python, caption=Problem Module Usage Example]
+from setup_solver import quick_setup
+
+# Load OrganOnChip problem
+setup = quick_setup("ooc1d.problems.ooc_test_problem")
+
+# Access problem configuration
+info = setup.get_problem_info()
+print(f"Problem: {info['problem_name']}")
+print(f"Equations: {info['domains'][0]['n_equations']}")
+print(f"Elements: {info['domains'][0]['n_elements']}")
+
+# Create initial conditions
+trace_solutions, multipliers = setup.create_initial_conditions()
+
+# Time evolution simulation
+dt = setup.global_discretization.dt
+T = setup.global_discretization.T
+n_steps = int(T / dt)
+
+for step in range(n_steps):
+    current_time = step * dt
+    
+    # Newton iteration for current time step
+    # ... (using GlobalAssembler and BulkDataManager)
+    
+    print(f"Time step {step}: t = {current_time:.3f}")
+\end{lstlisting}
+
+\subsubsection{Parameter Sensitivity Analysis}
+
+\begin{lstlisting}[language=Python, caption=Parameter Sensitivity Example]
+# Modify problem parameters for sensitivity analysis
+def create_parameter_sweep():
+    """Create multiple problem instances with varying parameters."""
+    
+    base_setup = quick_setup("ooc1d.problems.ooc_test_problem")
+    base_problem = base_setup.problems[0]
+    
+    # Parameter variations
+    chi_values = [0.1, 0.5, 1.0, 2.0, 5.0]  # Chemotactic sensitivity
+    
+    results = []
+    for chi in chi_values:
+        # Modify parameters
+        new_params = base_problem.parameters.copy()
+        new_params[8] = chi  # chi is parameter index 8
+        
+        # Create new problem with modified parameters
+        modified_problem = Problem(
+            neq=base_problem.neq,
+            domain_start=base_problem.domain_start,
+            domain_length=base_problem.domain_length,
+            parameters=new_params,
+            problem_type=base_problem.type,
+            name=f"ooc_chi_{chi}"
+        )
+        
+        # Copy functions and conditions from base problem
+        for i in range(base_problem.neq):
+            if base_problem.initial_conditions[i] is not None:
+                modified_problem.set_initial_condition(i, base_problem.initial_conditions[i])
+            if base_problem.force_functions[i] is not None:
+                modified_problem.set_force(i, base_problem.force_functions[i])
+        
+        results.append((chi, modified_problem))
+    
+    return results
+
+# Usage
+parameter_sweep = create_parameter_sweep()
+for chi_val, problem in parameter_sweep:
+    print(f"Chi = {chi_val}: Problem configured for sensitivity analysis")
+\end{lstlisting}
+
+\subsection{Expected Problem Extensions}
+\label{subsec:expected_problem_extensions}
+
+\subsubsection{Multi-Domain Problems}
+
+\begin{lstlisting}[language=Python, caption=Expected Multi-Domain Problem Structure]
+def create_multi_domain_ooc():
+    """
+    Expected structure for multi-domain OrganOnChip problems.
+    """
+    
+    # Multiple domains with different parameter sets
+    domains = [
+        {"start": 0.0, "length": 1.0, "chi": 1.0, "name": "vessel"},
+        {"start": 1.0, "length": 0.5, "chi": 2.0, "name": "tissue"},
+        {"start": 1.5, "length": 1.0, "chi": 0.5, "name": "organ"}
+    ]
+    
+    problems = []
+    discretizations = []
+    
+    for i, domain_config in enumerate(domains):
+        # Create domain-specific problem
+        problem = create_domain_problem(domain_config, domain_idx=i)
+        problems.append(problem)
+        
+        # Create domain-specific discretization
+        disc = Discretization(
+            n_elements=20,
+            domain_start=domain_config["start"],
+            domain_length=domain_config["length"]
+        )
+        discretizations.append(disc)
+    
+    # Setup junction constraints
+    constraint_manager = ConstraintManager()
+    
+    # Continuity at domain interfaces
+    constraint_manager.add_trace_continuity(0, 0, 1, -1, 1.0)  # u continuity
+    constraint_manager.add_trace_continuity(1, 0, 2, -1, 1.5)  # omega continuity
+    
+    # Flux continuity with permeability
+    constraint_manager.add_kedem_katchalsky(2, 0, 1, -1, 1.0, P=0.1)  # v coupling
+    constraint_manager.add_kedem_katchalsky(3, 0, 2, -1, 1.5, P=0.2)  # phi coupling
+    
+    return problems, GlobalDiscretization(discretizations), constraint_manager, "Multi-Domain OoC"
+\end{lstlisting}
+
+\subsubsection{Alternative Nonlinear Functions}
+
+\begin{lstlisting}[language=Python, caption=Expected Alternative Lambda Functions]
+# Saturation kinetics (Michaelis-Menten)
+def lambda_michaelis_menten(omega, K=1.0, V_max=2.0):
+    return V_max * omega / (K + omega)
+
+def dlambda_michaelis_menten(omega, K=1.0, V_max=2.0):
+    return V_max * K / (K + omega)**2
+
+# Hill function (cooperative binding)
+def lambda_hill(omega, K=1.0, n=2.0):
+    omega_n = omega**n
+    return omega_n / (K**n + omega_n)
+
+def dlambda_hill(omega, K=1.0, n=2.0):
+    omega_n = omega**n
+    K_n = K**n
+    return n * omega**(n-1) * K_n / (K_n + omega_n)**2
+
+# Exponential activation
+def lambda_exponential(omega, alpha=1.0, beta=2.0):
+    return alpha * (1.0 - np.exp(-beta * omega))
+
+def dlambda_exponential(omega, alpha=1.0, beta=2.0):
+    return alpha * beta * np.exp(-beta * omega)
+\end{lstlisting}
+
+\subsection{Problem Module Summary}
+\label{subsec:problem_module_summary}
+
+\begin{longtable}{|p{4cm}|p{3cm}|p{6cm}|}
+\hline
+\textbf{Module/File} & \textbf{Type} & \textbf{Key Features} \\
+\hline
+\endhead
+
+\texttt{TestProblem.m} & MATLAB Reference & Non-trivial u initial condition, zero sources \\
+\hline
+
+\texttt{EmptyProblem.m} & MATLAB Reference & All zero initial conditions, template structure \\
+\hline
+
+\texttt{StaticC.m} & MATLAB Algorithm & HDG static condensation with nonlinear lambda \\
+\hline
+
+\texttt{scBlocks.m} & MATLAB Documentation & Matrix construction theory and formulas \\
+\hline
+
+\texttt{ooc\_test\_problem.py} & Python Implementation & Rich test case with analytical solutions \\
+\hline
+
+\end{longtable}
+
+\subsection{Key Design Principles}
+
+\begin{itemize}
+    \item \textbf{MATLAB Compatibility}: Python problems maintain mathematical equivalence with MATLAB references
+    \item \textbf{Framework Integration}: Seamless integration with BioNetFlux Problem, Discretization, and ConstraintManager classes
+    \item \textbf{Flexibility}: Support for arbitrary nonlinear functions, time-dependent data, and multi-domain configurations
+    \item \textbf{Validation Ready}: Rich initial conditions and source terms enable analytical solution comparison
+    \item \textbf{Biological Relevance}: Parameters and equations model realistic biological transport phenomena
+    \item \textbf{Extensibility}: Clear patterns for creating new problem instances and parameter variations
+\end{itemize}
+
+This documentation provides comprehensive coverage of the problems folder contents, enabling users to understand, modify, and extend the OrganOnChip model implementations within the BioNetFlux framework.
+
+% End of problems folder API documentation

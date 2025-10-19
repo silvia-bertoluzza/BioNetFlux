@@ -1,0 +1,577 @@
+% Domain Geometry Module API Documentation
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/domain_geometry_api}
+
+\section{Domain Geometry Module API Reference}
+\label{sec:domain_geometry_api}
+
+This section provides a comprehensive reference for the domain geometry module (\texttt{domain\_geometry.py}), which provides lean geometry management for multi-domain BioNetFlux problems.
+
+\subsection{Module Overview}
+
+The module contains two main classes:
+\begin{itemize}
+    \item \texttt{DomainInfo}: Data container for individual domain properties
+    \item \texttt{DomainGeometry}: Main geometry manager for collections of domains
+\end{itemize}
+
+\subsection{DomainInfo Class}
+\label{subsec:domaininfo_class}
+
+A dataclass container for domain geometric information, representing individual segments in the network geometry.
+
+\subsubsection{Attributes}
+
+\begin{longtable}{|p{3cm}|p{3.5cm}|p{6cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{domain\_id} & \texttt{int} & Unique identifier for the domain within the geometry \\
+\hline
+
+\texttt{extrema\_start} & \texttt{Tuple[float, float]} & Physical coordinates (x₁, y₁) of domain start point \\
+\hline
+
+\texttt{extrema\_end} & \texttt{Tuple[float, float]} & Physical coordinates (x₂, y₂) of domain end point \\
+\hline
+
+\texttt{domain\_start} & \texttt{float} & Parameter space start coordinate (default: 0.0) \\
+\hline
+
+\texttt{domain\_length} & \texttt{float} & Parameter space length (default: Euclidean distance) \\
+\hline
+
+\texttt{name} & \texttt{Optional[str]} & Human-readable name for the domain \\
+\hline
+
+\texttt{metadata} & \texttt{Dict[str, Any]} & Additional domain-specific data storage \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Methods}
+
+\paragraph{Constructor}
+\begin{lstlisting}[language=Python, caption=DomainInfo Constructor]
+def __init__(self, domain_id: int, 
+             extrema_start: Tuple[float, float],
+             extrema_end: Tuple[float, float],
+             domain_start: float = 0.0,
+             domain_length: float = 1.0,
+             name: Optional[str] = None,
+             metadata: Dict[str, Any] = None)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_id}: Unique domain identifier
+    \item \texttt{extrema\_start}: Start point (x₁, y₁) in physical coordinates
+    \item \texttt{extrema\_end}: End point (x₂, y₂) in physical coordinates
+    \item \texttt{domain\_start}: Parameter space origin (optional, default: 0.0)
+    \item \texttt{domain\_length}: Parameter space length (optional, default: calculated)
+    \item \texttt{name}: Domain name (optional)
+    \item \texttt{metadata}: Additional properties (optional)
+\end{itemize}
+
+\textbf{Usage Example:}
+\begin{lstlisting}[language=Python, caption=DomainInfo Usage]
+# Create a domain from (0,0) to (1,1)
+domain = DomainInfo(
+    domain_id=0,
+    extrema_start=(0.0, 0.0),
+    extrema_end=(1.0, 1.0),
+    name="diagonal_segment"
+)
+# domain_length will be automatically set to sqrt(2)
+\end{lstlisting}
+
+\paragraph{euclidean\_length()}
+\begin{lstlisting}[language=Python, caption=Euclidean Length Calculation]
+def euclidean_length(self) -> float
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{float} - Euclidean distance between \texttt{extrema\_start} and \texttt{extrema\_end}
+
+\textbf{Formula:} $\sqrt{(x_2-x_1)^2 + (y_2-y_1)^2}$
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+length = domain.euclidean_length()  # Returns geometric length
+\end{lstlisting}
+
+\paragraph{center\_point()}
+\begin{lstlisting}[language=Python, caption=Center Point Calculation]
+def center_point(self) -> Tuple[float, float]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Tuple[float, float]} - Midpoint coordinates $(x_c, y_c)$
+
+\textbf{Formula:} $x_c = \frac{x_1 + x_2}{2}$, $y_c = \frac{y_1 + y_2}{2}$
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+center = domain.center_point()  # Returns (x_center, y_center)
+\end{lstlisting}
+
+\paragraph{direction\_vector()}
+\begin{lstlisting}[language=Python, caption=Direction Vector Calculation]
+def direction_vector(self) -> Tuple[float, float]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Tuple[float, float]} - Unit direction vector from start to end
+
+\textbf{Formula:} $\vec{u} = \frac{(x_2-x_1, y_2-y_1)}{||(x_2-x_1, y_2-y_1)||}$
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+direction = domain.direction_vector()  # Returns (u_x, u_y)
+\end{lstlisting}
+
+\subsection{DomainGeometry Class}
+\label{subsec:domaingeometry_class}
+
+Main geometry manager class for handling collections of domains and providing interface methods for BioNetFlux integration.
+
+\subsubsection{Attributes}
+
+\begin{longtable}{|p{3cm}|p{2.5cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{name} & \texttt{str} & Descriptive name for the geometry \\
+\hline
+
+\texttt{domains} & \texttt{List[DomainInfo]} & Collection of domain information objects \\
+\hline
+
+\texttt{\_next\_id} & \texttt{int} & Internal counter for generating unique domain IDs \\
+\hline
+
+\texttt{\_global\_metadata} & \texttt{Dict[str, Any]} & Geometry-wide metadata storage \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Constructor and Basic Operations}
+
+\paragraph{Constructor}
+\begin{lstlisting}[language=Python, caption=DomainGeometry Constructor]
+def __init__(self, name: str = "unnamed_geometry")
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{name}: Descriptive name for the geometry (optional, default: "unnamed\_geometry")
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+# Create new geometry
+geometry = DomainGeometry(name="vascular_network")
+\end{lstlisting}
+
+\paragraph{add\_domain()}
+\begin{lstlisting}[language=Python, caption=Add Domain Method]
+def add_domain(self, 
+               extrema_start: Tuple[float, float],
+               extrema_end: Tuple[float, float],
+               domain_start: Optional[float] = None,
+               domain_length: Optional[float] = None,
+               name: Optional[str] = None,
+               **metadata) -> int
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{extrema\_start}: Start point (x₁, y₁) in physical space
+    \item \texttt{extrema\_end}: End point (x₂, y₂) in physical space
+    \item \texttt{domain\_start}: Parameter space start (optional, default: 0.0)
+    \item \texttt{domain\_length}: Parameter space length (optional, default: Euclidean distance)
+    \item \texttt{name}: Domain name (optional, auto-generated if None)
+    \item \texttt{**metadata}: Additional domain-specific data
+\end{itemize}
+
+\textbf{Returns:} \texttt{int} - Domain ID of the newly added domain
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Adding Domains Example]
+# Add horizontal segment
+domain_id_1 = geometry.add_domain(
+    extrema_start=(0.0, 0.0),
+    extrema_end=(1.0, 0.0),
+    name="main_vessel",
+    vessel_type="artery",
+    diameter=0.1
+)
+
+# Add vertical segment
+domain_id_2 = geometry.add_domain(
+    extrema_start=(1.0, 0.0),
+    extrema_end=(1.0, 1.0),
+    name="branch_vessel"
+)
+\end{lstlisting}
+
+\subsubsection{Domain Access and Query Methods}
+
+\paragraph{get\_domain()}
+\begin{lstlisting}[language=Python, caption=Get Domain Method]
+def get_domain(self, domain_id: int) -> DomainInfo
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_id}: Domain index to retrieve
+\end{itemize}
+
+\textbf{Returns:} \texttt{DomainInfo} - Complete domain information object
+
+\textbf{Raises:} \texttt{IndexError} - If domain\_id is out of range
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+domain = geometry.get_domain(0)  # Get first domain
+print(f"Domain name: {domain.name}")
+print(f"Length: {domain.euclidean_length()}")
+\end{lstlisting}
+
+\paragraph{get\_all\_domains()}
+\begin{lstlisting}[language=Python, caption=Get All Domains Method]
+def get_all_domains(self) -> List[DomainInfo]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{List[DomainInfo]} - Copy of all domains in the geometry
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+all_domains = geometry.get_all_domains()
+for domain in all_domains:
+    print(f"Domain {domain.domain_id}: {domain.name}")
+\end{lstlisting}
+
+\paragraph{num\_domains()}
+\begin{lstlisting}[language=Python, caption=Number of Domains Method]
+def num_domains(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Total number of domains in the geometry
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+n_domains = geometry.num_domains()
+print(f"Geometry contains {n_domains} domains")
+\end{lstlisting}
+
+\paragraph{find\_domain\_by\_name()}
+\begin{lstlisting}[language=Python, caption=Find Domain by Name Method]
+def find_domain_by_name(self, name: str) -> Optional[int]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{name}: Domain name to search for
+\end{itemize}
+
+\textbf{Returns:} \texttt{Optional[int]} - Domain ID if found, None otherwise
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+domain_id = geometry.find_domain_by_name("main_vessel")
+if domain_id is not None:
+    domain = geometry.get_domain(domain_id)
+\end{lstlisting}
+
+\paragraph{get\_domain\_names()}
+\begin{lstlisting}[language=Python, caption=Get Domain Names Method]
+def get_domain_names(self) -> List[str]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{List[str]} - List of all domain names
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+names = geometry.get_domain_names()
+print("Available domains:", ", ".join(names))
+\end{lstlisting}
+
+\subsubsection{Geometric Analysis Methods}
+
+\paragraph{get\_bounding\_box()}
+\begin{lstlisting}[language=Python, caption=Bounding Box Calculation]
+def get_bounding_box(self) -> Dict[str, float]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Dict[str, float]} - Dictionary with keys: \texttt{x\_min}, \texttt{x\_max}, \texttt{y\_min}, \texttt{y\_max}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+bbox = geometry.get_bounding_box()
+width = bbox['x_max'] - bbox['x_min']
+height = bbox['y_max'] - bbox['y_min']
+print(f"Geometry bounding box: {width} × {height}")
+\end{lstlisting}
+
+\paragraph{total\_length()}
+\begin{lstlisting}[language=Python, caption=Total Length Calculation]
+def total_length(self) -> float
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{float} - Sum of Euclidean lengths of all domains
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+total_len = geometry.total_length()
+avg_len = total_len / geometry.num_domains()
+print(f"Total network length: {total_len:.3f}")
+print(f"Average segment length: {avg_len:.3f}")
+\end{lstlisting}
+
+\subsubsection{Metadata Management}
+
+\paragraph{set\_global\_metadata()}
+\begin{lstlisting}[language=Python, caption=Set Global Metadata Method]
+def set_global_metadata(self, **metadata)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{**metadata}: Key-value pairs for geometry-wide metadata
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+geometry.set_global_metadata(
+    problem_type="organ_on_chip",
+    fluid_viscosity=0.001,
+    temperature=37.0,
+    units="mm"
+)
+\end{lstlisting}
+
+\paragraph{get\_global\_metadata()}
+\begin{lstlisting}[language=Python, caption=Get Global Metadata Method]
+def get_global_metadata(self) -> Dict[str, Any]
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{Dict[str, Any]} - Copy of all global metadata
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+metadata = geometry.get_global_metadata()
+if "fluid_viscosity" in metadata:
+    viscosity = metadata["fluid_viscosity"]
+\end{lstlisting}
+
+\subsubsection{Utility and Maintenance Methods}
+
+\paragraph{remove\_domain()}
+\begin{lstlisting}[language=Python, caption=Remove Domain Method]
+def remove_domain(self, domain_id: int)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_id}: Domain ID to remove
+\end{itemize}
+
+\textbf{Raises:} \texttt{IndexError} - If domain\_id is invalid
+
+\textbf{Note:} Automatically renumbers remaining domains to maintain consistency
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+# Remove domain and automatically renumber others
+geometry.remove_domain(1)
+\end{lstlisting}
+
+\paragraph{summary()}
+\begin{lstlisting}[language=Python, caption=Summary Generation Method]
+def summary(self) -> str
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Multi-line summary of geometry contents
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+print(geometry.summary())
+# Output:
+# Geometry: vascular_network
+# Number of domains: 3
+# Total length: 4.236
+# Domains:
+#   0: main_vessel
+#     Extrema: (0.0, 0.0) → (1.0, 0.0)
+#     Parameter: [0.000, 1.000]
+#     Length: 1.000
+# ...
+\end{lstlisting}
+
+\subsubsection{Special Methods (Python Magic Methods)}
+
+\paragraph{\_\_len\_\_()}
+\begin{lstlisting}[language=Python, caption=Length Support]
+def __len__(self) -> int
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{int} - Number of domains (enables \texttt{len(geometry)})
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+num_domains = len(geometry)  # Equivalent to geometry.num_domains()
+\end{lstlisting}
+
+\paragraph{\_\_getitem\_\_()}
+\begin{lstlisting}[language=Python, caption=Indexing Support]
+def __getitem__(self, domain_id: int) -> DomainInfo
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{domain\_id}: Domain index
+\end{itemize}
+
+\textbf{Returns:} \texttt{DomainInfo} - Domain at specified index (enables \texttt{geometry[i]})
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+first_domain = geometry[0]  # Equivalent to geometry.get_domain(0)
+\end{lstlisting}
+
+\paragraph{\_\_iter\_\_()}
+\begin{lstlisting}[language=Python, caption=Iteration Support]
+def __iter__(self)
+\end{lstlisting}
+
+\textbf{Returns:} Iterator over all \texttt{DomainInfo} objects
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python]
+for domain in geometry:
+    print(f"Processing domain {domain.domain_id}: {domain.name}")
+    length = domain.euclidean_length()
+    center = domain.center_point()
+\end{lstlisting}
+
+\subsection{Complete Usage Example}
+\label{subsec:complete_example}
+
+\begin{lstlisting}[language=Python, caption=Complete Geometry Usage Example]
+from ooc1d.geometry.domain_geometry import DomainGeometry
+
+# Create geometry for Y-junction network
+geometry = DomainGeometry(name="y_junction_network")
+
+# Add main vessel (horizontal segment)
+main_id = geometry.add_domain(
+    extrema_start=(0.0, 0.0),
+    extrema_end=(2.0, 0.0),
+    name="main_vessel",
+    vessel_type="parent",
+    diameter=1.0
+)
+
+# Add upper branch
+upper_id = geometry.add_domain(
+    extrema_start=(2.0, 0.0),
+    extrema_end=(3.0, 1.0),
+    name="upper_branch",
+    vessel_type="daughter",
+    diameter=0.7
+)
+
+# Add lower branch  
+lower_id = geometry.add_domain(
+    extrema_start=(2.0, 0.0),
+    extrema_end=(3.0, -1.0),
+    name="lower_branch",
+    vessel_type="daughter",
+    diameter=0.7
+)
+
+# Set global properties
+geometry.set_global_metadata(
+    fluid_type="blood",
+    viscosity=0.004,  # Pa·s
+    density=1060,     # kg/m³
+    problem_type="organ_on_chip"
+)
+
+# Analyze geometry
+print(geometry.summary())
+print(f"\nTotal network length: {geometry.total_length():.3f}")
+
+# Access individual domains
+for domain in geometry:
+    center = domain.center_point()
+    direction = domain.direction_vector()
+    print(f"Domain {domain.name}:")
+    print(f"  Center: ({center[0]:.2f}, {center[1]:.2f})")
+    print(f"  Direction: ({direction[0]:.2f}, {direction[1]:.2f})")
+    
+    # Access metadata
+    if "diameter" in domain.metadata:
+        print(f"  Diameter: {domain.metadata['diameter']}")
+
+# Find specific domain
+main_domain_id = geometry.find_domain_by_name("main_vessel")
+if main_domain_id is not None:
+    main_domain = geometry[main_domain_id]
+    print(f"\nMain vessel length: {main_domain.euclidean_length():.3f}")
+\end{lstlisting}
+
+\subsection{Integration with BioNetFlux}
+\label{subsec:bionetflux_integration}
+
+The \texttt{DomainGeometry} class is designed for seamless integration with BioNetFlux components:
+
+\begin{lstlisting}[language=Python, caption=BioNetFlux Integration Example]
+from ooc1d.core.problem import Problem
+from ooc1d.core.discretization import Discretization, GlobalDiscretization
+
+# Create BioNetFlux problems from geometry
+def geometry_to_problems(geometry, neq=4, parameters=None):
+    """Convert geometry domains to BioNetFlux Problem instances."""
+    problems = []
+    
+    for domain in geometry:
+        problem = Problem(
+            neq=neq,
+            domain_start=domain.domain_start,
+            domain_length=domain.domain_length,
+            parameters=parameters or np.ones(9),  # OrganOnChip parameters
+            problem_type="organ_on_chip",
+            name=domain.name
+        )
+        problems.append(problem)
+    
+    return problems
+
+# Create discretizations from geometry
+def geometry_to_discretizations(geometry, n_elements=10):
+    """Convert geometry domains to BioNetFlux Discretization instances."""
+    discretizations = []
+    
+    for domain in geometry:
+        disc = Discretization(
+            n_elements=n_elements,
+            domain_start=domain.domain_start,
+            domain_length=domain.domain_length,
+            stab_constant=1.0
+        )
+        discretizations.append(disc)
+    
+    return GlobalDiscretization(discretizations)
+
+# Usage
+problems = geometry_to_problems(geometry)
+global_disc = geometry_to_discretizations(geometry)
+\end{lstlisting}
+
+This API provides a comprehensive interface for managing complex multi-domain geometries while maintaining compatibility with the existing BioNetFlux solver framework.
+
+% End of domain geometry API documentation
