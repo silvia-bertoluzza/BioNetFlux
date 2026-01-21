@@ -241,16 +241,18 @@ The \code{KellerSegelStaticCondensation} class is called for {\tt problem\_type}
 \newcommand{\ds}{\partial_s}
 \newcommand{\vc}{v}
 \newcommand{\uc}{u}
-\newcommand{\pc}{\phi}
-\newcommand{\qc}{\psi}
+\newcommand{\pc}{\omega}
+\newcommand{\qc}{\phi}
+
+
 
 \subsubsection{Organ-on-Chip Implementation}
 The \code{StaticCondensationOOC} class is called for {\tt problem\_type} = {\tt "organ\_on\_chip"}. It handles the simulation of the mutual interaction between tumor and immune system cells, modeled by the equation
 \begin{gather*}
 	\partial_t \vc - \ds \nu_v^\text{c} \ds \vc + \lambda^*  (\pc) \vc = 0  \\
 		\partial_t \uc - \ds (\nu_u^\text{c} \ds \uc - \chi \ds \qc \uc) = 0,\\
-		\partial_t \pc - \ds \nu_\phi^\text{c} \pc + \beta \pc  - \alpha \uc = 0,  \\
-		\partial_t \qc - \ds  \nu_\psi^\text{c} \qc + a^\text{c}_\psi \qc  - b^\text{c}_\psi \vc = 0.
+		\partial_t \pc - \ds \nu_\omega^\text{c} \pc + \beta \pc  - \alpha \uc = 0,  \\
+		\partial_t \qc - \ds  \nu_\phi^\text{c} \qc + a^\text{c}_\psi \qc  - b^\text{c}_\psi \vc = 0.
 \end{gather*}
 \begin{itemize}
 	\item \textbf{Nonlinear Coupling}: Chemotaxis sensitivity functions \code{chi(x)} and \code{dchi(x)}
@@ -258,6 +260,9 @@ The \code{StaticCondensationOOC} class is called for {\tt problem\_type} = {\tt 
 	\item \textbf{Jacobian Computation}: Evaluates elementary contribution to the Jacobian for Newton's method
 	\item \textbf{Flux Recovery}: Proper flux computation including nonlinear terms
 \end{itemize}
+
+\begin{todobox}{Check the equations above for consistency with the notation in the code}
+\end{todobox}
 
 \subsection{Elementary Matrices}
 
