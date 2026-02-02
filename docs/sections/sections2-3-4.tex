@@ -515,7 +515,7 @@ def time_evolution_example():
             print(f"  Newton {newton_iter}: ||R|| = {residual_norm:.6e}")
             
             if residual_norm < newton_tolerance:
-                print(f"  ✓ Newton converged in {newton_iter + 1} iterations")
+                print(f"  \checkmark Newton converged in {newton_iter + 1} iterations")
                 break
             
             # Newton update
@@ -523,7 +523,7 @@ def time_evolution_example():
                 delta_x = np.linalg.solve(jacobian, -residual)
                 newton_solution += delta_x
             except np.linalg.LinAlgError:
-                print(f"  ✗ Newton failed: singular Jacobian")
+                print(f"  \times Newton failed: singular Jacobian")
                 break
         
         # Update solution

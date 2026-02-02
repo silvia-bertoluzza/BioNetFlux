@@ -788,7 +788,7 @@ def newton_solve_with_constraints(constraint_manager, initial_solution, initial_
         print(f"Iteration {iteration}: residual norm = {residual_norm:.6e}")
         
         if residual_norm < tolerance:
-            print("✓ Newton solver converged")
+            print("\checkmark Newton solver converged")
             break
         
         # Compute Jacobian (PDE + constraint contributions)
@@ -801,7 +801,7 @@ def newton_solve_with_constraints(constraint_manager, initial_solution, initial_
             current_solution += delta[:len(current_solution)]
             current_multipliers += delta[len(current_solution):]
         except np.linalg.LinAlgError:
-            print("✗ Newton solver failed: singular Jacobian")
+            print("\times Newton solver failed: singular Jacobian")
             break
     
     return current_solution, current_multipliers
