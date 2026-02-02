@@ -50,7 +50,7 @@ def __init__(self, problem_module: str = "bionetflux.problems.test_problem2")
 
 \textbf{Parameters:}
 \begin{itemize}
-    \item \texttt{problem\_module}: String path to problem module containing \texttt{create\_global\_framework} (default: "bionetflux.problems.test\_problem2")
+    \item \texttt{problem\_module}: String path to problem module containing \texttt{create\_global\_framework} (default: "bionetflux.problems.KS\_traveling\_wave")
 \end{itemize}
 
 \textbf{Side Effects:} 
@@ -63,11 +63,11 @@ def __init__(self, problem_module: str = "bionetflux.problems.test_problem2")
 
 \textbf{Usage:}
 \begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
-# Default problem module
+# Default problem module (Keller-Segel)
 setup = SolverSetup()
 
 # Custom problem module
-setup = SolverSetup("bionetflux.problems.ooc_test_problem")
+setup = SolverSetup("bionetflux.problems.reduced_ooc_problem")
 
 # OrganOnChip problem
 setup = SolverSetup("bionetflux.problems.organ_on_chip_example")
@@ -97,6 +97,9 @@ setup = SolverSetup("bionetflux.problems.organ_on_chip_example")
 \hline
 
 \texttt{problem\_name} & \texttt{Optional[str]} & Descriptive name of the problem \\
+\hline
+
+\texttt{geometry} & \texttt{Optional[DomainGeometry]} & Geometry computed from problems extrema \\
 \hline
 
 \texttt{constraints} & \texttt{Optional[ConstraintManager]} & \texttt{constraint\_manager} alias for backward compatibility \\
@@ -746,12 +749,12 @@ Total DOFs: 86
 
 \paragraph{create\_solver\_setup()}\leavevmode
 \begin{lstlisting}[language=Python, caption=Create Solver Setup Function]
-def create_solver_setup(problem_module: str = "bionetflux.problems.test_problem2") -> SolverSetup
+def create_solver_setup(problem_module: str = "bionetflux.problems.KS_traveling_wave") -> SolverSetup
 \end{lstlisting}
 
 \textbf{Parameters:}
 \begin{itemize}
-    \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.test\_problem2")
+    \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.KS\_traveling\_wave")
 \end{itemize}
 
 \textbf{Returns:} \texttt{SolverSetup} - Initialized SolverSetup instance
@@ -775,13 +778,13 @@ bulk_manager = setup.bulk_data_manager
 
 \paragraph{quick\_setup()}\leavevmode
 \begin{lstlisting}[language=Python, caption=Quick Setup Function]
-def quick_setup(problem_module: str = "bionetflux.problems.test_problem2", 
+def quick_setup(problem_module: str = "bionetflux.problems.KS_traveling_wave", 
                validate: bool = True) -> SolverSetup
 \end{lstlisting}
 
 \textbf{Parameters:}
 \begin{itemize}
-    \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.test\_problem2")
+    \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.KS\_traveling\_wave")
     \item \texttt{validate}: If True, run validation tests (default: True)
 \end{itemize}
 
@@ -973,7 +976,7 @@ This documentation provides an exact reference for the setup solver module, emph
 
 \begin{todobox}
 	\begin{itemize}
-		\item Choose (possibly new) default problem to be used in {\tt \_\_init\_\_}
+		\item \sout{Choose (possibly new) default problem to be used in {\tt \_\_init\_\_}}
 		\item Replace calls to {\tt SolverSetup.constraints} with calls to {\tt SolverSetup.constraint\_manager}
 	\end{itemize}
 \end{todobox}

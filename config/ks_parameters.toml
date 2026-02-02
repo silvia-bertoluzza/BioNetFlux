@@ -1,0 +1,55 @@
+# Keller-Segel Problem Configuration
+# Based on KS_traveling_wave_double_arc.py parameters
+
+[problem]
+name = "KS_Traveling_Wave_Problem"
+neq = 2
+problem_type = "ks"
+
+[time_parameters]
+T = 0.5   # Final time (from KS_traveling_wave)
+dt = 0.05 # Time step (from KS_traveling_wave)
+
+[physical_parameters.diffusion]
+mu = 2.0      # Cell diffusion coefficient (from KS_traveling_wave parameters array)
+nu = 1.0      # Chemical diffusion coefficient (from KS_traveling_wave parameters array)
+
+[physical_parameters.reaction]
+a = 0.0       # Reaction parameter a (from KS_traveling_wave parameters array)
+b = 1.0       # React"ion parameter b (from KS_traveling_wave parameters array)
+
+[physical_parameters.chemotaxis]
+chi = "constant"     # Function name, not numeric value
+dchi = "zeros"       # Function name for derivative of chi
+
+[discretization]
+n_elements = 10  # From KS_traveling_wave n_elements array
+tau = [1.0, 1.0] # Stabilization parameters for u and v (from set_tau call)
+
+[initial_conditions]
+u = "traveling_wave_u"     # Use traveling wave solution for initial u
+phi = "traveling_wave_phi"   # Use traveling wave solution for initial v
+
+# Exact solutions for error computation
+[exact_solutions]
+u = "traveling_wave_u"     # Use traveling wave solution for initial u
+phi = "traveling_wave_phi"   # Use traveling wave solution for initial v
+
+[exact_solution_derivatives]
+u = "traveling_wave_u_x" # Derivative of traveling wave solution for u
+phi = "traveling_wave_phi_x" # Derivative of traveling wave solution for v
+
+[force_functions]
+u = "zeros"      # Zero force for u (from KS_traveling_wave)
+phi = "zeros"      # Zero force for v (from KS_traveling_wave)
+
+# Domain-specific overrides for initial conditions
+[domain_initial_conditions]
+# Use exact solutions from KS_traveling_wave by default
+# domain_0_u = "traveling_wave_u"  # Example override
+
+# Domain-specific overrides for force functions
+[domain_force_functions]
+# No domain-specific forces by default
+# domain_1_phi = "attraction_source"  # Example override
+

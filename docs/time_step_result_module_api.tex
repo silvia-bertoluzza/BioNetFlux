@@ -1,0 +1,551 @@
+% Time Step Result Module Detailed API Documentation
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/time_step_result_module_api}
+
+\section{Time Step Result Module Detailed API Reference}
+\label{sec:time_step_result_module_api}
+
+This section provides an exact reference for the time step result. The module provides comprehensive data containers for storing and analyzing the results of individual time step computations in the BioNetFlux time integration framework.
+
+\subsection{Module Overview}
+
+The time step result module provides:
+\begin{itemize}
+    \item Comprehensive data containers for time step computation results
+    \item Detailed convergence and performance information storage
+    \item Formatted output methods for result analysis
+    \item Integration with TimeStepper and Newton solver components
+    \item Support for convergence history tracking and statistical analysis
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+from dataclasses import dataclass
+from typing import List, Optional
+import numpy as np
+import time
+\end{lstlisting}
+
+\subsection{TimeStepResult Class}
+\label{subsec:time_step_result_class}
+
+Main dataclass that encapsulates all information about a single time step computation, including convergence status, iteration details, and performance metrics.
+
+\subsubsection{Class Definition}
+
+\begin{lstlisting}[language=Python, caption=TimeStepResult Class Definition]
+@dataclass
+class TimeStepResult:
+    """Container for time step results and convergence information."""
+    
+    # Core results
+    converged: bool
+    iterations: int
+    final_residual_norm: float
+    updated_solution: np.ndarray
+    updated_bulk_data: List
+    computation_time: float
+    
+    # Optional detailed info
+    residual_history: Optional[List[float]] = None
+    jacobian_condition: Optional[float] = None
+    newton_step_norms: Optional[List[float]] = None
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{4.5cm}|p{3.5cm}|p{6cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{converged} & \texttt{bool} & Convergence status of the time step computation \\
+\hline
+
+\texttt{iterations} & \texttt{int} & Number of Newton iterations performed \\
+\hline
+
+\texttt{final\_residual\_norm} & \texttt{float} & Final L2 norm of the residual vector \\
+\hline
+
+\texttt{updated\_solution} & \texttt{np.ndarray} & Global solution vector at new time step \\
+\hline
+
+\texttt{updated\_bulk\_data} & \texttt{List} & List of updated BulkData objects for all domains \\
+\hline
+
+\texttt{computation\_time} & \texttt{float} & Total wall-clock time for time step computation (seconds) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Optional Detailed Attributes}
+
+\begin{longtable}{|p{4.5cm}|p{4.2cm}|p{6cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{residual\_history} & \texttt{Optional[List[float]]} & Residual norm at each Newton iteration (None if not tracked) \\
+\hline
+
+\texttt{jacobian\_condition} & \texttt{Optional[float]} & Condition number of final Jacobian matrix (None if not computed) \\
+\hline
+
+\texttt{newton\_step\_norms} & \texttt{Optional[List[float]]} & L2 norm of Newton step at each iteration (None if not tracked) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{String Representation Methods}
+
+\paragraph{\_\_str\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=String Representation Method]
+def __str__(self) -> str:
+    status = "CONVERGED" if self.converged else "FAILED"
+    return (f"TimeStepResult({status}, {self.iterations} iterations, "
+            f"residual={self.final_residual_norm:.6e}, "
+            f"time={self.computation_time:.4f}s)")
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Compact string representation with key metrics
+
+\textbf{Example Output:}
+\begin{lstlisting}[language=Python, caption=Example String Output]
+TimeStepResult(CONVERGED, 5 iterations, residual=1.234567e-11, time=0.0234s)
+TimeStepResult(FAILED, 20 iterations, residual=2.345678e-05, time=0.1456s)
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=String Representation Usage]
+result = time_stepper.advance_time_step(current_solution, current_bulk_data, 
+                                       current_time, dt)
+print(result)  # Prints compact summary
+print(f"Status: {result}")  # Same output in formatted string
+\end{lstlisting}
+
+\paragraph{summary()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Summary Method]
+def summary(self) -> str:
+    """Generate a detailed summary string."""
+\end{lstlisting}
+
+\textbf{Returns:} \texttt{str} - Detailed multi-line summary with comprehensive information
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Summary Method Implementation]
+def summary(self) -> str:
+    """Generate a detailed summary string."""
+    lines = [
+        f"Time Step Result Summary:",
+        f"  Status: {'CONVERGED' if self.converged else 'FAILED TO CONVERGE'}",
+        f"  Newton iterations: {self.iterations}",
+        f"  Final residual norm: {self.final_residual_norm:.6e}",
+        f"  Computation time: {self.computation_time:.4f} seconds",
+        f"  Solution vector size: {len(self.updated_solution)}",
+        f"  Bulk data domains: {len(self.updated_bulk_data)}"
+    ]
+    
+    if self.jacobian_condition is not None:
+        lines.append(f"  Final Jacobian condition: {self.jacobian_condition:.2e}")
+    
+    if self.residual_history is not None:
+        lines.append(f"  Residual reduction: {self.residual_history[0]:.2e} → {self.residual_history[-1]:.2e}")
+    
+    return "\n".join(lines)
+\end{lstlisting}
+
+\textbf{Example Output:}
+\begin{lstlisting}[language=Python, caption=Example Summary Output]
+Time Step Result Summary:
+  Status: CONVERGED
+  Newton iterations: 5
+  Final residual norm: 1.234567e-11
+  Computation time: 0.0234 seconds
+  Solution vector size: 168
+  Bulk data domains: 3
+  Final Jacobian condition: 2.34e+03
+  Residual reduction: 1.23e-02 → 1.23e-11
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Summary Usage]
+result = time_stepper.advance_time_step(current_solution, current_bulk_data, 
+                                       current_time, dt)
+print(result.summary())  # Prints detailed information
+
+# Write to file
+with open("time_step_results.txt", "a") as f:
+    f.write(f"Time step {step_number}:\n")
+    f.write(result.summary())
+    f.write("\n" + "="*50 + "\n")
+\end{lstlisting}
+
+%\subsubsection{Data Access and Analysis Methods}
+%
+%\paragraph{Convergence Analysis}\leavevmode
+%
+%The \texttt{TimeStepResult} class provides direct access to convergence information through its attributes:
+%
+%\begin{lstlisting}[language=Python, caption=Convergence Analysis Examples]
+%def analyze_convergence(result: TimeStepResult) -> Dict[str, Any]:
+%    """Analyze convergence characteristics of a time step result."""
+%    
+%    analysis = {
+%        'converged': result.converged,
+%        'iterations': result.iterations,
+%        'final_residual': result.final_residual_norm,
+%        'computation_time': result.computation_time
+%    }
+%    
+%    # Convergence rate analysis
+%    if result.residual_history and len(result.residual_history) > 1:
+%        initial_residual = result.residual_history[0]
+%        final_residual = result.residual_history[-1]
+%        
+%        if initial_residual > 0:
+%            reduction_factor = final_residual / initial_residual
+%            analysis['residual_reduction_factor'] = reduction_factor
+%            
+%            # Estimate convergence rate
+%            if result.iterations > 1:
+%                rate = np.log(reduction_factor) / result.iterations
+%                analysis['average_convergence_rate'] = rate
+%    
+%    # Newton step analysis
+%    if result.newton_step_norms:
+%        analysis['max_newton_step'] = max(result.newton_step_norms)
+%        analysis['min_newton_step'] = min(result.newton_step_norms)
+%        analysis['average_newton_step'] = np.mean(result.newton_step_norms)
+%    
+%    # Jacobian conditioning
+%    if result.jacobian_condition is not None:
+%        analysis['jacobian_condition'] = result.jacobian_condition
+%        analysis['well_conditioned'] = result.jacobian_condition < 1e6
+%    
+%    return analysis
+%
+%# Usage
+%result = time_stepper.advance_time_step(...)
+%convergence_info = analyze_convergence(result)
+%print(f"Convergence rate: {convergence_info.get('average_convergence_rate', 'N/A')}")
+%\end{lstlisting}
+%
+%\paragraph{Performance Analysis}\leavevmode
+%
+%\begin{lstlisting}[language=Python, caption=Performance Analysis Examples]
+%def analyze_performance(results: List[TimeStepResult]) -> Dict[str, float]:
+%    """Analyze performance across multiple time step results."""
+%    
+%    if not results:
+%        return {}
+%    
+%    # Filter successful steps
+%    successful_results = [r for r in results if r.converged]
+%    
+%    if not successful_results:
+%        return {'success_rate': 0.0}
+%    
+%    # Timing statistics
+%    computation_times = [r.computation_time for r in successful_results]
+%    
+%    # Iteration statistics
+%    iterations = [r.iterations for r in successful_results]
+%    
+%    # Residual statistics
+%    final_residuals = [r.final_residual_norm for r in successful_results]
+%    
+%    analysis = {
+%        'success_rate': len(successful_results) / len(results),
+%        'total_computation_time': sum(computation_times),
+%        'average_computation_time': np.mean(computation_times),
+%        'max_computation_time': max(computation_times),
+%        'min_computation_time': min(computation_times),
+%        'average_iterations': np.mean(iterations),
+%        'max_iterations': max(iterations),
+%        'min_iterations': min(iterations),
+%        'average_final_residual': np.mean(final_residuals),
+%        'max_final_residual': max(final_residuals),
+%        'min_final_residual': min(final_residuals)
+%    }
+%    
+%    return analysis
+%
+%# Usage
+%results = time_stepper.advance_multiple_steps(...)
+%performance_stats = analyze_performance(results)
+%print(f"Success rate: {performance_stats['success_rate']*100:.1f}%")
+%print(f"Average time per step: {performance_stats['average_computation_time']:.4f}s")
+%print(f"Average Newton iterations: {performance_stats['average_iterations']:.1f}")
+%\end{lstlisting}
+
+\subsubsection{Integration with Time Stepper Components}
+
+\paragraph{Creation by TimeStepper}\leavevmode
+
+The \texttt{TimeStepResult} objects are created by the \texttt{TimeStepper.advance\_time\_step()} method:
+
+\begin{lstlisting}[language=Python, caption=TimeStepResult Creation Pattern]
+# Successful time step result creation
+return TimeStepResult(
+    converged=True,
+    iterations=newton_result.iterations,
+    final_residual_norm=newton_result.final_residual_norm,
+    updated_solution=newton_result.final_solution,
+    updated_bulk_data=updated_bulk_data,
+    computation_time=total_time,
+    residual_history=newton_result.residual_history,
+    jacobian_condition=newton_result.jacobian_condition,
+    newton_step_norms=newton_result.step_norms
+)
+
+# Failed time step result creation
+return TimeStepResult(
+    converged=False,
+    iterations=newton_result.iterations,
+    final_residual_norm=newton_result.final_residual_norm,
+    updated_solution=newton_result.final_solution,
+    updated_bulk_data=current_bulk_data,  # Keep old bulk data
+    computation_time=time.time() - start_time,
+    residual_history=newton_result.residual_history,
+    jacobian_condition=newton_result.jacobian_condition,
+    newton_step_norms=newton_result.step_norms
+)
+\end{lstlisting}
+
+\paragraph{Data Flow Integration}\leavevmode
+
+\begin{lstlisting}[language=Python, caption=TimeStepResult Data Flow]
+# Time stepping loop using TimeStepResult
+current_solution, current_bulk_data = time_stepper.initialize_solution()
+results_history = []
+
+while current_time < T:
+    # Advance time step
+    result = time_stepper.advance_time_step(
+        current_solution=current_solution,
+        current_bulk_data=current_bulk_data,
+        current_time=current_time,
+        dt=dt
+    )
+    
+    # Store result for analysis
+    results_history.append(result)
+    
+    # Check convergence and update state
+    if result.converged:
+        print(f"✓ Step successful: {result}")
+        
+        # Update state from result
+        current_time += dt
+        current_solution = result.updated_solution
+        current_bulk_data = result.updated_bulk_data
+    else:
+        print(f"✗ Step failed: {result}")
+        print(result.summary())
+        break
+
+# Analyze results
+performance_stats = analyze_performance(results_history)
+print(f"Overall success rate: {performance_stats['success_rate']*100:.1f}%")
+\end{lstlisting}
+
+\subsubsection{Advanced Usage Patterns}
+
+\paragraph{Convergence Monitoring}\leavevmode
+
+\begin{lstlisting}[language=Python, caption=Convergence Monitoring with TimeStepResult]
+def monitor_convergence(result: TimeStepResult, tolerance_warning: float = 1e-8):
+    """Monitor convergence and issue warnings if needed."""
+    
+    if not result.converged:
+        print(f"⚠️  CONVERGENCE FAILURE:")
+        print(f"    Newton iterations: {result.iterations}")
+        print(f"    Final residual: {result.final_residual_norm:.2e}")
+        print(f"    Computation time: {result.computation_time:.4f}s")
+        
+        if result.jacobian_condition and result.jacobian_condition > 1e12:
+            print(f"    ⚠️  Jacobian poorly conditioned: {result.jacobian_condition:.2e}")
+        
+        return False
+    
+    # Check for slow convergence
+    if result.final_residual_norm > tolerance_warning:
+        print(f"⚠️  SLOW CONVERGENCE:")
+        print(f"    Final residual: {result.final_residual_norm:.2e}")
+        print(f"    Above warning threshold: {tolerance_warning:.2e}")
+    
+    # Check for excessive iterations
+    if result.iterations > 15:
+        print(f"⚠️  HIGH ITERATION COUNT: {result.iterations} iterations")
+        
+        if result.residual_history:
+            print(f"    Convergence progress: {result.residual_history[0]:.2e} → {result.residual_history[-1]:.2e}")
+    
+    return True
+
+# Usage in time stepping loop
+result = time_stepper.advance_time_step(...)
+convergence_ok = monitor_convergence(result, tolerance_warning=1e-8)
+
+if not convergence_ok:
+    # Handle convergence issues
+    print("Considering smaller time step or different solver parameters")
+\end{lstlisting}
+
+
+\begin{warningbox}
+A number of features, such as \emph{Adaptive time stepping integration}, \emph{Result serialization and persistence}, \emph{integration with newton solvers results} are not yet implemented -- Suggestions available in the documentatuin TeX file in a commented out portion
+\end{warningbox}	
+	
+
+
+%\paragraph{Adaptive Time Stepping Integration}\leavevmode
+%
+%\begin{lstlisting}[language=Python, caption=TimeStepResult Integration with Adaptive Stepping]
+%def suggest_next_timestep(result: TimeStepResult, current_dt: float, 
+%                         dt_min: float = 1e-6, dt_max: float = 0.1) -> float:
+%    """Suggest next time step based on convergence performance."""
+%    
+%    if not result.converged:
+%        # Reduce time step for convergence failure
+%        return max(current_dt * 0.5, dt_min)
+%    
+%    # Adapt based on Newton iteration count
+%    if result.iterations <= 3:
+%        # Fast convergence - can increase dt
+%        suggested_dt = min(current_dt * 1.2, dt_max)
+%    elif result.iterations <= 8:
+%        # Good convergence - keep dt
+%        suggested_dt = current_dt
+%    else:
+%        # Slow convergence - reduce dt
+%        suggested_dt = max(current_dt * 0.8, dt_min)
+%    
+%    # Additional checks based on residual behavior
+%    if (result.residual_history and len(result.residual_history) > 1 
+%        and result.residual_history[-2] > 0):
+%        
+%        # Check convergence rate in final iterations
+%        final_reduction = result.residual_history[-1] / result.residual_history[-2]
+%        if final_reduction > 0.9:  # Very slow final convergence
+%            suggested_dt = max(suggested_dt * 0.9, dt_min)
+%    
+%    return suggested_dt
+%
+%# Usage in adaptive time stepping
+%result = time_stepper.advance_time_step(...)
+%next_dt = suggest_next_timestep(result, current_dt)
+%
+%if abs(next_dt - current_dt) / current_dt > 0.1:  # Significant change
+%    print(f"Adjusting time step: {current_dt:.6f} → {next_dt:.6f}")
+%\end{lstlisting}
+%
+%\subsubsection{Result Serialization and Persistence}
+%
+%\paragraph{Data Export}\leavevmode
+%
+%\begin{lstlisting}[language=Python, caption=TimeStepResult Data Export]
+%def export_results_to_dict(result: TimeStepResult) -> Dict[str, Any]:
+%    """Export TimeStepResult to dictionary for serialization."""
+%    
+%    data = {
+%        'converged': result.converged,
+%        'iterations': result.iterations,
+%        'final_residual_norm': result.final_residual_norm,
+%        'computation_time': result.computation_time,
+%        'solution_shape': result.updated_solution.shape,
+%        'solution_norm': np.linalg.norm(result.updated_solution),
+%        'bulk_data_count': len(result.updated_bulk_data)
+%    }
+%    
+%    # Optional detailed data
+%    if result.residual_history:
+%        data['residual_history'] = result.residual_history
+%    
+%    if result.jacobian_condition is not None:
+%        data['jacobian_condition'] = result.jacobian_condition
+%    
+%    if result.newton_step_norms:
+%        data['newton_step_norms'] = result.newton_step_norms
+%    
+%    return data
+%
+%def export_results_to_csv(results: List[TimeStepResult], filename: str):
+%    """Export time step results to CSV file."""
+%    import csv
+%    
+%    with open(filename, 'w', newline='') as csvfile:
+%        fieldnames = ['step', 'converged', 'iterations', 'final_residual_norm', 
+%                     'computation_time', 'jacobian_condition']
+%        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
+%        
+%        writer.writeheader()
+%        for i, result in enumerate(results):
+%            writer.writerow({
+%                'step': i + 1,
+%                'converged': result.converged,
+%                'iterations': result.iterations,
+%                'final_residual_norm': result.final_residual_norm,
+%                'computation_time': result.computation_time,
+%                'jacobian_condition': result.jacobian_condition or 'N/A'
+%            })
+%
+%# Usage
+%results = time_stepper.advance_multiple_steps(...)
+%export_results_to_csv(results, "time_step_analysis.csv")
+%\end{lstlisting}
+%
+%\subsection{Integration with Newton Solver Results}
+%
+%The \texttt{TimeStepResult} class integrates closely with the \texttt{NewtonResult} class from the Newton solver module:
+%
+%\begin{lstlisting}[language=Python, caption=Newton Result Integration]
+%# Data flow from NewtonResult to TimeStepResult
+%newton_result = newton_solver.solve(...)
+%
+%time_step_result = TimeStepResult(
+%    converged=newton_result.converged,
+%    iterations=newton_result.iterations,
+%    final_residual_norm=newton_result.final_residual_norm,
+%    updated_solution=newton_result.final_solution,
+%    updated_bulk_data=bulk_data,  # Updated separately
+%    computation_time=total_step_time,  # Includes bulk data update time
+%    residual_history=newton_result.residual_history,
+%    jacobian_condition=newton_result.jacobian_condition,
+%    newton_step_norms=newton_result.step_norms
+%)
+%\end{lstlisting}
+
+
+
+\subsection{Key Features and Design Principles}
+
+\begin{itemize}
+    \item \textbf{Comprehensive Data Storage}: Captures all relevant information about time step computation
+    \item \textbf{Optional Detailed Information}: Supports both lightweight and detailed result storage
+    \item \textbf{Formatted Output}: Provides both compact and detailed string representations
+    \item \textbf{Performance Tracking}: Includes timing and convergence performance metrics
+    \item \textbf{Integration Ready}: Designed for seamless integration with TimeStepper and Newton solver
+    \item \textbf{Analysis Support}: Facilitates convergence analysis and performance monitoring
+    \item \textbf{Adaptive Time Stepping}: Provides data needed for automatic time step control
+    \item \textbf{Debugging Support}: Rich information for troubleshooting convergence issues
+    \item \textbf{Serialization Ready}: Structured data format suitable for export and persistence
+    \item \textbf{Dataclass Implementation}: Leverages Python dataclass for clean, efficient implementation
+\end{itemize}
+
+This documentation provides an exact reference for the \texttt{TimeStepResult} module, emphasizing its role as the comprehensive data container for time step computation results and its integration with the broader BioNetFlux time integration framework.
+
+\begin{todobox}
+	\begin{itemize}
+		\item 	Add features suggested in the above warning box 
+		\item Merge with the \tt{time\_stepper} module
+	\end{itemize}
+\end{todobox}
+
+
+% End of time step result module detailed API documentation

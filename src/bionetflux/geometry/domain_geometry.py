@@ -2,6 +2,56 @@ import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 from dataclasses import dataclass
 
+# Constants for special boundary types
+EXTERIOR_BOUNDARY = -1
+PERIODIC_BOUNDARY = -2
+SYMMETRY_BOUNDARY = -3
+
+
+@dataclass
+class ConnectionInfo:
+    """
+    Container for domain connection information.
+    """
+    domain1_id: int
+    domain2_id: int
+    parameter1: float  # Parameter value in domain1 where connection is made
+    parameter2: float  # Parameter value in domain2 where connection is made
+    metadata: Dict[str, Any] = None
+    
+    def __post_init__(self):
+        if self.metadata is None:
+            self.metadata = {}
+    
+    def is_boundary_connection(self) -> bool:
+        """Check if this is a boundary connection."""
+        return self.domain2_id < 0
+    
+    def is_exterior_boundary(self) -> bool:
+        """Check if this is an exterior boundary connection."""
+        return self.domain2_id == EXTERIOR_BOUNDARY
+    
+    def is_periodic_boundary(self) -> bool:
+        """Check if this is a periodic boundary connection."""
+        return self.domain2_id == PERIODIC_BOUNDARY
+    
+    def is_symmetry_boundary(self) -> bool:
+        """Check if this is a symmetry boundary connection."""
+        return self.domain2_id == SYMMETRY_BOUNDARY
+    
+    def get_boundary_type(self) -> Optional[str]:
+        """Get the boundary type as a string, or None if not a boundary connection."""
+        if not self.is_boundary_connection():
+            return None
+        elif self.is_exterior_boundary():
+            return "exterior"
+        elif self.is_periodic_boundary():
+            return "periodic"
+        elif self.is_symmetry_boundary():
+            return "symmetry"
+        else:
+            return f"unknown_boundary_{self.domain2_id}"
+
 
 @dataclass
 class DomainInfo:
@@ -14,6 +64,7 @@ class DomainInfo:
     domain_start: float = 0.0           # Parameter space start
     domain_length: float = 1.0          # Parameter space length
     name: Optional[str] = None
+    display_color: str = "blue"         # Color for matplotlib plotting
     metadata: Dict[str, Any] = None
     
     def __post_init__(self):
@@ -63,6 +114,7 @@ class DomainGeometry:
         """
         self.name = name
         self.domains: List[DomainInfo] = []
+        self.connections: List[ConnectionInfo] = []  # NEW: List of domain connections
         self._next_id = 0
         self._global_metadata: Dict[str, Any] = {}
     
@@ -72,6 +124,7 @@ class DomainGeometry:
                    domain_start: Optional[float] = None,
                    domain_length: Optional[float] = None,
                    name: Optional[str] = None,
+                   display_color: str = "blue",
                    **metadata) -> int:
         """
         Add a domain (segment) to the geometry.
@@ -82,6 +135,7 @@ class DomainGeometry:
             domain_start: Parameter space start (default: 0.0)
             domain_length: Parameter space length (default: Euclidean distance)
             name: Optional domain name
+            display_color: Color for matplotlib plotting (default: "blue")
             **metadata: Additional domain-specific metadata
             
         Returns:
@@ -109,6 +163,7 @@ class DomainGeometry:
             domain_start=domain_start,
             domain_length=domain_length,
             name=name,
+            display_color=display_color,
             metadata=metadata
         )
         
@@ -144,6 +199,10 @@ class DomainGeometry:
     def num_domains(self) -> int:
         """Get number of domains in geometry."""
         return len(self.domains)
+    
+    def num_connections(self) -> int:
+        """Get number of connections in geometry."""
+        return len(self.connections)
     
     def get_bounding_box(self) -> Dict[str, float]:
         """
@@ -218,6 +277,145 @@ class DomainGeometry:
         
         self._next_id = len(self.domains)
     
+    def add_connection(self,
+                      domain1_id: int,
+                      domain2_id: int,
+                      parameter1: float,
+                      parameter2: float = 0.0,
+                      **metadata) -> int:
+        """
+        Add a connection between two domains or mark a boundary point.
+        
+        Args:
+            domain1_id: ID of first domain
+            domain2_id: ID of second domain, or boundary type constant (EXTERIOR_BOUNDARY, etc.)
+            parameter1: Parameter value in domain1 where connection is made
+            parameter2: Parameter value in domain2 (ignored for boundary connections, default: 0.0)
+            **metadata: Additional connection-specific metadata
+            
+        Returns:
+            Connection index in the connections list
+            
+        Raises:
+            IndexError: If domain IDs are invalid
+            ValueError: If parameter values are out of domain range
+        """
+        # Validate domain1_id
+        if domain1_id < 0 or domain1_id >= len(self.domains):
+            raise IndexError(f"Domain ID {domain1_id} out of range [0, {len(self.domains)-1}]")
+        
+        domain1 = self.domains[domain1_id]
+        
+        # Validate parameter1 range
+        domain1_end = domain1.domain_start + domain1.domain_length
+        if not (domain1.domain_start <= parameter1 <= domain1_end):
+            raise ValueError(f"Parameter1 {parameter1} not in domain {domain1_id} range [{domain1.domain_start}, {domain1_end}]")
+        
+        # Handle boundary connections (domain2_id < 0)
+        if domain2_id < 0:
+            # Boundary connection - parameter2 is ignored
+            connection = ConnectionInfo(
+                domain1_id=domain1_id,
+                domain2_id=domain2_id,
+                parameter1=parameter1,
+                parameter2=0.0,  # Not used for boundary connections
+                metadata=metadata
+            )
+        else:
+            # Regular domain-to-domain connection
+            if domain2_id >= len(self.domains):
+                raise IndexError(f"Domain ID {domain2_id} out of range [0, {len(self.domains)-1}]")
+            
+            domain2 = self.domains[domain2_id]
+            
+            # Validate parameter2 range
+            domain2_end = domain2.domain_start + domain2.domain_length
+            if not (domain2.domain_start <= parameter2 <= domain2_end):
+                raise ValueError(f"Parameter2 {parameter2} not in domain {domain2_id} range [{domain2.domain_start}, {domain2_end}]")
+            
+            connection = ConnectionInfo(
+                domain1_id=domain1_id,
+                domain2_id=domain2_id,
+                parameter1=parameter1,
+                parameter2=parameter2,
+                metadata=metadata
+            )
+        
+        # Add to connections list
+        self.connections.append(connection)
+        return len(self.connections) - 1
+    
+    def add_exterior_boundary(self, domain_id: int, parameter: float, **metadata) -> int:
+        """
+        Convenience method to add an exterior boundary point.
+        
+        Args:
+            domain_id: Domain ID
+            parameter: Parameter value where boundary occurs
+            **metadata: Additional boundary metadata (e.g., boundary_condition="neumann")
+            
+        Returns:
+            Connection index
+        """
+        return self.add_connection(domain_id, EXTERIOR_BOUNDARY, parameter, **metadata)
+    
+    def add_periodic_boundary(self, domain_id: int, parameter: float, **metadata) -> int:
+        """
+        Convenience method to add a periodic boundary point.
+        
+        Args:
+            domain_id: Domain ID
+            parameter: Parameter value where boundary occurs
+            **metadata: Additional boundary metadata
+            
+        Returns:
+            Connection index
+        """
+        return self.add_connection(domain_id, PERIODIC_BOUNDARY, parameter, **metadata)
+    
+    def add_symmetry_boundary(self, domain_id: int, parameter: float, **metadata) -> int:
+        """
+        Convenience method to add a symmetry boundary point.
+        
+        Args:
+            domain_id: Domain ID
+            parameter: Parameter value where boundary occurs
+            **metadata: Additional boundary metadata
+            
+        Returns:
+            Connection index
+        """
+        return self.add_connection(domain_id, SYMMETRY_BOUNDARY, parameter, **metadata)
+    
+    def get_boundary_connections(self) -> List[ConnectionInfo]:
+        """Get all boundary connections (exterior, periodic, symmetry)."""
+        return [conn for conn in self.connections if conn.is_boundary_connection()]
+    
+    def get_interior_connections(self) -> List[ConnectionInfo]:
+        """Get all interior (domain-to-domain) connections."""
+        return [conn for conn in self.connections if not conn.is_boundary_connection()]
+    
+    def get_connections_by_type(self, boundary_type: str) -> List[ConnectionInfo]:
+        """
+        Get connections by type.
+        
+        Args:
+            boundary_type: "exterior", "periodic", "symmetry", or "interior"
+            
+        Returns:
+            List of connections of the specified type
+        """
+        if boundary_type == "interior":
+            return self.get_interior_connections()
+        elif boundary_type == "exterior":
+            return [conn for conn in self.connections if conn.is_exterior_boundary()]
+        elif boundary_type == "periodic":
+            return [conn for conn in self.connections if conn.is_periodic_boundary()]
+        elif boundary_type == "symmetry":
+            return [conn for conn in self.connections if conn.is_symmetry_boundary()]
+        else:
+            raise ValueError(f"Unknown boundary type: {boundary_type}")
+    
     def total_length(self) -> float:
         """Calculate total Euclidean length of all domains."""
         return sum(domain.euclidean_length() for domain in self.domains)
@@ -227,6 +425,7 @@ class DomainGeometry:
         lines = [
             f"Geometry: {self.name}",
             f"Number of domains: {len(self.domains)}",
+            f"Number of connections: {len(self.connections)}",
             f"Total length: {self.total_length():.3f}",
             "Domains:"
         ]
@@ -236,6 +435,18 @@ class DomainGeometry:
             lines.append(f"    Extrema: {domain.extrema_start} → {domain.extrema_end}")
             lines.append(f"    Parameter: [{domain.domain_start:.3f}, {domain.domain_start + domain.domain_length:.3f}]")
             lines.append(f"    Length: {domain.euclidean_length():.3f}")
+        
+        # Add connections summary with type information
+        if self.connections:
+            lines.append("Connections:")
+            for i, connection in enumerate(self.connections):
+                if connection.is_boundary_connection():
+                    boundary_type = connection.get_boundary_type()
+                    lines.append(f"  {i}: Domain {connection.domain1_id}@{connection.parameter1:.3f} → "
+                               f"{boundary_type} boundary")
+                else:
+                    lines.append(f"  {i}: Domain {connection.domain1_id}@{connection.parameter1:.3f} ↔ "
+                               f"Domain {connection.domain2_id}@{connection.parameter2:.3f}")
         
         return "\n".join(lines)
     
@@ -305,6 +516,59 @@ class DomainGeometry:
                     warnings.append(f"Overlapping parameter spaces: {domain1.name} [{start1:.3f}, {end1:.3f}] "
                                   f"and {domain2.name} [{start2:.3f}, {end2:.3f}]")
         
+        # Validate connections
+        for i, connection in enumerate(self.connections):
+            # Check domain1_id exists
+            if connection.domain1_id >= len(self.domains):
+                issues.append(f"Connection {i}: domain1_id {connection.domain1_id} does not exist")
+                continue
+            
+            # Check parameter1 range
+            domain1 = self.domains[connection.domain1_id]
+            domain1_end = domain1.domain_start + domain1.domain_length
+            if not (domain1.domain_start <= connection.parameter1 <= domain1_end):
+                issues.append(f"Connection {i}: parameter1 {connection.parameter1} out of domain {connection.domain1_id} range")
+            
+            if connection.is_boundary_connection():
+                # Validate boundary connection
+                if connection.domain2_id not in [EXTERIOR_BOUNDARY, PERIODIC_BOUNDARY, SYMMETRY_BOUNDARY]:
+                    warnings.append(f"Connection {i}: unknown boundary type {connection.domain2_id}")
+            else:
+                # Validate regular connection
+                if connection.domain2_id >= len(self.domains):
+                    issues.append(f"Connection {i}: domain2_id {connection.domain2_id} does not exist")
+                    continue
+                
+                # Check parameter2 range
+                domain2 = self.domains[connection.domain2_id]
+                domain2_end = domain2.domain_start + domain2.domain_length
+                if not (domain2.domain_start <= connection.parameter2 <= domain2_end):
+                    issues.append(f"Connection {i}: parameter2 {connection.parameter2} out of domain {connection.domain2_id} range")
+                
+                # Check for self-connections
+                if connection.domain1_id == connection.domain2_id:
+                    warnings.append(f"Connection {i}: self-connection in domain {connection.domain1_id}")
+        
+        # Check for duplicate connections (updated for boundary connections)
+        for i, conn1 in enumerate(self.connections):
+            for j, conn2 in enumerate(self.connections[i+1:], i+1):
+                if conn1.is_boundary_connection() and conn2.is_boundary_connection():
+                    # Check for duplicate boundary connections
+                    if (conn1.domain1_id == conn2.domain1_id and 
+                        conn1.domain2_id == conn2.domain2_id and
+                        abs(conn1.parameter1 - conn2.parameter1) < 1e-12):
+                        warnings.append(f"Duplicate boundary connections: {i} and {j}")
+                elif not conn1.is_boundary_connection() and not conn2.is_boundary_connection():
+                    # Check for duplicate interior connections (bidirectional)
+                    same_connection = (
+                        (conn1.domain1_id == conn2.domain1_id and conn1.domain2_id == conn2.domain2_id and
+                         abs(conn1.parameter1 - conn2.parameter1) < 1e-12 and abs(conn1.parameter2 - conn2.parameter2) < 1e-12) or
+                        (conn1.domain1_id == conn2.domain2_id and conn1.domain2_id == conn2.domain1_id and
+                         abs(conn1.parameter1 - conn2.parameter2) < 1e-12 and abs(conn1.parameter2 - conn2.parameter1) < 1e-12)
+                    )
+                    if same_connection:
+                        warnings.append(f"Duplicate interior connections: {i} and {j}")
+        
         # Report results
         if verbose:
             if issues:
@@ -320,6 +584,10 @@ class DomainGeometry:
                     print(f"    ⚠ {warning}")
             else:
                 print("  ✓ No warnings")
+            
+            # Connection validation summary
+            if self.connections:
+                print(f"  Connection validation: {len(self.connections)} connections checked")
         
         # Return True only if no critical issues (warnings don't affect validation)
         return len(issues) == 0
@@ -533,53 +801,56 @@ class DomainGeometry:
         
         # 1. Simple linear chain
         linear = cls("linear_chain")
-        linear.add_domain((0.0, 0.0), (1.0, 0.0), name="segment1")
-        linear.add_domain((1.0, 0.0), (2.0, 0.0), name="segment2")
-        linear.add_domain((2.0, 0.0), (3.0, 0.0), name="segment3")
+        linear.add_domain((0.0, 0.0), (1.0, 0.0), name="segment1", display_color="red")
+        linear.add_domain((1.0, 0.0), (2.0, 0.0), name="segment2", display_color="green")
+        linear.add_domain((2.0, 0.0), (3.0, 0.0), name="segment3", display_color="blue")
         geometries["linear"] = linear
         
         # 2. T-junction
         t_junction = cls("t_junction")
-        t_junction.add_domain((0.0, -1.0), (0.0, 1.0), name="main_channel")
-        t_junction.add_domain((0.0, 0.0), (1.0, 0.0), name="side_branch")
+        t_junction.add_domain((0.0, -1.0), (0.0, 1.0), name="main_channel", display_color="darkblue")
+        t_junction.add_domain((0.0, 0.0), (1.0, 0.0), name="side_branch", display_color="orange")
         geometries["t_junction"] = t_junction
         
         # 3. Grid network
         grid = cls("grid_network")
         # Vertical segments
-        grid.add_domain((-0.5, 0.0), (-0.5, 1.0), name="left_vertical")
-        grid.add_domain((0.5, 0.0), (0.5, 1.0), name="right_vertical")
+        grid.add_domain((-0.5, 0.0), (-0.5, 1.0), name="left_vertical", display_color="purple")
+        grid.add_domain((0.5, 0.0), (0.5, 1.0), name="right_vertical", display_color="purple")
         # Horizontal connectors
+        colors = ["red", "orange", "yellow", "green"]
         for i, y in enumerate([0.2, 0.4, 0.6, 0.8]):
-            grid.add_domain((-0.5, y), (0.5, y), name=f"horizontal_{i+1}")
+            color = colors[i % len(colors)]
+            grid.add_domain((-0.5, y), (0.5, y), name=f"horizontal_{i+1}", display_color=color)
         geometries["grid"] = grid
         
         # 4. Star network
         star = cls("star_network")
         center = (0.0, 0.0)
         angles = np.linspace(0, 2*np.pi, 6, endpoint=False)
+        star_colors = ["red", "orange", "yellow", "green", "blue", "purple"]
         for i, angle in enumerate(angles):
             end_point = (np.cos(angle), np.sin(angle))
-            star.add_domain(center, end_point, name=f"branch_{i+1}")
+            star.add_domain(center, end_point, name=f"branch_{i+1}", display_color=star_colors[i])
         geometries["star"] = star
         
         # 5. Complex branching
         branching = cls("complex_branching")
         # Main trunk
-        branching.add_domain((0.0, 0.0), (0.0, 2.0), name="trunk")
+        branching.add_domain((0.0, 0.0), (0.0, 2.0), name="trunk", display_color="brown")
         # Primary branches
-        branching.add_domain((0.0, 1.0), (1.0, 1.5), name="branch_1a")
-        branching.add_domain((0.0, 1.0), (-1.0, 1.5), name="branch_1b")
+        branching.add_domain((0.0, 1.0), (1.0, 1.5), name="branch_1a", display_color="darkgreen")
+        branching.add_domain((0.0, 1.0), (-1.0, 1.5), name="branch_1b", display_color="darkgreen")
         # Secondary branches
-        branching.add_domain((1.0, 1.5), (1.5, 2.0), name="branch_2a")
-        branching.add_domain((1.0, 1.5), (1.5, 1.0), name="branch_2b")
+        branching.add_domain((1.0, 1.5), (1.5, 2.0), name="branch_2a", display_color="lightgreen")
+        branching.add_domain((1.0, 1.5), (1.5, 1.0), name="branch_2b", display_color="lightgreen")
         geometries["branching"] = branching
         
         # 6. Degenerate case (for testing validation)
         degenerate = cls("degenerate_test")
-        degenerate.add_domain((0.0, 0.0), (0.0, 0.0), name="zero_length")  # Zero length
-        degenerate.add_domain((1.0, 1.0), (2.0, 1.0), domain_start=0.5, domain_length=1.0, name="overlap1")
-        degenerate.add_domain((3.0, 1.0), (4.0, 1.0), domain_start=1.0, domain_length=1.0, name="overlap2")
+        degenerate.add_domain((0.0, 0.0), (0.0, 0.0), name="zero_length", display_color="red")  # Zero length
+        degenerate.add_domain((1.0, 1.0), (2.0, 1.0), domain_start=0.5, domain_length=1.0, name="overlap1", display_color="orange")
+        degenerate.add_domain((3.0, 1.0), (4.0, 1.0), domain_start=1.0, domain_length=1.0, name="overlap2", display_color="yellow")
         geometries["degenerate"] = degenerate
         
         return geometries
@@ -699,8 +970,407 @@ class DomainGeometry:
                 print(f"  ✗ Parameter space analysis failed: {e}")
             all_passed = False
         
+        # Test 6: Enhanced connection functionality with boundary support
+        if verbose:
+            print("Test 6: Enhanced connection functionality")
+        
+        try:
+            original_connections = len(self.connections)
+            
+            # Add test domains if none exist
+            if len(self.domains) < 2:
+                test_dom1 = self.add_domain((0.0, 0.0), (1.0, 0.0), name="test_domain_1")
+                test_dom2 = self.add_domain((1.0, 0.0), (2.0, 0.0), name="test_domain_2")
+            else:
+                test_dom1 = 0
+                test_dom2 = 1
+            
+            # Test interior connection
+            interior_conn_id = self.add_connection(
+                domain1_id=test_dom1,
+                domain2_id=test_dom2,
+                parameter1=self.domains[test_dom1].domain_start + self.domains[test_dom1].domain_length,
+                parameter2=self.domains[test_dom2].domain_start
+            )
+            
+            # Test boundary connections
+            exterior_conn_id = self.add_exterior_boundary(test_dom1, self.domains[test_dom1].domain_start)
+            periodic_conn_id = self.add_periodic_boundary(test_dom2, self.domains[test_dom2].domain_start + self.domains[test_dom2].domain_length)
+            
+            # Test connection type queries
+            boundary_connections = self.get_boundary_connections()
+            interior_connections = self.get_interior_connections()
+            exterior_connections = self.get_connections_by_type("exterior")
+            
+            if len(self.connections) != original_connections + 3:
+                if verbose:
+                    print("  ✗ Connection addition failed")
+                all_passed = False
+            elif len(boundary_connections) != 2 or len(interior_connections) != 1:
+                if verbose:
+                    print("  ✗ Connection type classification failed")
+                all_passed = False
+            elif len(exterior_connections) != 1:
+                if verbose:
+                    print("  ✗ Exterior connection query failed")
+                all_passed = False
+            else:
+                if verbose:
+                    print("  ✓ Enhanced connection functionality")
+            
+            # Test helper methods
+            conn = self.get_connection(exterior_conn_id)
+            if not conn.is_boundary_connection() or not conn.is_exterior_boundary():
+                if verbose:
+                    print("  ✗ Boundary connection helper methods failed")
+                all_passed = False
+            else:
+                if verbose:
+                    print("  ✓ Connection helper methods")
+            
+            # Clean up test connections
+            self.remove_connection(periodic_conn_id)
+            self.remove_connection(exterior_conn_id)
+            self.remove_connection(interior_conn_id)
+            
+            # Clean up test domains if we added them
+            if len(self.domains) >= 2 and self.domains[-1].name == "test_domain_2":
+                self.remove_domain(len(self.domains) - 1)
+                self.remove_domain(len(self.domains) - 1)
+            
+        except Exception as e:
+            if verbose:
+                print(f"  ✗ Enhanced connection functionality test failed: {e}")
+            all_passed = False
+        
         if verbose:
             print("=" * 50)
             print(f"Self-test result: {'PASS' if all_passed else 'FAIL'}")
         
         return all_passed
+    
+def build_grid_geometry(N: int = 4):
+    """
+    Build a default OoC grid geometry with vertical segments and horizontal connectors.
+    Includes explicit connections for constraint generation.
+    
+    Args:
+        N: Number of horizontal segments in each section (default: 4)
+    
+    Returns:
+        DomainGeometry: Default grid geometry instance
+    """
+    print(f"Creating default custom grid geometry with N={N}...")
+    
+    geometry = DomainGeometry("default_ooc_grid_geometry")
+    
+    # Vertical segments
+    # S1: Left vertical segment
+    geometry.add_domain(
+        extrema_start=(-1.0, -1.0),
+        extrema_end=(-1.0, 1.0),
+        name="S1_left_vertical",
+        display_color="blue"
+    )
+    
+    # S2: Lower middle vertical segment  
+    geometry.add_domain(
+        extrema_start=(0.0, -1.0),
+        extrema_end=(0.0, -0.1),
+        name="S2_lower_middle_vertical",
+        display_color="green"
+    )
+    
+    # S3: Upper middle vertical segment
+    geometry.add_domain(
+        extrema_start=(0.0, 0.1),
+        extrema_end=(0.0, 1.0),
+        name="S3_upper_middle_vertical",
+        display_color="green"
+    )
+    
+    # S4: Right vertical segment
+    geometry.add_domain(
+        extrema_start=(1.0, -1.0),
+        extrema_end=(1.0, 1.0),
+        name="S4_right_vertical",
+        display_color="blue"
+    )
+    
+    # Horizontal connectors - Lower section (-0.9 < y < -0.2)
+    y_lower_values = np.linspace(-0.9, -0.2, N)
+    
+    print(f"  Adding {N} lower horizontal connectors at y = {y_lower_values}")
+    
+    # Lower connectors: S1 to S2
+    for i, y_pos in enumerate(y_lower_values):
+        geometry.add_domain(
+            extrema_start=(-1.0, y_pos),
+            extrema_end=(0.0, y_pos),
+            name=f"lower_S1_S2_{i+1}",
+            display_color="red"
+        )
+    
+    # Lower connectors: S4 to S2  
+    for i, y_pos in enumerate(y_lower_values):
+        geometry.add_domain(
+            extrema_start=(1.0, y_pos),
+            extrema_end=(0.0, y_pos),
+            name=f"lower_S4_S2_{i+1}",
+            display_color="red"
+        )
+    
+    # Horizontal connectors - Upper section (0.2 < y < 0.9)
+    y_upper_values = np.linspace(0.2, 0.9, N)
+    
+    print(f"  Adding {N} upper horizontal connectors at y = {y_upper_values}")
+    
+    # Upper connectors: S1 to S3
+    for i, y_pos in enumerate(y_upper_values):
+        geometry.add_domain(
+            extrema_start=(-1.0, y_pos),
+            extrema_end=(0.0, y_pos),
+            name=f"upper_S1_S3_{i+1}",
+            display_color="red"
+        )
+    
+    # Upper connectors: S4 to S3
+    for i, y_pos in enumerate(y_upper_values):
+        geometry.add_domain(
+            extrema_start=(1.0, y_pos),
+            extrema_end=(0.0, y_pos),
+            name=f"upper_S4_S3_{i+1}",
+            display_color="red"
+        )
+    
+    # =============================================================================
+    # ADD EXPLICIT CONNECTIONS TO GEOMETRY
+    # =============================================================================
+    print("  Adding explicit connections to geometry...")
+    
+    # External boundary conditions for vertical segments (domains 0, 1, 2, 3)
+    for domain_idx in [0, 1, 2, 3]:  # S1, S2, S3, S4
+        # Add exterior boundary at start of domain
+        geometry.add_exterior_boundary(domain_idx, 0.0)  # domain_start
+        # Add exterior boundary at end of domain
+        domain_length = geometry.get_domain(domain_idx).domain_length
+        geometry.add_exterior_boundary(domain_idx, domain_length)  # domain_end
+    
+    # Interior connections for horizontal-vertical intersections
+    # S1 connections: start of lower S1->S2 and upper S1->S3 connectors with S1 (domain 0)
+    s1_left_lower = list(range(4, 4+N))        # Lower S1->S2 connectors  
+    s1_left_upper = list(range(4+2*N, 4+3*N))  # Upper S1->S3 connectors
+    s1_connections = s1_left_lower + s1_left_upper
+    
+    for domain_idx in s1_connections:
+        # Get horizontal segment info
+        horizontal_domain_info = geometry.get_domain(domain_idx)
+        intersection_y = horizontal_domain_info.extrema_start[1]  # y-coordinate at S1 end
+        
+        # Map to S1 parameter space: S1 spans y ∈ [-1, 1], param ∈ [0, domain_length]
+        s1_param = (intersection_y + 1.0) / 2.0 * geometry.get_domain(0).domain_length
+        
+        # Add connection between horizontal connector start and S1
+        geometry.add_connection(
+            domain1_id=domain_idx,  # Horizontal connector
+            domain2_id=0,           # S1 (left vertical)
+            parameter1=0.0,         # Start of horizontal (at S1)
+            parameter2=s1_param     # Corresponding point on S1
+        )
+    
+    # S4 connections: start of lower S4->S2 and upper S4->S3 connectors with S4 (domain 3)
+    s4_right_lower = list(range(4+N, 4+2*N))    # Lower S4->S2 connectors
+    s4_right_upper = list(range(4+3*N, 4+4*N))  # Upper S4->S3 connectors  
+    s4_connections = s4_right_lower + s4_right_upper
+    
+    for domain_idx in s4_connections:
+        # Get horizontal segment info
+        horizontal_domain_info = geometry.get_domain(domain_idx)
+        intersection_y = horizontal_domain_info.extrema_start[1]  # y-coordinate at S4 end
+        
+        # Map to S4 parameter space: S4 spans y ∈ [-1, 1], param ∈ [0, domain_length]
+        s4_param = (intersection_y + 1.0) / 2.0 * geometry.get_domain(3).domain_length
+        
+        # Add connection between horizontal connector start and S4
+        geometry.add_connection(
+            domain1_id=domain_idx,  # Horizontal connector  
+            domain2_id=3,           # S4 (right vertical)
+            parameter1=0.0,         # Start of horizontal (at S4)
+            parameter2=s4_param     # Corresponding point on S4
+        )
+
+    # S2 connections: end of S1->S2 connectors + end of S4->S2 connectors
+    s2_from_s1 = list(range(4, 4+N))        # End of S1->S2 connectors connects to S2
+    s2_from_s4 = list(range(4+N, 4+2*N))    # End of S4->S2 connectors connects to S2  
+    
+    # End of S1->S2 connectors with S2
+    for domain_idx in s2_from_s1:
+        horizontal_domain_info = geometry.get_domain(domain_idx)
+        intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S2 end
+        
+        # Map to S2 parameter space: S2 spans y ∈ [-1, -0.1], param ∈ [0, domain_length]
+        s2_y_start, s2_y_end = -1.0, -0.1
+        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) * geometry.get_domain(1).domain_length
+        
+        # Add connection between horizontal connector end and S2
+        geometry.add_connection(
+            domain1_id=domain_idx,  # S1->S2 connector
+            domain2_id=1,           # S2 (lower middle vertical)
+            parameter1=geometry.get_domain(domain_idx).domain_length,  # End of horizontal (at S2)
+            parameter2=s2_param     # Corresponding point on S2
+        )
+    
+    # End of S4->S2 connectors with S2  
+    for domain_idx in s2_from_s4:
+        horizontal_domain_info = geometry.get_domain(domain_idx)
+        intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S2 end
+        
+        # Map to S2 parameter space
+        s2_y_start, s2_y_end = -1.0, -0.1
+        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) * geometry.get_domain(1).domain_length
+        
+        # Add connection between horizontal connector end and S2
+        geometry.add_connection(
+            domain1_id=domain_idx,  # S4->S2 connector
+            domain2_id=1,           # S2 (lower middle vertical)
+            parameter1=geometry.get_domain(domain_idx).domain_length,  # End of horizontal (at S2)
+            parameter2=s2_param     # Corresponding point on S2
+        )
+    
+    # S3 connections: end of S1->S3 connectors + end of S4->S3 connectors
+    s3_from_s1 = list(range(4+2*N, 4+3*N))  # End of S1->S3 connectors connects to S3
+    s3_from_s4 = list(range(4+3*N, 4+4*N))  # End of S4->S3 connectors connects to S3
+    
+    # End of S1->S3 connectors with S3
+    for domain_idx in s3_from_s1:
+        horizontal_domain_info = geometry.get_domain(domain_idx)
+        intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S3 end
+        
+        # Map to S3 parameter space: S3 spans y ∈ [0.1, 1.0], param ∈ [0, domain_length]
+        s3_y_start, s3_y_end = 0.1, 1.0
+        s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) * geometry.get_domain(2).domain_length
+        
+        # Add connection between horizontal connector end and S3
+        geometry.add_connection(
+            domain1_id=domain_idx,  # S1->S3 connector
+            domain2_id=2,           # S3 (upper middle vertical)
+            parameter1=geometry.get_domain(domain_idx).domain_length,  # End of horizontal (at S3)
+            parameter2=s3_param     # Corresponding point on S3
+        )
+    
+    # End of S4->S3 connectors with S3
+    for domain_idx in s3_from_s4:
+        horizontal_domain_info = geometry.get_domain(domain_idx)
+        intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S3 end
+        
+        # Map to S3 parameter space
+        s3_y_start, s3_y_end = 0.1, 1.0
+        s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) * geometry.get_domain(2).domain_length
+        
+        # Add connection between horizontal connector end and S3
+        geometry.add_connection(
+            domain1_id=domain_idx,  # S4->S3 connector
+            domain2_id=2,           # S3 (upper middle vertical)  
+            parameter1=geometry.get_domain(domain_idx).domain_length,  # End of horizontal (at S3)
+            parameter2=s3_param     # Corresponding point on S3
+        )
+    
+    print(f"✓ Default grid geometry created:")
+    print(f"  - 4 vertical segments (S1, S2, S3, S4)")
+    print(f"  - {2*N} lower horizontal connectors (-0.9 < y < -0.2)")
+    print(f"  - {2*N} upper horizontal connectors (0.2 < y < 0.9)")
+    print(f"  - Total domains: {geometry.num_domains()}")
+    print(f"  - Total connections: {geometry.num_connections()}")
+    print(f"    - Boundary connections: {len(geometry.get_boundary_connections())}")
+    print(f"    - Interior connections: {len(geometry.get_interior_connections())}")
+    
+    return geometry
+
+def build_arc_sequence_geometry(N: int = 2, start: float = 0.0, length: float = 1.0):
+    """
+    Build an arc sequence geometry with N aligned segments.
+    
+    Creates N consecutive segments of equal length:
+    - Segment 1: from (start, 0.5) to (start + length, 0.5) 
+    - Segment 2: from (start + length, 0.5) to (start + 2*length, 0.5)
+    - ...
+    - Segment N: from (start + (N-1)*length, 0.5) to (start + N*length, 0.5)
+    
+    Each segment has parameter space [0, 1] scaled to its physical length.
+    
+    Args:
+        N: Number of segments (default: 2)
+        start: Starting x-coordinate (default: 0.0)
+        length: Length of each segment (default: 1.0)
+    
+    With connections:
+    - Exterior boundary at start of first segment (parameter 0)
+    - N-1 interior connections between consecutive segments
+    - Exterior boundary at end of last segment (parameter 1)
+    
+    Returns:
+        DomainGeometry: Arc sequence geometry instance
+    """
+    if N < 1:
+        raise ValueError(f"Number of segments N must be at least 1, got {N}")
+    if length <= 0:
+        raise ValueError(f"Segment length must be positive, got {length}")
+    
+    print(f"Creating arc sequence geometry with N={N} segments...")
+    print(f"  Start: x={start}, segment length: {length}")
+    print(f"  Total span: x ∈ [{start}, {start + N*length}]")
+    
+    geometry = DomainGeometry("arc_sequence_geometry")
+    
+    # Add N aligned segments
+    colors = ["red", "green", "blue", "orange", "purple", "brown", "pink", "gray", "cyan", "magenta"]
+    
+    for i in range(N):
+        x_start = start + i * length
+        x_end = start + (i + 1) * length
+        
+        geometry.add_domain(
+            extrema_start=(x_start, 0.5),
+            extrema_end=(x_end, 0.5),
+            domain_start=x_start,
+            domain_length=length,  # Normalized parameter space [0, 1] for each segment
+            name=f"segment_{i+1}",
+            display_color=colors[i % len(colors)]
+        )
+    
+    # Add boundary connections
+    # Exterior boundary at start of first segment (domain 0, parameter 0)
+    geometry.add_exterior_boundary(
+        domain_id=0,
+        parameter=start,
+        boundary_condition="neumann"  # Example metadata
+    )
+    
+    # Exterior boundary at end of last segment (domain N-1, parameter 1)
+    geometry.add_exterior_boundary(
+        domain_id=N-1,
+        parameter=start + length * N,
+        boundary_condition="neumann"  # Example metadata
+    )
+    
+    # Add N-1 interior connections between consecutive segments
+    for i in range(N-1):
+        geometry.add_connection(
+            domain1_id=i,        # Current segment
+            domain2_id=i+1,      # Next segment
+            parameter1 = start + length * (i+1),      # End of current segment
+            parameter2 = start + length * (i+1),      # Start of next segment
+            connection_type="trace_continuity"
+        )
+    
+    print(f"✓ Arc sequence geometry created:")
+    print(f"  - {N} aligned segments along y=0.5")
+    print(f"  - Each segment: length={length}, parameter space [0, 1]")
+    print(f"  - Total physical length: {N*length}")
+    print(f"  - Total domains: {geometry.num_domains()}")
+    print(f"  - Total connections: {geometry.num_connections()}")
+    print(f"    - Boundary connections: {len(geometry.get_boundary_connections())}")
+    print(f"    - Interior connections: {len(geometry.get_interior_connections())}")
+    
+    return geometry
+

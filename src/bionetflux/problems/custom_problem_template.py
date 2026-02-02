@@ -168,7 +168,8 @@ def create_global_framework():
         extrema_end=(1.0, 0.0),
         domain_start=0.0,
         domain_length=1.0,
-        name="placeholder_domain"
+        name="placeholder_domain",
+        display_color="green"
     )
     
     print(f"📝 TODO: Add your geometry.add_domain() calls above")
@@ -221,8 +222,9 @@ def create_global_framework():
         discretization = Discretization(
             domain_start=domain_info.domain_start,
             domain_length=domain_info.domain_length,
-            n_elements=10  # Adjust as needed for your problem
+            n_elements=10,
         )
+        discretization.set_tau([1.0/discretization.element_length, 1.0, 1.0, 1.0])
         discretizations.append(discretization)
     
     print(f"✓ Created {len(problems)} problem instances")

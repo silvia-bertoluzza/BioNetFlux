@@ -6,6 +6,7 @@ Minimizes data redundancy and provides clean interfaces for different problem ty
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 import importlib
+import os
 
 # Core imports
 from bionetflux.core.discretization import Discretization, GlobalDiscretization
@@ -14,28 +15,34 @@ from bionetflux.core.static_condensation_factory import StaticCondensationFactor
 from bionetflux.core.constraints import ConstraintManager
 from bionetflux.core.lean_global_assembly import GlobalAssembler
 from bionetflux.core.lean_bulk_data_manager import BulkDataManager
+from bionetflux.geometry.domain_geometry import DomainGeometry
+
 
 class SolverSetup:
-    """
-    Lean setup class that orchestrates the initialization of all solver components.
-    Maintains minimal data storage and provides efficient access to components.
-    """
+    """Main class that orchestrates initialization of all solver components with lean data storage."""
     
-    def __init__(self, problem_module: str = "bionetflux.problems.test_problem2"):
+    def __init__(self, problem_module: str = "bionetflux.problems.ooc_problem", 
+                 config_file: Optional[str] = None, 
+                 geometry: Optional['DomainGeometry'] = None):
         """
-        Initialize solver setup with specified problem module.
+        Initialize SolverSetup.
         
         Args:
-            problem_module: String path to problem module containing create_global_framework
+            problem_module: String path to problem module (default: "bionetflux.problems.ooc_problem")
+            config_file: Optional path to TOML configuration file
+            geometry: Optional DomainGeometry instance to use for problem creation
         """
         self.problem_module = problem_module
+        self.config_file = config_file  # Store config file path
+        self.input_geometry = geometry  # Store input geometry
         self._initialized = False
         
-        # Core problem data (lean storage)
-        self.problems = None
-        self.global_discretization = None
-        self.constraint_manager = None
-        self.problem_name = None
+        # Framework objects (loaded on initialization)
+        self.problems: Optional[List] = None
+        self.global_discretization: Optional[GlobalDiscretization] = None
+        self.constraint_manager: Optional[ConstraintManager] = None
+        self.problem_name: Optional[str] = None
+        self.geometry: Optional[DomainGeometry] = None
         
         # Computed components (created on demand)
         self._elementary_matrices = None
@@ -44,23 +51,25 @@ class SolverSetup:
         self._bulk_data_manager = None
         
     def initialize(self) -> None:
-        """Initialize the core problem configuration."""
+        """Initialize the solver by calling create_global_framework with config file and geometry support."""
         if self._initialized:
             return
-            
-        # Import and call the problem-specific setup
-        try:
-            problem_mod = importlib.import_module(self.problem_module)
-            create_global_framework = getattr(problem_mod, 'create_global_framework')
-        except (ImportError, AttributeError) as e:
-            raise ImportError(f"Cannot import create_global_framework from {self.problem_module}: {e}")
         
-        # Get core problem configuration
-        self.problems, self.global_discretization, self.constraint_manager, self.problem_name = create_global_framework()
-        self.constraints = self.constraint_manager  # For backward compatibility if needed  
-
+        # Import the problem module
+        module = importlib.import_module(self.problem_module)
+        create_global_framework = getattr(module, 'create_global_framework')
+        
+        # Call with both config_file and geometry parameters
+        results = create_global_framework(
+            geometry=self.input_geometry,
+            config_file=self.config_file
+        )
+        
+        self.problems, self.global_discretization, self.constraint_manager, self.problem_name = results
+        self.constraints = self.constraint_manager  # Alias for backward compatibility
+        
         self._initialized = True
-        
+    
     @property
     def elementary_matrices(self) -> ElementaryMatrices:
         """Get elementary matrices (created once, cached)."""
@@ -339,40 +348,191 @@ class SolverSetup:
                 import traceback
                 traceback.print_exc()
             return False
+    
+    def compute_geometry_from_problems(self, geometry_name: Optional[str] = None) -> DomainGeometry:
+        """
+        Compute DomainGeometry from the problems list using extrema information.
+        
+        Args:
+            geometry_name: Optional name for the geometry (defaults to problem_name)
+            
+        Returns:
+            DomainGeometry: Computed geometry instance
+        """
+        self._ensure_initialized()
+        
+        if not self.problems:
+            raise RuntimeError("No problems available to compute geometry from")
+        
+        # Create geometry with appropriate name
+        if geometry_name is None:
+            geometry_name = f"{self.problem_name}_geometry" if self.problem_name else "computed_geometry"
+        
+        geometry = DomainGeometry(geometry_name)
+        
+        # Add each problem as a domain
+        for i, problem in enumerate(self.problems):
+            # Check if problem has extrema information
+            if not hasattr(problem, 'extrema') or not problem.extrema:
+                # Fallback: create linear segment in parameter space
+                extrema_start = (problem.domain_start, 0.0)
+                extrema_end = (problem.domain_start + problem.domain_length, 0.0)
+                print(f"Warning: Problem {i} has no extrema, using parameter space mapping")
+            else:
+                extrema_start = problem.extrema[0]
+                extrema_end = problem.extrema[1]
+            
+            # Determine domain name
+            domain_name = getattr(problem, 'name', f'domain_{i}')
+            
+            # Determine display color based on problem type or index
+            if hasattr(problem, 'problem_type'):
+                # Color mapping based on problem type
+                type_colors = {
+                    'keller_segel': 'blue',
+                    'organ_on_chip': 'red', 
+                    'advection_diffusion': 'green',
+                    'transport': 'orange',
+                    'reaction_diffusion': 'purple'
+                }
+                display_color = type_colors.get(problem.problem_type.lower(), 'blue')
+            else:
+                # Default color cycling
+                default_colors = ['blue', 'red', 'green', 'orange', 'purple', 'brown', 'pink', 'gray']
+                display_color = default_colors[i % len(default_colors)]
+            
+            # Add domain to geometry
+            geometry.add_domain(
+                extrema_start=extrema_start,
+                extrema_end=extrema_end,
+                domain_start=problem.domain_start,
+                domain_length=problem.domain_length,
+                name=domain_name,
+                display_color=display_color,
+                problem_index=i,  # Store problem index in metadata
+                problem_type=getattr(problem, 'problem_type', 'unknown'),
+                n_equations=problem.neq
+            )
+        
+        # Store computed geometry
+        self.geometry = geometry
+        
+        print(f"✓ Computed geometry '{geometry_name}' with {geometry.num_domains()} domains")
+        
+        # Validate the computed geometry
+        if not geometry.validate_geometry(verbose=False):
+            print("⚠️  Warning: Computed geometry failed validation")
+        
+        return geometry
 
 
-def create_solver_setup(problem_module: str = "bionetflux.problems.test_problem2") -> SolverSetup:
+def create_solver_setup(problem_module: str = "bionetflux.problems.ooc_problem", 
+                       config_file: Optional[str] = None,
+                       geometry: Optional['DomainGeometry'] = None) -> SolverSetup:
     """
-    Factory function to create and initialize a solver setup.
+    Factory function to create and initialize a SolverSetup instance.
     
     Args:
-        problem_module: String path to problem module
+        problem_module: String path to problem module (default: "bionetflux.problems.ooc_problem")
+        config_file: Optional path to TOML configuration file
+        geometry: Optional DomainGeometry instance to use for problem creation
         
     Returns:
-        Initialized SolverSetup instance
+        SolverSetup: Initialized SolverSetup instance
     """
-   
-    setup = SolverSetup(problem_module)
+    setup = SolverSetup(problem_module, config_file, geometry)
     setup.initialize()
     return setup
 
 
-# Convenience functions for common operations
-def quick_setup(problem_module: str = "bionetflux.problems.test_problem2", validate: bool = True) -> SolverSetup:
+def _validate_config_compatibility(problem_module: str, config_file: Optional[str]):
     """
-    Quick setup with optional validation.
+    Validate that the config file is compatible with the problem module.
     
     Args:
-        problem_module: String path to problem module
-        validate: If True, run validation tests
+        problem_module: Problem module name
+        config_file: Path to config file
+        
+    Raises:
+        ValueError: If config is incompatible with problem module
+    """
+    if not config_file or not os.path.exists(config_file):
+        return  # No validation needed if no config file
+    
+    # Extract expected problem type from module name
+    expected_type = None
+    if "ooc" in problem_module.lower():
+        expected_type = "ooc"
+    elif "keller_segel" in problem_module.lower() or "ks" in problem_module.lower():
+        expected_type = "ks" 
+    elif "test_problem" in problem_module.lower():
+        # test_problem modules can be flexible
+        return
+    
+    if not expected_type:
+        print(f"Warning: Could not determine expected problem type for module '{problem_module}'")
+        return
+    
+    # Load appropriate config manager and validate
+    try:
+        if expected_type == "ooc":
+            from bionetflux.problems.ooc_config_manager import OoCConfigManager
+            config_manager = OoCConfigManager()
+        elif expected_type == "ks":
+            from bionetflux.problems.ks_config_manager import KSConfigManager
+            config_manager = KSConfigManager()
+        else:
+            return  # Skip validation for unknown types
+        
+        # Try to load config - this should raise an error if incompatible
+        try:
+            config = config_manager.load_config(config_file)
+            print(f"✓ Config file '{config_file}' is compatible with {expected_type} problem type")
+        except ValueError as e:
+            # Create a cleaner error message without the nested exception details
+            error_msg = str(e)
+            if "problem type" in error_msg.lower():
+                raise ValueError(f"Config file problem type mismatch: {error_msg}")
+            else:
+                raise ValueError(f"Config file validation failed: {error_msg}")
+            
+    except ImportError as e:
+        print(f"Warning: Could not import config manager for {expected_type}: {e}")
+        return
+
+def quick_setup(problem_module: str = "bionetflux.problems.test_problem2", 
+               validate: bool = True,
+               config_file: Optional[str] = None,
+               geometry: Optional['DomainGeometry'] = None) -> SolverSetup:
+    """
+    Factory function for quick solver setup with optional validation.
+    
+    Args:
+        problem_module: String path to problem module (default: "bionetflux.problems.test_problem2")
+        validate: If True, run validation tests (default: True)
+        config_file: Optional path to TOML configuration file (default: None)
+        geometry: Optional DomainGeometry instance to use for problem creation (default: None)
         
     Returns:
-        Validated SolverSetup instance
+        SolverSetup: Validated SolverSetup instance
+        
+    Raises:
+        RuntimeError: If validation fails
+        ValueError: If config file problem type doesn't match problem module
+        ImportError: If config file cannot be loaded
     """
+    print(f"Quick setup: problem_module='{problem_module}', config_file='{config_file}'")
     
-    setup = create_solver_setup(problem_module)
+    # Validate config compatibility BEFORE creating setup
+    if config_file:
+        print(f"Validating config file compatibility...")
+        _validate_config_compatibility(problem_module, config_file)
+    
+    # Create and initialize setup
+    setup = create_solver_setup(problem_module, config_file, geometry)
+    
     if validate:
         if not setup.validate_setup(verbose=True):
             raise RuntimeError("Setup validation failed")
-    
+
     return setup
