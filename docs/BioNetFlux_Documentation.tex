@@ -21,6 +21,9 @@
 \usepackage{tcolorbox}
 \usepackage{enumitem}
 
+% Add TikZ libraries for diagrams
+\usetikzlibrary{shapes,arrows,positioning,fit,backgrounds}
+
 % Define a custom TODO box
 \newtcolorbox{todobox}{
 	colback=yellow!10!white,
@@ -192,6 +195,7 @@
 
 % Main content sections
 \input{sections/introduction}
+\input{sections/workflow_diagram}
 \input{sections/sections2-3-4}
 %\input{sections/creating_problems}
 %\input{sections/geometry_guide}
