@@ -839,19 +839,16 @@ setup = quick_setup("bionetflux.problems.ks_problem", validate=False)
 \subsubsection{Complete Solver Setup and Newton Iteration}
 
 \begin{lstlisting}[language=Python, caption=Complete Solver Setup Example]
-    print("Step 1: Setting up solver...")
-
-
 # STEP 1: SETUP
 
 geometry = build_arc_sequence_geometry(N=4, start=2.0, length=1.0)
 
 setup = quick_setup(
-problem_module="bionetflux.problems.ks_problem",
-validate=True,
-config_file="config.ks_parameters",  # Pass config file
-geometry=geometry         # Pass geometry
-)
+			problem_module="bionetflux.problems.ks_problem",
+			validate=True,
+			config_file="config.ks_parameters",  # Pass config file
+			geometry=geometry         # Pass geometry
+			)
 
 # STEP 2: TIME STEPPER INITIALIZATION 
 
@@ -865,19 +862,17 @@ current_solution, current_bulk_data = time_stepper.initialize_solution()
 
 # Initialize plotter
 plotter = LeanMatplotlibPlotter(
-problems=setup.problems,
-discretizations=setup.global_discretization.spatial_discretizations,
-equation_names=None,  # Auto-detect
-figsize=(15, 10)
-)
+				problems=setup.problems,
+				discretizations=setup.global_discretization.spatial_discretizations,
+				equation_names=None,  # Auto-detect
+				figsize=(15, 10)
+				)
 
 setup.compute_geometry_from_problems()
 plotter.plot_geometry_with_indices(geometry=setup.geometry,
-save_filename="geometry_with_indices.png")
-
+															save_filename="geometry_with_indices.png")
 
 # STEP 4: TIME EVOLUTION (MASSIVELY SIMPLIFIED!)
-
 
 current_time = 0.0
 dt = setup.global_discretization.dt
