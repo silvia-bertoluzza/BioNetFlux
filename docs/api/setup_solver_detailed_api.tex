@@ -628,6 +628,61 @@ multiplier_consistent = np.allclose(multipliers, extracted_multipliers)
 print(f"Multiplier round-trip consistent: {multiplier_consistent}")
 \end{lstlisting}
 
+
+\paragraph{compute\_geometry\_from\_problems()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Extract Domain Solutions Method]
+def compute_geometry_from_problems(self, geometry_name: Optional[str] = None) -> DomainGeometry
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{geometry\_name}: String with the name of the geometry
+\end{itemize}
+
+\textbf{Returns:} \texttt{DomainGeometry} - geometry where the problems are set
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Domain Solution Extraction Algorithm]
+        self._ensure_initialized()
+
+geometry = DomainGeometry(geometry_name)
+
+for i, problem in enumerate(self.problems):
+# Check if problem has extrema information
+	if not hasattr(problem, 'extrema') or not problem.extrema:
+		# Fallback: create linear segment in parameter space
+		extrema_start = (problem.domain_start, 0.0)
+		extrema_end = (problem.domain_start + problem.domain_length, 0.0)
+	else:
+		extrema_start = problem.extrema[0]
+		extrema_end = problem.extrema[1]
+
+# Add domain to geometry
+	geometry.add_domain(extrema_start=extrema_start,
+											extrema_end=extrema_end,
+											domain_start=problem.domain_start,
+											domain_length=problem.domain_length,
+											name=domain_name,
+											display_color=display_color,
+											problem_index=i,  # Store problem index in metadata
+											problem_type=getattr(problem, 'problem_type', 'unknown'),
+											n_equations=problem.neq)
+
+# Store computed geometry
+self.geometry = geometry
+
+return geometry
+\end{lstlisting}
+
+\textbf{Purpose:} Retrive geometry when this has not be stores in the setup
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Domain Solution Extraction Usage]
+geometry = setup.compute_geometry_from_problems("grid_geometry")
+\end{lstlisting}
+
+
+
+
 \subsubsection{Validation and Testing}
 
 \paragraph{validate\_setup()}\leavevmode
@@ -889,30 +944,29 @@ initial_traces, initial_multipliers = setup.extract_domain_solutions(current_sol
 time_step = 0
 
 while current_time + dt <= T and time_step < max_time_steps:
-time_step += 1
-result = time_stepper.advance_time_step(
-current_solution=current_solution,
-current_bulk_data=current_bulk_data,
-current_time=current_time,
-dt=dt
-)
+	time_step += 1
+	result = time_stepper.advance_time_step(
+					current_solution=current_solution,
+					current_bulk_data=current_bulk_data,
+					current_time=current_time,
+					dt=dt
+				)
 
-# Handle result
-if result.converged:
-print(f"  ✓ Time step successful!")
+	# Handle result
+	if result.converged:
+		print(f"  ✓ Time step successful!")
 
-# Update state for next iteration
-current_time += dt
-current_solution = result.updated_solution
-current_bulk_data = result.updated_bulk_data
+		# Update state for next iteration
+		current_time += dt
+		current_solution = result.updated_solution
+		current_bulk_data = result.updated_bulk_data
+		# Store history
+		solution_history.append(current_solution.copy())
+		time_history.append(current_time)
 
-# Store history
-solution_history.append(current_solution.copy())
-time_history.append(current_time)
-
-else:
-print(f"  ✗ Time step failed!")
-break
+	else:
+		print(f"  ✗ Time step failed!")
+		break
 
 # STEP 5: FINAL RESULTS AND VISUALIZATION
 
@@ -925,12 +979,11 @@ final_traces, final_multipliers = setup.extract_domain_solutions(current_solutio
 print(f"\nStep 6: Creating final visualization...")
 
 for eq_idx in range(plotter.neq):
-plotter.plot_birdview(
-final_traces,
-equation_idx=eq_idx,
-time=current_time,
-save_filename=f"final_birdview_eq{eq_idx}.png"
-)
+	plotter.plot_birdview(final_traces,
+										equation_idx=eq_idx,
+										time=current_time,
+										save_filename=f"final_birdview_eq{eq_idx}.png"
+										)
 
 print("✓ Final visualization completed")
 \end{lstlisting}
@@ -974,6 +1027,9 @@ print("✓ Final visualization completed")
 \texttt{extract\_domain\_solutions} & \texttt{Tuple} & Extract components from global solution \\
 \hline
 
+\texttt{compute\_geometry\_from\_problems} & \texttt{DomainGeometry} & Retrieves geometric data hidden in the {\tt problems} structure \\
+\hline
+
 \texttt{validate\_setup} & \texttt{bool} & Run comprehensive validation tests \\
 \hline
 
@@ -1006,6 +1062,10 @@ This documentation provides an exact reference for the setup solver module, emph
 	\begin{itemize}
 		\item {Choose (possibly new) default problem to be used in {\tt \_\_init\_\_}}
 		\item Replace calls to {\tt SolverSetup.constraints} with calls to {\tt SolverSetup.constraint\_manager}
+		\item Add handling of missing config\_file
+		\item Two attributes for geometry: {\tt geometry} and {\tt input\_geometry}. Merge
+		\item Add geometry as a {\tt @property} attribute
+		\item Add handling of functions defined in the physical coordinates
 	\end{itemize}
 \end{todobox}
 
