@@ -1,4 +1,6 @@
 %!TEX program = xelatex
+%!TEX encoding = UTF-8 Unicode
+% !TeX program = xelatex
 \documentclass[11pt,a4paper]{article}
 \usepackage{fontspec} % Better font handling for XeLaTeX
 \usepackage[english]{babel}
@@ -190,58 +192,61 @@
 \tableofcontents
 \clearpage
 
-% Acknowledgements
-\input{sections/acknowledgements}
+%% Acknowledgements
+%\input{sections/acknowledgements}
+%
+%% Main content sections
+%\input{sections/introduction}
+%\input{sections/workflow_diagram}
+%\input{sections/sections2-3-4}
+%%\input{sections/creating_problems}
+%%\input{sections/geometry_guide}
+%%\input{sections/visualization}
+%%\input{sections/example_applications}
+%
+%
+%
+%
+%% API Reference sections
+%
+%\clearpage
+%\setcounter{page}{1}
+%\renewcommand{\thepage}{A.\arabic{page}}
+%
+%
+%\clearpage
+%\thispagestyle{empty}
+%\vspace*{\fill}
+%\begin{center}
+%	{\Huge \textbf{API Reference}}\\[1cm]
+%	{\Large Complete Module Documentation}\\[2cm]
+%\end{center}
+%\vspace*{\fill}
+%\clearpage
+%
+%\input{api/domain_geometry_api}
+%\input{api/problem_module_api_accurate}
+%\input{api/constraints_module_api}
+%\input{api/discretization_module_api}
+%\input{api/bulk_data_module_api}
+%\input{api/domain_data}
+%\input{api/lean_bulk_data_manager_api}
+%\input{api/static_condensation_modules_api}
+%\input{api/flux_jump_module_api}
+%\input{api/lean_global_assembly_api}
+%\input{api/elementary_matrices_module_api}
+%\input{api/time_stepper_module_api}
+%\input{api/newton_solver_module_api}
+%\input{api/lean_matplotlib_plotter_api}
+%\input{api/problems_folder_detailed_api}
+\input{api/setup_solver_detailed_api.tex}
 
-% Main content sections
-\input{sections/introduction}
-\input{sections/workflow_diagram}
-\input{sections/sections2-3-4}
-%\input{sections/creating_problems}
-%\input{sections/geometry_guide}
-%\input{sections/visualization}
-%\input{sections/example_applications}
-
-
-
-
-% API Reference sections
-
-\clearpage
-\setcounter{page}{1}
-\renewcommand{\thepage}{A.\arabic{page}}
-
-
-\clearpage
-\thispagestyle{empty}
-\vspace*{\fill}
-\begin{center}
-	{\Huge \textbf{API Reference}}\\[1cm]
-	{\Large Complete Module Documentation}\\[2cm]
-\end{center}
-\vspace*{\fill}
-\clearpage
-
-\input{api/domain_geometry_api}
-\input{api/problem_module_api_accurate}
-\input{api/constraints_module_api}
-\input{api/discretization_module_api}
-\input{api/bulk_data_module_api}
-\input{api/domain_data}
-\input{api/lean_bulk_data_manager_api}
-\input{api/static_condensation_modules_api}
-\input{api/flux_jump_module_api}
-\input{api/lean_global_assembly_api}
-\input{api/elementary_matrices_module_api}
-\input{api/time_stepper_module_api}
-\input{api/newton_solver_module_api}
-\input{api/lean_matplotlib_plotter_api}
-\input{api/problems_folder_detailed_api}
-
-% Project status and development
-%\input{sections/project_status_report}
-%\input{sections/project_todo_analysis}
-\input{sections/troubleshooting}
-\input{sections/contact_support}
+%
+%
+%% Project status and development
+%%\input{sections/project_status_report}
+%%\input{sections/project_todo_analysis}
+%\input{sections/troubleshooting}
+%\input{sections/contact_support}
 
 \end{document}

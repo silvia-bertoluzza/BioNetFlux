@@ -21,7 +21,7 @@ from bionetflux.geometry.domain_geometry import DomainGeometry
 class SolverSetup:
     """Main class that orchestrates initialization of all solver components with lean data storage."""
     
-    def __init__(self, problem_module: str = "bionetflux.problems.ooc_problem", 
+    def __init__(self, problem_module: str = "bionetflux.problems.ks_problem", 
                  config_file: Optional[str] = None, 
                  geometry: Optional['DomainGeometry'] = None):
         """
@@ -426,14 +426,14 @@ class SolverSetup:
         return geometry
 
 
-def create_solver_setup(problem_module: str = "bionetflux.problems.ooc_problem", 
+def create_solver_setup(problem_module: str = "bionetflux.problems.ks_problem", 
                        config_file: Optional[str] = None,
                        geometry: Optional['DomainGeometry'] = None) -> SolverSetup:
     """
     Factory function to create and initialize a SolverSetup instance.
     
     Args:
-        problem_module: String path to problem module (default: "bionetflux.problems.ooc_problem")
+        problem_module: String path to problem module (default: "bionetflux.problems.ks_problem")
         config_file: Optional path to TOML configuration file
         geometry: Optional DomainGeometry instance to use for problem creation
         

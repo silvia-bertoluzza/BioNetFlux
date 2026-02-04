@@ -26,14 +26,16 @@ The setup solver module provides:
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 import importlib
+import os
 
 # Core imports
-from bionetflux.core.discretization import Discretization, GlobalDiscretization
+\(  \)from bionetflux.core.discretization import Discretization, GlobalDiscretization
 from bionetflux.utils.elementary_matrices import ElementaryMatrices
 from bionetflux.core.static_condensation_factory import StaticCondensationFactory
 from bionetflux.core.constraints import ConstraintManager
 from bionetflux.core.lean_global_assembly import GlobalAssembler
 from bionetflux.core.lean_bulk_data_manager import BulkDataManager
+from bionetflux.geometry.domain_geometry import DomainGeometry
 \end{lstlisting}
 
 \subsection{SolverSetup Class}
@@ -46,31 +48,37 @@ Main class that orchestrates initialization of all solver components with lean d
 \paragraph{\_\_init\_\_()}\leavevmode
 \begin{lstlisting}[language=Python, caption=SolverSetup Constructor]
 def __init__(self, problem_module: str = "bionetflux.problems.test_problem2")
+config_file: Optional[str] = None, 
+geometry: Optional['DomainGeometry'] = None)
 \end{lstlisting}
 
 \textbf{Parameters:}
 \begin{itemize}
     \item \texttt{problem\_module}: String path to problem module containing \texttt{create\_global\_framework} (default: "bionetflux.problems.KS\_traveling\_wave")
+    \item \texttt{config\_file}: String path to the TOML configuration files containing the values of the different  parameters needed by the problem module
+    \item \texttt{geometry}: {\tt DomainGeometry} object describing the geometry on which the problem has to be solved
 \end{itemize}
 
 \textbf{Side Effects:} 
 \begin{itemize}
     \item Sets \texttt{self.problem\_module} to specified module path
+    \item Sets {\tt self.config\_file} to specified configuration file
+    \item Sets {\tt input\_geometry} to specified {\tt DomainGeometry} object
     \item Initializes \texttt{self.\_initialized} to False
-    \item Sets all framework object attributes to None
+    \item Sets all other framework object attributes to None
     \item Sets all cached component attributes to None
 \end{itemize}
 
 \textbf{Usage:}
 \begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
-# Default problem module (Keller-Segel)
+# Default problem module (Keller-Segel with default parameters and geometry)
 setup = SolverSetup()
 
-# Custom problem module
-setup = SolverSetup("bionetflux.problems.reduced_ooc_problem")
+# Custom problem module with default geometry and configuration
+setup = SolverSetup("bionetflux.problems.ooc_problem")
 
-# OrganOnChip problem
-setup = SolverSetup("bionetflux.problems.organ_on_chip_example")
+# OrganOnChip problem with user defined parameters and geometry
+setup = SolverSetup("bionetflux.problems.ooc_problem",config\_file="config.ooc_parameters",geometry = geometry)
 \end{lstlisting}
 
 \subsubsection{Core Attributes}
@@ -82,6 +90,12 @@ setup = SolverSetup("bionetflux.problems.organ_on_chip_example")
 \endhead
 
 \texttt{problem\_module} & \texttt{str} & String path to problem module \\
+\hline
+
+\texttt{config\_file} & \texttt{Optional[str]} & String path to problem TOML configuration file \\
+\hline
+
+\texttt{input\_geometry} & \texttt{Optional[DomainGeometry]} & Geometry provided as input \\
 \hline
 
 \texttt{\_initialized} & \texttt{bool} & Flag tracking initialization state \\
@@ -146,7 +160,7 @@ def initialize(self) -> None
     \item Check if already initialized (early return if True)
     \item Import problem module using \texttt{importlib.import\_module()}
     \item Get \texttt{create\_global\_framework} function from module
-    \item Call function to get: problems, global\_discretization, constraint\_manager, problem\_name
+    \item Call function with geometry and config\_file parameters to get: problems, global\_discretization, constraint\_manager, problem\_name
     \item Set \texttt{self.constraints} as alias to \texttt{constraint\_manager}
     \item Set \texttt{self.\_initialized} to True
 \end{enumerate}
@@ -163,7 +177,7 @@ def initialize(self) -> None
 
 \textbf{Usage:}
 \begin{lstlisting}[language=Python, caption=Initialize Usage]
-setup = SolverSetup("bionetflux.problems.ooc_test_problem")
+setup = SolverSetup("bionetflux.problems.ooc_problem")
 setup.initialize()  # Explicit initialization
 
 # Or use properties that auto-initialize
@@ -749,19 +763,23 @@ Total DOFs: 86
 
 \paragraph{create\_solver\_setup()}\leavevmode
 \begin{lstlisting}[language=Python, caption=Create Solver Setup Function]
-def create_solver_setup(problem_module: str = "bionetflux.problems.KS_traveling_wave") -> SolverSetup
+def create_solver_setup(problem_module: str = "bionetflux.problems.ooc_problem", 
+config_file: Optional[str] = None,
+geometry: Optional['DomainGeometry'] = None) -> SolverSetup:
 \end{lstlisting}
 
 \textbf{Parameters:}
 \begin{itemize}
-    \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.KS\_traveling\_wave")
+    \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.ks\_problem")
+        \item \texttt{config\_file}: String path to the TOML configuration files containing the values of the different  parameters needed by the problem module
+    \item \texttt{geometry}: {\tt DomainGeometry} object describing the geometry on which the problem has to be solved
 \end{itemize}
 
 \textbf{Returns:} \texttt{SolverSetup} - Initialized SolverSetup instance
 
 \textbf{Algorithm:}
 \begin{lstlisting}[language=Python, caption=Factory Function Implementation]
-setup = SolverSetup(problem_module)
+setup = SolverSetup(problem_module,config_file,geometry)
 setup.initialize()
 return setup
 \end{lstlisting}
@@ -778,14 +796,18 @@ bulk_manager = setup.bulk_data_manager
 
 \paragraph{quick\_setup()}\leavevmode
 \begin{lstlisting}[language=Python, caption=Quick Setup Function]
-def quick_setup(problem_module: str = "bionetflux.problems.KS_traveling_wave", 
-               validate: bool = True) -> SolverSetup
+def quick_setup(problem_module: str = "bionetflux.problems.ks_problem", 
+               validate: bool = True,
+               config_file: Optional[str] = None,
+               geometry: Optional['DomainGeometry'] = None) -> SolverSetup
 \end{lstlisting}
 
 \textbf{Parameters:}
 \begin{itemize}
     \item \texttt{problem\_module}: String path to problem module (default: "bionetflux.problems.KS\_traveling\_wave")
     \item \texttt{validate}: If True, run validation tests (default: True)
+            \item \texttt{config\_file}: String path to the TOML configuration files containing the values of the different  parameters needed by the problem module
+    \item \texttt{geometry}: {\tt DomainGeometry} object describing the geometry on which the problem has to be solved
 \end{itemize}
 
 \textbf{Returns:} \texttt{SolverSetup} - Validated SolverSetup instance
@@ -805,10 +827,10 @@ return setup
 \textbf{Usage:}
 \begin{lstlisting}[language=Python, caption=Quick Setup Usage]
 # Quick setup with validation
-setup = quick_setup("bionetflux.problems.ooc_test_problem", validate=True)
+setup = quick_setup("bionetflux.problems.ooc_problem", validate=True)
 
 # Quick setup without validation (faster)
-setup = quick_setup("bionetflux.problems.test_problem", validate=False)
+setup = quick_setup("bionetflux.problems.ks_problem", validate=False)
 \end{lstlisting}
 
 \subsection{Complete Usage Examples}
@@ -817,94 +839,105 @@ setup = quick_setup("bionetflux.problems.test_problem", validate=False)
 \subsubsection{Complete Solver Setup and Newton Iteration}
 
 \begin{lstlisting}[language=Python, caption=Complete Solver Setup Example]
-from setup_solver import quick_setup, SolverSetup
-import numpy as np
+    print("Step 1: Setting up solver...")
 
-def complete_solver_example():
-    """Complete example of solver setup and Newton iteration."""
-    
-    # Step 1: Initialize solver with validation
-    print("Setting up solver...")
-    setup = quick_setup("bionetflux.problems.ooc_test_problem", validate=True)
-    
-    # Step 2: Get problem information
-    info = setup.get_problem_info()
-    print(f"\nProblem: {info['problem_name']}")
-    print(f"Domains: {info['num_domains']}")
-    print(f"Total DOFs: {info['total_trace_dofs'] + info['num_constraints']}")
-    
-    # Step 3: Create initial conditions
-    trace_solutions, multipliers = setup.create_initial_conditions()
-    global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
-    
-    print(f"\nInitial conditions created:")
-    print(f"  Global solution shape: {global_solution.shape}")
-    print(f"  Initial residual norm: {np.linalg.norm(global_solution):.6e}")
-    
-    # Step 4: Setup Newton iteration
-    assembler = setup.global_assembler
-    bulk_manager = setup.bulk_data_manager
-    static_condensations = setup.static_condensations
-    
-    # Step 5: Newton iteration loop
-    tolerance = 1e-10
-    max_iterations = 20
-    current_time = 0.0
-    dt = setup.global_discretization.dt
-    
-    print(f"\nStarting Newton iterations (tol={tolerance:.0e})...")
-    
-    for iteration in range(max_iterations):
-        # Create bulk data for forcing terms
-        bulk_data_list = bulk_manager.initialize_all_bulk_data(
-            setup.problems,
-            setup.global_discretization.spatial_discretizations,
-            time=current_time
-        )
-        
-        # Compute forcing terms
-        forcing_terms = bulk_manager.compute_forcing_terms(
-            bulk_data_list, setup.problems,
-            setup.global_discretization.spatial_discretizations,
-            current_time, dt
-        )
-        
-        # Assemble system
-        residual, jacobian = assembler.assemble_residual_and_jacobian(
-            global_solution=global_solution,
-            forcing_terms=forcing_terms,
-            static_condensations=static_condensations,
-            time=current_time
-        )
-        
-        # Check convergence
-        residual_norm = np.linalg.norm(residual)
-        print(f"  Iteration {iteration}: ||R|| = {residual_norm:.6e}")
-        
-        if residual_norm < tolerance:
-            print("  ✓ Newton solver converged")
-            break
-        
-        # Newton update
-        try:
-            delta = np.linalg.solve(jacobian, -residual)
-            global_solution += delta
-        except np.linalg.LinAlgError:
-            print("  ✗ Newton solver failed: singular Jacobian")
-            break
-    
-    # Step 6: Extract final solutions
-    final_traces, final_multipliers = setup.extract_domain_solutions(global_solution)
-    
-    print(f"\nSolver completed:")
-    print(f"  Final residual norm: {residual_norm:.6e}")
-    print(f"  Domain solutions: {len(final_traces)}")
-    print(f"  Constraint multipliers: {len(final_multipliers)}")
-    
-    return setup, global_solution, final_traces, final_multipliers
 
-# Usage
-setup, solution, traces, multipliers = complete_solver_example()
+# STEP 1: SETUP
+
+geometry = build_arc_sequence_geometry(N=4, start=2.0, length=1.0)
+
+setup = quick_setup(
+problem_module="bionetflux.problems.ks_problem",
+validate=True,
+config_file="config.ks_parameters",  # Pass config file
+geometry=geometry         # Pass geometry
+)
+
+# STEP 2: TIME STEPPER INITIALIZATION 
+
+# Create time stepper with Newton solver configuration
+time_stepper = TimeStepper(setup, verbose=True)
+
+# Initialize solution at t=0 (replaces Steps 3-4 and lines 226-233 from original)
+current_solution, current_bulk_data = time_stepper.initialize_solution()
+
+
+
+# Initialize plotter
+plotter = LeanMatplotlibPlotter(
+problems=setup.problems,
+discretizations=setup.global_discretization.spatial_discretizations,
+equation_names=None,  # Auto-detect
+figsize=(15, 10)
+)
+
+setup.compute_geometry_from_problems()
+plotter.plot_geometry_with_indices(geometry=setup.geometry,
+save_filename="geometry_with_indices.png")
+
+
+# STEP 4: TIME EVOLUTION (MASSIVELY SIMPLIFIED!)
+
+
+current_time = 0.0
+dt = setup.global_discretization.dt
+T = min(0.5, setup.global_discretization.T)  # Limit runtime for demo
+max_time_steps = int(T / dt) + 1
+
+# Solution history for analysis
+solution_history = [current_solution.copy()]
+time_history = [current_time]
+
+initial_traces, initial_multipliers = setup.extract_domain_solutions(current_solution)
+
+# TIME EVOLUTION LOOP - SIMPLIFIED TO ONE LINE PER TIME STEP!
+time_step = 0
+
+while current_time + dt <= T and time_step < max_time_steps:
+time_step += 1
+result = time_stepper.advance_time_step(
+current_solution=current_solution,
+current_bulk_data=current_bulk_data,
+current_time=current_time,
+dt=dt
+)
+
+# Handle result
+if result.converged:
+print(f"  ✓ Time step successful!")
+
+# Update state for next iteration
+current_time += dt
+current_solution = result.updated_solution
+current_bulk_data = result.updated_bulk_data
+
+# Store history
+solution_history.append(current_solution.copy())
+time_history.append(current_time)
+
+else:
+print(f"  ✗ Time step failed!")
+break
+
+# STEP 5: FINAL RESULTS AND VISUALIZATION
+
+# Extract final solutions
+final_traces, final_multipliers = setup.extract_domain_solutions(current_solution)
+
+
+# STEP 6: FINAL VISUALIZATION
+
+print(f"\nStep 6: Creating final visualization...")
+
+for eq_idx in range(plotter.neq):
+plotter.plot_birdview(
+final_traces,
+equation_idx=eq_idx,
+time=current_time,
+save_filename=f"final_birdview_eq{eq_idx}.png"
+)
+
+print("✓ Final visualization completed")
 \end{lstlisting}
 
 \subsection{Method Summary Table}
@@ -976,7 +1009,7 @@ This documentation provides an exact reference for the setup solver module, emph
 
 \begin{todobox}
 	\begin{itemize}
-		\item \sout{Choose (possibly new) default problem to be used in {\tt \_\_init\_\_}}
+		\item {Choose (possibly new) default problem to be used in {\tt \_\_init\_\_}}
 		\item Replace calls to {\tt SolverSetup.constraints} with calls to {\tt SolverSetup.constraint\_manager}
 	\end{itemize}
 \end{todobox}
