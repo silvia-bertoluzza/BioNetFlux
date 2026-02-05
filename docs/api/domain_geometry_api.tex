@@ -10,35 +10,32 @@
 \label{sec:domain_geometry_api}
 
 
-This section provides a comprehensive reference for the domain 
-geometry module (\texttt{domain\_geometry.py}), which provides 
-lean geometry management for multi-arc BioNetFlux problems. 
-The geometries that BioNetFlux considers are the union of 1-dimensional rectilinear arcs (also called Domains within the code) embedded in a 2 dimensional plane. 
+This section provides a comprehensive reference for the \texttt{domain\_geometry.py} 
+geometry module, which provides 
+lean geometry management for BioNetFlux. 
+The geometries that BioNetFlux considers are the union of 1-dimensional rectilinear arcs (also called {\em domains} within the code) embedded in a 2 dimensional plane.  The individual domains are represented using the class {\tt DomainInfo}, while the whole geometry is represented using the class {\tt DomainGeometry}, that stores a list {\tt domains} of {\tt DomainInfo} object and a list {\tt connections} of {\tt ConnectionInfo} objects
+
+\begin{notebox}
+	In BioNetFlux, we use the word {\bf connection} to indicate a geometrical connection between two arcs, and the word {\bf constraint} to indicate the physical relation imposed in a connection point between unknowns defined on the two arcs.
+\end{notebox}
 
 
 \subsection{Module Overview}
 
 The module contains three main classes and several constants:
 \begin{itemize}
-    \item \texttt{ConnectionInfo}: Data container for domain connections and boundary conditions
     \item \texttt{DomainInfo}: Data container for individual domain properties
+    \item \texttt{ConnectionInfo}: Data container for connectivity and boundary conditions
     \item \texttt{DomainGeometry}: Main geometry manager for collections of domains
 \end{itemize}
 
-\subsubsection{Boundary Type Constants}
 
-The module defines special constants for boundary conditions:
-\begin{itemize}
-    \item \texttt{EXTERIOR\_BOUNDARY = -1}: Standard exterior boundary
-    \item \texttt{PERIODIC\_BOUNDARY = -2}: Periodic boundary condition
-    \item \texttt{SYMMETRY\_BOUNDARY = -3}: Symmetry boundary condition
-\end{itemize}
 
 
 \subsection{DomainInfo Class}
 \label{subsec:domaininfo_class}
 
-A dataclass container for domain geometric information, representing individual segments in the network geometry.
+A dataclass container for domain geometric information, relative to individual segments in the network geometry.
 
 \subsubsection{Attributes}
 
@@ -63,10 +60,10 @@ A dataclass container for domain geometric information, representing individual 
 \texttt{domain\_length} & \texttt{float} & Parameter space length (default: Euclidean distance) \\
 \hline
 
-\texttt{name} & \texttt{Optional[str]} & Human-readable name for the domain \\
+\texttt{name} & \texttt{Optional[str]} & Human-readable name for the arc \\
 \hline
 
-\texttt{display\_color} & \texttt{str} & Color for matplotlib plotting (default: "blue") \\
+\texttt{display\_color} & \texttt{str} & Color for matplotlib plotting (default: ``blue") \\
 \hline
 
 \texttt{metadata} & \texttt{Dict[str, Any]} & Additional domain-specific data storage \\
@@ -86,6 +83,9 @@ def __init__(self, domain_id: int,
              name: Optional[str] = None,
              display_color: str = "blue",
              metadata: Dict[str, Any] = None)
+                          
+def __post_init__(self)
+# Computes domain_lenght from extrema, if not provided
 \end{lstlisting}
 
 \textbf{Parameters:}
@@ -158,7 +158,7 @@ direction = domain.direction_vector()  # Returns (u_x, u_y)
 \subsection{ConnectionInfo Class}
 \label{subsec:connectioninfo_class}
 
-A dataclass container for domain connection information, representing connections between domains or boundary conditions.
+A dataclass container for domain connection information, representing connections between domains or tagging boundary points.
 
 \subsubsection{Attributes}
 
@@ -223,12 +223,18 @@ A dataclass container for domain connection information, representing connection
 
 \textbf{Returns:} \texttt{Optional[str]} - Boundary type string (``exterior", ``periodic", ``symmetry") or None for interior connections
 
-
+\subsubsection{Boundary Type Constants}
+The module defines special constants that can be leveraged for applying boundary conditions:
+\begin{itemize}
+	\item \texttt{EXTERIOR\_BOUNDARY = -1}: Standard exterior boundary
+	\item \texttt{PERIODIC\_BOUNDARY = -2}: Periodic boundary condition
+	\item \texttt{SYMMETRY\_BOUNDARY = -3}: Symmetry boundary condition
+\end{itemize}
 
 \subsection{DomainGeometry Class}
 \label{subsec:domaingeometry_class}
 
-Main geometry manager class for handling collections of domains and providing interface methods for BioNetFlux integration.
+Main geometry manager class for handling collections of domains and providing connectivity information for BioNetFlux integration.
 
 \subsubsection{Attributes}
 
@@ -244,7 +250,7 @@ Main geometry manager class for handling collections of domains and providing in
 \texttt{domains} & \texttt{List[DomainInfo]} & Collection of domain information objects \\
 \hline
 
-\texttt{connections} & \texttt{List[ConnectionInfo]} & Collection of domain connections and boundary conditions \\
+\texttt{connections} & \texttt{List[ConnectionInfo]} & Collection of domain connections and boundary taggings \\
 \hline
 
 \texttt{\_next\_id} & \texttt{int} & Internal counter for generating unique domain IDs \\
@@ -641,6 +647,10 @@ print(f"Is fully connected: {connectivity['is_connected']}")
 if connectivity['isolated_domains']:
     print(f"Isolated domains: {connectivity['isolated_domains']}")
 \end{lstlisting}
+
+\begin{warningbox}
+	This functions calculates the connectivity from the set of domains, by identifying domains which are close or intersect. It does not make use of the user defined connections, which are the ones that BioNetFlux is supposed to rely on, so it should not be generally used, though it might have some use.
+\end{warningbox}
 
 \paragraph{suggest\_parameter\_spacing()}\leavevmode
 \begin{lstlisting}[language=Python, caption=Suggest Parameter Spacing Method]
@@ -1068,6 +1078,7 @@ This enhanced API provides comprehensive geometry management with connection tra
 	\begin{itemize}[leftmargin=1.5em]
 		\item Include the possibility of embedding the segments in a 3D space
 		\item Add the possibility of dealing with curvilinear arcs via parametrization
+		\item Change name of {\tt get\_connectivity\_info} to something like {\tt compute\_connectivity}
 	\end{itemize}
 \end{todobox}
 
