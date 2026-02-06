@@ -6,7 +6,7 @@
 \section{Constraints Module API Reference (Accurate Analysis)}
 \label{sec:constraints_module_api}
 
-This section provides an exact reference for the constraints module (\texttt{bionetflux.core.constraints}) based on detailed analysis of the actual implementation. The module handles boundary conditions and junction constraints using Lagrange multipliers for HDG methods.
+This section provides an exact reference for the constraints module (\texttt{bionetflux.core.constraints}). The module handles boundary conditions and junction constraints using Lagrange multipliers for HDG methods.
 
 \subsection{Module Overview}
 
@@ -16,7 +16,7 @@ The constraints module provides:
     \item Lagrange multiplier management
     \item Support for time-dependent constraint data
     \item Integration with discretization node mappings
-    \item Constraint residual computation for Newton solvers
+    \item Constraint residual computation for  solvers
 \end{itemize}
 
 \subsection{Module Imports and Dependencies}
@@ -70,9 +70,9 @@ def __init__(self,
 \textbf{Parameters:}
 \begin{itemize}
     \item \texttt{constraint\_type}: Type of constraint (from ConstraintType enum)
-    \item \texttt{equation\_index}: Equation number (0, 1, ...) this constraint applies to
+    \item \texttt{equation\_index}: Index of the equation (0, 1, ...) the constraint applies to
     \item \texttt{domains}: List of indices of the domains the constraint applies to (length 1 for boundary, 2 for junction)
-    \item \texttt{positions}: Position (parametric) coordinates in each domain
+    \item \texttt{positions}: Position (parametric) coordinates in each domain where the constraint is applied
     \item \texttt{parameters}: Constraint coefficient (e.g., Robin coefficients) (optional)
     \item \texttt{data\_function}: Function \texttt{f(t)} providing constraint data over time (optional)
 \end{itemize}
@@ -630,7 +630,7 @@ print(f"Constraint residual norm: {residual_norm:.6e}")
 {\bf This method is deprecated and will be removed in future versions.}
 
 This method assumes {\tt neq}=2 and should ONLY be used for Keller-Segel problems.
-For general problems, use the {\tt domain\_data\_list parameter} in{\tt  compute\_constraint\_residuals}
+For general problems, use the {\tt domain\_data\_list parameter} in {\tt  compute\_constraint\_residuals}
 and access {\tt len(domain\_data\_list[domain\_idx].nodes)} directly.
 \end{deprecatedbox}
 
@@ -904,8 +904,12 @@ This documentation provides an exact reference for the constraints module, empha
 			\item Add some external validation of the correct inclusions of the constraint position in the range of the domain parameter
 			\item Add the possibility of prescribing the jump of the solution at a point
 			
+			\item Add the possibility of handling a branching junction with more than 2 domains (will affect {\tt n\_multipliers} both in {\tt Constraint} and in {\tt ConstraintManager})
+			
+			\item {\tt n\_multipliers} is a method of both {\tt Constraint} (where it returns 2) and of {\tt ConstraintManager} (where it returns the global number of multipliers). Evaluate changing the name of the first one into {\tt num\_local\_multipliers} to avoid errors
+			
 			\item Check the Newton integration example (see commented section in latex file) - Missing global assembly integration
-			\item The function \tt{add\_constraints\_from\_geometry} should belong to this module and have the type of constraints as input
+			\item The function {\tt add\_constraints\_from\_geometry} should belong to this module and have the type of constraints as input
 			\end{itemize}
 \end{todobox}
 
