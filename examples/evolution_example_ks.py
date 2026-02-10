@@ -18,6 +18,7 @@ from setup_solver import quick_setup, SolverSetup
 from bionetflux.time_integration import TimeStepper
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry, build_grid_geometry
+from bionetflux.analysis.error_evaluation import ErrorEvaluator
 import numpy as np
 import time
 from typing import Optional
@@ -146,7 +147,15 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     #     )
     
     # print("✓ Initial state plots created")
+
     
+    error_evaluator = ErrorEvaluator(setup.problems, setup.global_discretization.spatial_discretizations)
+    
+    alpha_hdg = 1.0  # HDG scaling parameter (h^0.5 scaling)
+    use_hdg_formulation = True  # Enable HDG trace error formulation
+
+
+        
     # ============================================================================
     # STEP 4: TIME EVOLUTION (MASSIVELY SIMPLIFIED!)
     # ============================================================================
@@ -231,6 +240,23 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # Extract final solutions
     final_traces, final_multipliers = setup.extract_domain_solutions(current_solution)
     
+    # ============================================================================
+    # STEP 6a: ERROR ANALYSIS (NEW!)
+    # ============================================================================
+    
+    print(f"\nStep 6a: Evaluating final solution error...")  
+    
+    error_evaluator.compute_trace_errors(
+                            numerical_solution=final_traces, 
+                            time=current_time,
+                            analytical_functions=None,  # Auto-detect if available
+                            alpha=1.0,  # No scaling for now
+                            use_hdg_formulation=False)
+       
+       
+       
+        
+    
     print(f"\nFinal solution characteristics:")
     for i, trace in enumerate(final_traces):
         trace_norm = np.linalg.norm(trace)
@@ -241,7 +267,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
         print(f"  Multipliers: ||λ|| = {multiplier_norm:.6e}")
     
     # ============================================================================
-    # STEP 6: FINAL VISUALIZATION
+    # STEP 6b: FINAL VISUALIZATION
     # ============================================================================
     
     print(f"\nStep 6: Creating final visualization...")
