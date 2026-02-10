@@ -1,3 +1,4 @@
+% 
 % Problem Module API Documentation (Accurate Analysis)
 % To be included in master LaTeX document
 %
@@ -46,8 +47,8 @@ def __init__(self,
     \item \texttt{domain\_start}: Arc start coordinate (default: 0.0)
     \item \texttt{domain\_length}: Arc length (default: 1.0)
     \item \texttt{parameters}: NumPy array of physical parameters (default: \texttt{[1.0, 1.0, 0.0, 0.0]})
-    \item \texttt{problem\_type}: Problem type identifier (default: "keller\_segel")
-    \item \texttt{name}: Descriptive problem name (default: "unnamed\_problem")
+    \item \texttt{problem\_type}: Problem type identifier (default: ``keller\_segel")
+    \item \texttt{name}: Descriptive problem name (default: ``unnamed\_problem")
 \end{itemize}
 
 \textbf{Default Parameter Array:} \texttt{[mu, nu, a, b] = [1.0, 1.0, 0.0, 0.0]}
@@ -93,10 +94,10 @@ problem3 = Problem(
 \texttt{neq} & \texttt{int} & Number of equations in the system \\
 \hline
 
-\texttt{domain\_start} & \texttt{float} & Start coordinate of the domain (MATLAB: \texttt{A}) \\
+\texttt{domain\_start} & \texttt{float} & Start coordinate of the domain \\
 \hline
 
-\texttt{domain\_length} & \texttt{float} & Length of the domain (MATLAB: \texttt{L}) \\
+\texttt{domain\_length} & \texttt{float} & Length of the domain  \\
 \hline
 
 \texttt{domain\_end} & \texttt{float} & Computed as \texttt{domain\_start + domain\_length} \\
@@ -130,7 +131,7 @@ problem3 = Problem(
 \texttt{unknown\_names} & \texttt{List[str]} & List of strings: \texttt{[f"Unknown n. \{i+1\}" for i in range(neq)]} \\
 \hline
 
-\texttt{extrema} & \texttt{List[Tuple]} & Arc endpoints coordinates: \texttt{[(domain\_start, 0.0), (domain\_end, 0.0)]} \\
+\texttt{extrema} & \texttt{List[Tuple]} & Arc endpoints coordinates: \texttt{[(domain\_start, 0.0), (domain\_start + domain\_length, 0.0)]} \\
 \hline
 
 \texttt{neumann\_data} & \texttt{np.ndarray} & Boundary data array initialized as {\color{red} \texttt{np.zeros(4)} }\\
@@ -633,6 +634,8 @@ This documentation provides an exact reference for the Problem class based on th
 		\item Let chemotaxis functions be defined via the {\tt set\_function} method rather than a dedicated method
 		\item Are {\tt \{left,right\}\_flux} used also for Dirichlet data? Consider changin name to {\tt \{left,right\}\_boundary\_data}
 		\item Add handling of parameters using names to identify the different parameters
+		\item In derived problems initial condition uses a different name than {\tt u0}. This can cause problem, find a way to ensure that everything runs as it should
+		\item Add documentation for the test suite methods: {\tt validate\_problem}, {\tt test\_functions}, {\tt create\_test\_problems} and {\tt run\_self\_test}
 	\end{itemize}
 \end{todobox}
 
