@@ -8,6 +8,7 @@ perform convergence analysis, and evaluate solution quality metrics.
 import numpy as np
 from typing import List, Callable, Optional, Dict, Tuple
 import warnings
+import matplotlib.pyplot as plt
 
 
 def retrieve_analytical_solution(problems: List) -> Dict:
@@ -104,13 +105,10 @@ class ErrorEvaluator:
                                    for i in range(self.n_domains)]
         
         results = {
-            'domain_errors': [],    # This can be removed?
-            'equation_errors': {},  # organized by (domain_idx, eq_idx)
-            'global_error_per_equation': [],  # global error for each equation
-            'relative_global_error_per_equation': [],  # relative global error for each equation
-            'max_error_per_equation': [],  # max pointwise error for each equation
-            'relative_max_error_per_equation': [],  # relative max pointwise error for each equation
-            'time': time
+            'domain_errors': {},  # organized by (domain_idx, eq_idx)
+            'global_errors': [],  # global error for each equation
+            'time': time,
+            'error_type': 'trace'
             }
         
         # Track errors per equation across all domains
@@ -130,12 +128,10 @@ class ErrorEvaluator:
                 analytical_functions[domain_idx] if analytical_functions and domain_idx < len(analytical_functions) else None
             )
             
-            results['domain_errors'].append(domain_result)
-            
             # Store individual equation errors with domain/equation indexing
             for eq_error, eq_norm in zip(domain_result['equation_errors'], domain_result['solution_norms']):
                 eq_idx = eq_error['equation_idx']
-                results['equation_errors'][(domain_idx, eq_idx)] = eq_error
+                results['domain_errors'][(domain_idx, eq_idx)] = eq_error
                 
                 # Accumulate global error per equation
                 if eq_idx < len(global_error_squared):
@@ -152,7 +148,7 @@ class ErrorEvaluator:
             else:
                 relative_error = np.inf
                 
-            results['global_error'].append({
+            results['global_errors'].append({
                 'equation_idx': eq_idx,
                 'euclidean_error': global_error,
                 'euclidean_relative_error': relative_error,
@@ -202,8 +198,7 @@ class ErrorEvaluator:
         equation_errors = []
         solution_norms = []
         
-        for eq_idx in range(neq):
-           
+        for eq_idx in range(neq):           
             # Extract numerical solution for this equation
             eq_start = eq_idx * n_nodes
             eq_end = eq_start + n_nodes
@@ -252,7 +247,8 @@ class ErrorEvaluator:
         return {
             'domain_idx': getattr(problem, 'domain_idx', 0),
             'equation_errors': equation_errors,
-            'solution_norms': solution_norms
+            'solution_norms': solution_norms,
+            'error_type': 'trace'
         }
  
     def compute_bulk_error(self, 
@@ -277,21 +273,28 @@ class ErrorEvaluator:
             analytical_functions = [self.analytical_solutions.get(f'domain_{i}', None) 
                                    for i in range(self.n_domains)]
         
+        
         results = {
-            'domain_errors': [],
-            'equation_errors': {},  # organized by (domain_idx, eq_idx)
-            'global_error_per_equation': [],  # global error for each equation
-            'global_error': 0.0,
-            'max_error': 0.0,
+            'domain_errors': {},  # organized by (domain_idx, eq_idx)
+            'global_errors': [],  # global error for each equation
             'time': time,
-            'error_type': 'bulk'
-        }
+            'error_type': 'trace'
+            }
+        
+        # results = {
+        #     'domain_errors': [],
+        #     'equation_errors': {},  # organized by (domain_idx, eq_idx)
+        #     'global_error_per_equation': [],  # global error for each equation
+        #     'relative_global_error_per_equation': [],  # relative global error for each equation
+        #     'time': time,
+        #     'error_type': 'bulk'
+        # }
         
         # Track errors per equation across all domains
         max_equations = max(problem.neq for problem in self.problems)
-        global_error_squared_per_eq = [0.0] * max_equations
-        global_solution_norm_squared_per_eq = [0.0] * max_equations
-        max_pointwise_error = 0.0
+        global_error_squared = [0.0] * max_equations
+        global_solution_norm_squared = [0.0] * max_equations
+        # max_pointwise_error = 0.0
         
         for domain_idx in range(self.n_domains):
             problem = self.problems[domain_idx]
@@ -299,6 +302,8 @@ class ErrorEvaluator:
             bulk_data = bulk_solutions[domain_idx]
             
             # Extract the numpy array from BulkData object
+            # bulk_solutions is a list of BulkData objects, each containing a .data attribute which is the actual numpy array of shape (2*neq, n_elements)
+            # it can also be a list of raw numpy array, so we check for that as well
             bulk_sol = bulk_data.data if hasattr(bulk_data, 'data') else bulk_data
             
             domain_result = self._compute_domain_bulk_error(
@@ -306,49 +311,33 @@ class ErrorEvaluator:
                 analytical_functions[domain_idx] if analytical_functions else None
             )
             
-            results['domain_errors'].append(domain_result)
             
             # Store individual equation errors with domain/equation indexing
             for eq_error, eq_norm in zip(domain_result['equation_errors'], domain_result['solution_norms']):
                 eq_idx = eq_error['equation_idx']
-                results['equation_errors'][(domain_idx, eq_idx)] = eq_error
+                results['domain_errors'][(domain_idx, eq_idx)] = eq_error
                 
                 # Accumulate global error per equation
-                if eq_idx < len(global_error_squared_per_eq):
-                    global_error_squared_per_eq[eq_idx] += eq_error['l2_error']**2
-                    global_solution_norm_squared_per_eq[eq_idx] += eq_norm['solution_norm']**2
-                    max_pointwise_error_per_eq[eq_idx] = max(max_pointwise_error_per_eq[eq_idx], eq_error['max_pointwise_error'])
-                    solution_max_norm_per_eq[eq_idx] = max(solution_max_norm_per_eq[eq_idx], eq_norm['solution_max_norm'])
+                if eq_idx < len(global_error_squared):
+                    global_error_squared[eq_idx] += eq_error['l2_error']**2
+                    global_solution_norm_squared[eq_idx] += eq_norm['solution_norm']**2
             
-            max_pointwise_error = max(max_pointwise_error, domain_result['max_pointwise_error'])
-        
+                
         # Compute global errors per equation
         for eq_idx in range(max_equations):
-            global_l2_error = np.sqrt(global_error_squared_per_eq[eq_idx])
-            if global_solution_norm_squared_per_eq[eq_idx] > 1e-14:
-                relative_error = np.sqrt(global_error_squared_per_eq[eq_idx] / global_solution_norm_squared_per_eq[eq_idx])
+            global_error = np.sqrt(global_error_squared[eq_idx])
+            if global_solution_norm_squared[eq_idx] > 1e-14:
+                relative_error = np.sqrt(global_error_squared[eq_idx] / global_solution_norm_squared[eq_idx])
             else:
                 relative_error = np.inf
-                
-            results['global_error_per_equation'].append({
+   
+            results['global_errors'].append({
                 'equation_idx': eq_idx,
-                'global_l2_error': global_l2_error,
-                'global_relative_error': relative_error,
-                'global_solution_norm': np.sqrt(global_solution_norm_squared_per_eq[eq_idx])
+                'l2_error': global_error,
+                'l2_relative_error': relative_error,
+                'l2_solution_norm': np.sqrt(global_solution_norm_squared[eq_idx])
             })
         
-        # Overall global error (sum of all equations)
-        total_error_squared = sum(global_error_squared_per_eq)
-        total_solution_norm_squared = sum(global_solution_norm_squared_per_eq)
-        
-        results['global_error'] = np.sqrt(total_error_squared)
-        results['max_error'] = max_pointwise_error
-        
-        if total_solution_norm_squared > 1e-14:
-            results['relative_global_error'] = np.sqrt(total_error_squared / total_solution_norm_squared)
-        else:
-            results['relative_global_error'] = np.inf
-            
         return results
     
     def _compute_domain_bulk_error(self, 
@@ -378,7 +367,7 @@ class ErrorEvaluator:
         if analytical_functions is None:
             analytical_functions = self._get_analytical_functions(problem)
         
-        max_pointwise_error = 0.0
+        # max_pointwise_error = 0.0
         equation_errors = []
         solution_norms = []
                 
@@ -399,10 +388,51 @@ class ErrorEvaluator:
             eq_coeff_row_end = eq_coeff_row_start + 2
             eq_coeffs = bulk_sol[eq_coeff_row_start:eq_coeff_row_end, :]  # Shape: (2, n_elements)
             
+            # ========================================================================
+            # DEBUG: Plot discontinuous piecewise linear bulk solution for equation eq_idx
+            # ========================================================================
+            import matplotlib.pyplot as plt
+            
+            x_plot = []
+            y_plot = []
+            
+            for elem_idx in range(n_elements):
+                x_left = discretization.nodes[elem_idx]
+                x_right = discretization.nodes[elem_idx + 1]
+                elem_coeffs = eq_coeffs[:, elem_idx]  # [coeff0, coeff1]
+                
+                # Evaluate at element endpoints using DG basis functions
+                # At xi = -1: phi_0 = 1, phi_1 = 0 => u_left = coeff0
+                # At xi = +1: phi_0 = 0, phi_1 = 1 => u_right = coeff1
+                u_left = elem_coeffs[0]
+                u_right = elem_coeffs[1]
+                
+                x_plot.extend([x_left, x_right])
+                y_plot.extend([u_left, u_right])
+            
+            plt.figure(figsize=(10, 6))
+            plt.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'Numerical (Eq {eq_idx})')
+            
+            # Mark element boundaries
+            for boundary in discretization.nodes:
+                plt.axvline(x=boundary, color='gray', linestyle=':', alpha=0.5)
+            
+            plt.grid(True, alpha=0.3)
+            plt.xlabel('x')
+            plt.ylabel(f'Solution (Equation {eq_idx})')
+            plt.title(f'DEBUG: Bulk Solution - Domain {getattr(problem, "domain_idx", 0)}, '
+                     f'Eq {eq_idx}, t={time:.4f}, {n_elements} elements')
+            plt.legend()
+            plt.tight_layout()
+            plt.show()
+            
+            print(f"DEBUG: Eq {eq_idx} coeffs shape: {eq_coeffs.shape}")
+            # ========================================================================
+            
             # Compute error using Gaussian quadrature on each element
             eq_error_squared = 0.0
             eq_solution_norm_squared = 0.0
-            eq_max_error = 0.0
+            # eq_max_error = 0.0
             
             # Gaussian quadrature points and weights for [-1, 1]
             gauss_points = np.array([-1/np.sqrt(3), 1/np.sqrt(3)])
@@ -448,28 +478,26 @@ class ErrorEvaluator:
                     eq_solution_norm_squared += (analytical_value**2) * gw * jacobian
                     
                     # Track maximum pointwise error
-                    eq_max_error = max(eq_max_error, abs(pointwise_error))
+                    # eq_max_error = max(eq_max_error, abs(pointwise_error))
             
-            max_pointwise_error = max(max_pointwise_error, eq_max_error)
+            # max_pointwise_error = max(max_pointwise_error, eq_max_error)
             
             # Store equation-specific results
             equation_errors.append({
                 'equation_idx': eq_idx,
                 'l2_error': np.sqrt(eq_error_squared),
-                'l2_error_squared': eq_error_squared,
                 'solution_norm': np.sqrt(eq_solution_norm_squared),
-                'solution_norm_squared': eq_solution_norm_squared,
-                'max_pointwise_error': eq_max_error,
-                'relative_error': np.sqrt(eq_error_squared / eq_solution_norm_squared) if eq_solution_norm_squared > 1e-14 else np.inf,
-                'bulk_coefficients': eq_coeffs.copy()  # Shape: (2, n_elements)
             })
         
+            solution_norms.append({
+                'equation_idx': eq_idx,
+                'solution_norm': np.sqrt(eq_solution_norm_squared),
+            })
+            
         return {
             'domain_idx': getattr(problem, 'domain_idx', 0),
-            'max_pointwise_error': max_pointwise_error,
             'equation_errors': equation_errors,
-            'n_elements': n_elements,
-            'n_equations': neq,
+            'solution_norms': solution_norms,
             'error_type': 'bulk'
         }
                 
@@ -563,99 +591,121 @@ class ErrorEvaluator:
     
     def generate_error_report(self, error_results: Dict) -> str:
         """
-        Generate a formatted error analysis report with HDG-specific information.
+        Generate a formatted error analysis report for both trace and bulk errors.
         
         Args:
-            error_results: Results from compute_trace_error
+            error_results: Results from compute_trace_error or compute_bulk_error
         
         Returns:
             Formatted string report
         """
         report = []
         report.append("="*60)
-        if error_results.get('hdg_formulation', False):
-            report.append("HDG TRACE ERROR ANALYSIS REPORT")
-            report.append(f"Error Formulation: {error_results.get('error_formulation', 'HDG trace error')}")
-            alpha_vec = error_results.get('alpha', [])
-            if isinstance(alpha_vec, np.ndarray) and len(alpha_vec) > 0:
-                alpha_str = ", ".join(f"α{i}={alpha_vec[i]:.2f}" for i in range(len(alpha_vec)))
-                report.append(f"Equation-specific α parameters: [{alpha_str}]")
-            else:
-                report.append(f"Mesh scaling parameter α = {alpha_vec}")
+        
+        error_type = error_results.get('error_type', 'unknown')
+        if error_type == 'trace':
+            report.append("TRACE ERROR ANALYSIS REPORT")
+        elif error_type == 'bulk':
+            report.append("BULK ERROR ANALYSIS REPORT")
         else:
             report.append("L2 ERROR ANALYSIS REPORT")
+            
         report.append("="*60)
         report.append(f"Time: {error_results['time']:.6f}")
+        report.append(f"Error Type: {error_type.upper()}")
         
-        error_type = 'HDG' if error_results.get('hdg_formulation', False) else 'L2'
-        report.append(f"Overall Global {error_type} Error: {error_results['global_error']:.6e}")
-        report.append(f"Overall Relative Global Error: {error_results.get('relative_global_error', 'N/A'):.6e}")
-        report.append(f"Maximum Pointwise Error: {error_results['max_error']:.6e}")
+        # Handle global error reporting (different structure for trace vs bulk)
+        if 'global_error' in error_results:
+            # This is the old structure or trace error
+            if isinstance(error_results['global_error'], (int, float)):
+                report.append(f"Overall Global Error: {error_results['global_error']:.6e}")
+            elif isinstance(error_results['global_error'], list) and len(error_results['global_error']) > 0:
+                # Handle list structure from trace errors
+                total_error = sum(eq['euclidean_error']**2 for eq in error_results['global_error'])**0.5
+                report.append(f"Overall Global Error: {total_error:.6e}")
+        
+        if 'relative_global_error' in error_results:
+            report.append(f"Overall Relative Global Error: {error_results['relative_global_error']:.6e}")
+            
+        if 'max_error' in error_results:
+            report.append(f"Maximum Pointwise Error: {error_results['max_error']:.6e}")
+            
         report.append("")
         
         # Report global errors per equation
-        report.append(f"Global {error_type} Errors per Equation:")
-        for eq_result in error_results['global_error_per_equation']:
-            eq_idx = eq_result['equation_idx']
-            error_key = f'global_hdg_error' if error_results.get('hdg_formulation', False) else 'global_l2_error'
-            report.append(f"  Equation {eq_idx + 1}:")
-            report.append(f"    Global {error_type} Error: {eq_result[error_key]:.6e}")
-            report.append(f"    Global Relative Error: {eq_result['global_relative_error']:.6e}")
-            report.append(f"    Global Solution Norm: {eq_result['global_solution_norm']:.6e}")
+        report.append("Global Errors per Equation:")
+        if 'global_error_per_equation' in error_results and error_results['global_error_per_equation']:
+            for eq_result in error_results['global_error_per_equation']:
+                eq_idx = eq_result['equation_idx']
+                report.append(f"  Equation {eq_idx + 1}:")
+                
+                # Handle different key names for trace vs bulk
+                if 'euclidean_error' in eq_result:
+                    # Trace error structure
+                    report.append(f"    Global Euclidean Error: {eq_result['euclidean_error']:.6e}")
+                    report.append(f"    Global Relative Error: {eq_result['euclidean_relative_error']:.6e}")
+                    report.append(f"    Global Solution Norm: {eq_result['euclidean_solution_norm']:.6e}")
+                elif 'l2_error' in eq_result:
+                    # Bulk error structure
+                    report.append(f"    Global L2 Error: {eq_result['l2_error']:.6e}")
+                    report.append(f"    Global Relative Error: {eq_result['l2_relative_error']:.6e}")
+                    report.append(f"    Global Solution Norm: {eq_result['l2_solution_norm']:.6e}")
+        elif 'global_error' in error_results and isinstance(error_results['global_error'], list):
+            # Handle old trace error structure
+            for eq_result in error_results['global_error']:
+                eq_idx = eq_result['equation_idx']
+                report.append(f"  Equation {eq_idx + 1}:")
+                report.append(f"    Global Euclidean Error: {eq_result['euclidean_error']:.6e}")
+                report.append(f"    Global Relative Error: {eq_result['euclidean_relative_error']:.6e}")
+                report.append(f"    Global Solution Norm: {eq_result['euclidean_solution_norm']:.6e}")
+        else:
+            report.append("  No global error data available")
+            
         report.append("")
         
         # Report domain-wise breakdown
         report.append("Domain-wise Breakdown:")
         for domain_result in error_results['domain_errors']:
             domain_idx = domain_result['domain_idx']
+            domain_error_type = domain_result.get('error_type', error_type)
             
-            # Fix the mesh_size formatting issue
-            mesh_size = domain_result.get('mesh_size', None)
-            if mesh_size is not None:
-                mesh_info = f" (h={mesh_size:.4f}"
-            else:
-                mesh_info = f" (h=N/A"
-                
-            if error_results.get('hdg_formulation', False):
-                domain_alpha = domain_result.get('alpha', [])
-                if isinstance(domain_alpha, np.ndarray) and len(domain_alpha) > 0:
-                    alpha_str = ", ".join(f"α{i}={domain_alpha[i]:.2f}" for i in range(len(domain_alpha)))
-                    mesh_info += f", α=[{alpha_str}]"
-                else:
-                    mesh_info += f", α={domain_alpha}"
-            mesh_info += ")"
+            report.append(f"Domain {domain_idx + 1} ({domain_error_type.upper()}):")
             
-            report.append(f"Domain {domain_idx + 1}{mesh_info}:")
-            report.append(f"  Max pointwise error: {domain_result['max_pointwise_error']:.6e}")
+            # Handle max pointwise error (only available for trace errors)
+            if 'max_pointwise_error' in domain_result:
+                report.append(f"  Max pointwise error: {domain_result['max_pointwise_error']:.6e}")
             
+            # Report equation-specific errors
             for eq_error in domain_result['equation_errors']:
                 eq_idx = eq_error['equation_idx']
                 report.append(f"    Equation {eq_idx + 1}:")
+                report.append(f"      L2 Error: {eq_error['l2_error']:.6e}")
                 
-                if error_results.get('hdg_formulation', False):
-                    alpha_eq = eq_error.get('alpha_eq', 'N/A')
-                    h_alpha_eq = eq_error.get('h_alpha_eq', 'N/A')
-                    if isinstance(h_alpha_eq, (int, float)):
-                        h_alpha_str = f"{h_alpha_eq:.4f}"
-                    else:
-                        h_alpha_str = str(h_alpha_eq)
-                    report.append(f"      HDG Error (h^α{eq_idx}·||e||₂): {eq_error['hdg_error']:.6e} (α{eq_idx}={alpha_eq}, h^α{eq_idx}={h_alpha_str})")
-                    report.append(f"      L2 Error (integrated): {eq_error['l2_error']:.6e}")
-                    if eq_error.get('euclidean_norm') is not None:
-                        report.append(f"      Euclidean Norm ||e||₂: {eq_error['euclidean_norm']:.6e}")
-                else:
-                    report.append(f"      L2 Error: {eq_error['l2_error']:.6e}")
+                # Handle fields that may not exist in all error types
+                if 'relative_l2_error' in eq_error:
+                    report.append(f"      Relative L2 Error: {eq_error['relative_l2_error']:.6e}")
+                elif 'relative_error' in eq_error:
+                    report.append(f"      Relative Error: {eq_error['relative_error']:.6e}")
                 
-                report.append(f"      Relative Error: {eq_error['relative_error']:.6e}")
-                report.append(f"      Max Pointwise Error: {eq_error['max_pointwise_error']:.6e}")
-                report.append(f"      Solution Norm: {eq_error['solution_norm']:.6e}")
+                if 'max_pointwise_error' in eq_error:
+                    report.append(f"      Max Pointwise Error: {eq_error['max_pointwise_error']:.6e}")
+                    
+                if 'relative_max_error' in eq_error:
+                    report.append(f"      Relative Max Error: {eq_error['relative_max_error']:.6e}")
                 
-                # Fix the n_nodes formatting issue  
-                n_nodes = eq_error.get('n_nodes', None)
-                if n_nodes is not None:
-                    report.append(f"      Nodes: {n_nodes}")
-                else:
-                    report.append(f"      Nodes: N/A")
+                # Solution norm from equation_errors or solution_norms
+                if 'solution_norm' in eq_error:
+                    report.append(f"      Solution Norm: {eq_error['solution_norm']:.6e}")
+                elif 'solution_norms' in domain_result:
+                    # Find matching solution norm
+                    for sol_norm in domain_result['solution_norms']:
+                        if sol_norm['equation_idx'] == eq_idx:
+                            report.append(f"      Solution Norm: {sol_norm['solution_norm']:.6e}")
+                            break
+                
+                if 'n_nodes' in eq_error:
+                    report.append(f"      Nodes: {eq_error['n_nodes']}")
+                    
             report.append("")
         
         return "\n".join(report)
@@ -665,7 +715,7 @@ class ErrorEvaluator:
         Get error results for a specific equation in a specific domain.
         
         Args:
-            error_results: Results from compute_trace_error
+            error_results: Results from compute_trace_error or compute_bulk_error
             domain_idx: Domain index
             equation_idx: Equation index
         

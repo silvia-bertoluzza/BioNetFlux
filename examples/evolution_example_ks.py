@@ -151,10 +151,6 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     error_evaluator = ErrorEvaluator(setup.problems, setup.global_discretization.spatial_discretizations)
     
-    alpha_hdg = 1.0  # HDG scaling parameter (h^0.5 scaling)
-    use_hdg_formulation = True  # Enable HDG trace error formulation
-
-
         
     # ============================================================================
     # STEP 4: TIME EVOLUTION (MASSIVELY SIMPLIFIED!)
@@ -246,15 +242,14 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print(f"\nStep 6a: Evaluating final solution error...")  
     
-    error_evaluator.compute_trace_errors(
-                            numerical_solution=final_traces, 
+    errors = error_evaluator.compute_trace_error(
+                            numerical_solutions=final_traces, 
                             time=current_time,
-                            analytical_functions=None,  # Auto-detect if available
-                            alpha=1.0,  # No scaling for now
-                            use_hdg_formulation=False)
+                            analytical_functions=None  # Auto-detect if available
+                            )
        
        
-       
+    error_evaluator.generate_error_report(errors)   
         
     
     print(f"\nFinal solution characteristics:")
