@@ -73,9 +73,72 @@ class Problem:
         self.solution[equation_idx] = solution_func
 
     def set_initial_condition(self, equation_idx: int, u0_func: Callable):
-        """Set initial condition for specified equation."""
-        self.u0[equation_idx] = u0_func
+        """
+        Set initial condition for specified equation.
         
+        Args:
+            equation_idx: Index of the equation
+            u0_func: Function that takes either:
+                    - f(s): spatial-only function 
+                    - f(s, t): space-time function (will be evaluated at t=0)
+        """
+        import inspect
+        
+        # Get function signature to determine number of parameters
+        try:
+            sig = inspect.signature(u0_func)
+            n_params = len(sig.parameters)
+            
+            if n_params == 1:
+                # Function takes only spatial argument - use as is
+                self.u0[equation_idx] = u0_func
+            elif n_params >= 2:
+                # Function takes spatial and temporal arguments - evaluate at t=0
+                def initial_condition_wrapper(s):
+                    return u0_func(s, 0.0)
+                self.u0[equation_idx] = initial_condition_wrapper
+            else:
+                # Function takes no arguments - create constant function
+                constant_value = u0_func()
+                def constant_wrapper(s):
+                    return constant_value * np.ones_like(s)
+                self.u0[equation_idx] = constant_wrapper
+                
+        except Exception:
+            # Fallback: try to call with different argument patterns
+            test_s = np.array([0.0])
+            
+            # Try single argument first
+            try:
+                result = u0_func(test_s)
+                self.u0[equation_idx] = u0_func
+                return
+            except TypeError:
+                pass
+            
+            # Try dual argument with t=0
+            try:
+                result = u0_func(test_s, 0.0)
+                def initial_condition_wrapper(s):
+                    return u0_func(s, 0.0)
+                self.u0[equation_idx] = initial_condition_wrapper
+                return
+            except TypeError:
+                pass
+            
+            # Try no arguments (constant)
+            try:
+                constant_value = u0_func()
+                def constant_wrapper(s):
+                    return constant_value * np.ones_like(s)
+                self.u0[equation_idx] = constant_wrapper
+                return
+            except TypeError:
+                pass
+            
+            # If all else fails, raise an error
+            raise ValueError(f"Cannot determine how to call initial condition function for equation {equation_idx}")
+    
     def set_boundary_flux(self, equation_idx: int, 
                          left_flux: Optional[Callable] = None,
                          right_flux: Optional[Callable] = None):

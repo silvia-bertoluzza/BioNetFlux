@@ -278,7 +278,7 @@ class ErrorEvaluator:
             'domain_errors': {},  # organized by (domain_idx, eq_idx)
             'global_errors': [],  # global error for each equation
             'time': time,
-            'error_type': 'trace'
+            'error_type': 'bulk'
             }
         
         # results = {
@@ -589,124 +589,165 @@ class ErrorEvaluator:
         
         return p, correlation
     
-    def generate_error_report(self, error_results: Dict) -> str:
+    def generate_error_report(self, trace_errors: Optional[Dict] = None, bulk_errors: Optional[Dict] = None) -> str:
         """
-        Generate a formatted error analysis report for both trace and bulk errors.
+        Generate a comprehensive formatted error analysis report for trace and/or bulk errors.
         
         Args:
-            error_results: Results from compute_trace_error or compute_bulk_error
+            trace_errors: Optional results from compute_trace_error
+            bulk_errors: Optional results from compute_bulk_error
         
         Returns:
             Formatted string report
         """
+        if trace_errors is None and bulk_errors is None:
+            return "No error data provided for report generation."
+        
         report = []
-        report.append("="*60)
+        report.append("="*70)
         
-        error_type = error_results.get('error_type', 'unknown')
-        if error_type == 'trace':
+        # Determine report title
+        if trace_errors is not None and bulk_errors is not None:
+            report.append("COMPREHENSIVE ERROR ANALYSIS REPORT")
+            report.append("TRACE AND BULK ERRORS")
+        elif trace_errors is not None:
             report.append("TRACE ERROR ANALYSIS REPORT")
-        elif error_type == 'bulk':
+        else:
             report.append("BULK ERROR ANALYSIS REPORT")
-        else:
-            report.append("L2 ERROR ANALYSIS REPORT")
             
-        report.append("="*60)
-        report.append(f"Time: {error_results['time']:.6f}")
-        report.append(f"Error Type: {error_type.upper()}")
+        report.append("="*70)
         
-        # Handle global error reporting (different structure for trace vs bulk)
-        if 'global_error' in error_results:
-            # This is the old structure or trace error
-            if isinstance(error_results['global_error'], (int, float)):
-                report.append(f"Overall Global Error: {error_results['global_error']:.6e}")
-            elif isinstance(error_results['global_error'], list) and len(error_results['global_error']) > 0:
-                # Handle list structure from trace errors
-                total_error = sum(eq['euclidean_error']**2 for eq in error_results['global_error'])**0.5
-                report.append(f"Overall Global Error: {total_error:.6e}")
+        # Time information
+        if trace_errors is not None:
+            report.append(f"Time: {trace_errors['time']:.6f}")
+        elif bulk_errors is not None:
+            report.append(f"Time: {bulk_errors['time']:.6f}")
         
-        if 'relative_global_error' in error_results:
-            report.append(f"Overall Relative Global Error: {error_results['relative_global_error']:.6e}")
-            
-        if 'max_error' in error_results:
-            report.append(f"Maximum Pointwise Error: {error_results['max_error']:.6e}")
-            
         report.append("")
         
-        # Report global errors per equation
-        report.append("Global Errors per Equation:")
-        if 'global_error_per_equation' in error_results and error_results['global_error_per_equation']:
-            for eq_result in error_results['global_error_per_equation']:
-                eq_idx = eq_result['equation_idx']
-                report.append(f"  Equation {eq_idx + 1}:")
+        # ====================================================================
+        # SECTION 1: TRACE ERRORS
+        # ====================================================================
+        if trace_errors is not None:
+            report.append("TRACE ERROR ANALYSIS")
+            report.append("-" * 40)
+            
+            # Global trace errors
+            if 'global_errors' in trace_errors and trace_errors['global_errors']:
+                report.append("Global Trace Errors per Equation:")
+                for eq_result in trace_errors['global_errors']:
+                    eq_idx = eq_result['equation_idx']
+                    report.append(f"  Equation {eq_idx + 1}:")
+                    report.append(f"    Euclidean Error: {eq_result['euclidean_error']:.6e}")
+                    report.append(f"    Relative Error:  {eq_result['euclidean_relative_error']:.6e}")
+                    report.append(f"    Solution Norm:   {eq_result['euclidean_solution_norm']:.6e}")
+                    if 'max_error' in eq_result:
+                        report.append(f"    Max Error:       {eq_result['max_error']:.6e}")
+                        report.append(f"    Max Rel. Error:  {eq_result['max_relative_error']:.6e}")
+            
+            # Domain-wise trace errors
+            if 'domain_errors' in trace_errors and trace_errors['domain_errors']:
+                report.append("\nDomain-wise Trace Errors:")
                 
-                # Handle different key names for trace vs bulk
-                if 'euclidean_error' in eq_result:
-                    # Trace error structure
-                    report.append(f"    Global Euclidean Error: {eq_result['euclidean_error']:.6e}")
-                    report.append(f"    Global Relative Error: {eq_result['euclidean_relative_error']:.6e}")
-                    report.append(f"    Global Solution Norm: {eq_result['euclidean_solution_norm']:.6e}")
-                elif 'l2_error' in eq_result:
-                    # Bulk error structure
-                    report.append(f"    Global L2 Error: {eq_result['l2_error']:.6e}")
-                    report.append(f"    Global Relative Error: {eq_result['l2_relative_error']:.6e}")
-                    report.append(f"    Global Solution Norm: {eq_result['l2_solution_norm']:.6e}")
-        elif 'global_error' in error_results and isinstance(error_results['global_error'], list):
-            # Handle old trace error structure
-            for eq_result in error_results['global_error']:
-                eq_idx = eq_result['equation_idx']
-                report.append(f"  Equation {eq_idx + 1}:")
-                report.append(f"    Global Euclidean Error: {eq_result['euclidean_error']:.6e}")
-                report.append(f"    Global Relative Error: {eq_result['euclidean_relative_error']:.6e}")
-                report.append(f"    Global Solution Norm: {eq_result['euclidean_solution_norm']:.6e}")
-        else:
-            report.append("  No global error data available")
-            
-        report.append("")
-        
-        # Report domain-wise breakdown
-        report.append("Domain-wise Breakdown:")
-        for domain_result in error_results['domain_errors']:
-            domain_idx = domain_result['domain_idx']
-            domain_error_type = domain_result.get('error_type', error_type)
-            
-            report.append(f"Domain {domain_idx + 1} ({domain_error_type.upper()}):")
-            
-            # Handle max pointwise error (only available for trace errors)
-            if 'max_pointwise_error' in domain_result:
-                report.append(f"  Max pointwise error: {domain_result['max_pointwise_error']:.6e}")
-            
-            # Report equation-specific errors
-            for eq_error in domain_result['equation_errors']:
-                eq_idx = eq_error['equation_idx']
-                report.append(f"    Equation {eq_idx + 1}:")
-                report.append(f"      L2 Error: {eq_error['l2_error']:.6e}")
+                # Group by domains
+                domains = {}
+                for (domain_idx, eq_idx), eq_error in trace_errors['domain_errors'].items():
+                    if domain_idx not in domains:
+                        domains[domain_idx] = []
+                    domains[domain_idx].append((eq_idx, eq_error))
                 
-                # Handle fields that may not exist in all error types
-                if 'relative_l2_error' in eq_error:
-                    report.append(f"      Relative L2 Error: {eq_error['relative_l2_error']:.6e}")
-                elif 'relative_error' in eq_error:
-                    report.append(f"      Relative Error: {eq_error['relative_error']:.6e}")
-                
-                if 'max_pointwise_error' in eq_error:
-                    report.append(f"      Max Pointwise Error: {eq_error['max_pointwise_error']:.6e}")
+                # Sort and report by domain
+                for domain_idx in sorted(domains.keys()):
+                    equations = sorted(domains[domain_idx], key=lambda x: x[0])
+                    report.append(f"  Domain {domain_idx + 1}:")
                     
-                if 'relative_max_error' in eq_error:
-                    report.append(f"      Relative Max Error: {eq_error['relative_max_error']:.6e}")
-                
-                # Solution norm from equation_errors or solution_norms
-                if 'solution_norm' in eq_error:
-                    report.append(f"      Solution Norm: {eq_error['solution_norm']:.6e}")
-                elif 'solution_norms' in domain_result:
-                    # Find matching solution norm
-                    for sol_norm in domain_result['solution_norms']:
-                        if sol_norm['equation_idx'] == eq_idx:
-                            report.append(f"      Solution Norm: {sol_norm['solution_norm']:.6e}")
-                            break
-                
-                if 'n_nodes' in eq_error:
-                    report.append(f"      Nodes: {eq_error['n_nodes']}")
-                    
+                    for eq_idx, eq_error in equations:
+                        report.append(f"    Equation {eq_idx + 1}:")
+                        report.append(f"      L2 Error:            {eq_error['l2_error']:.6e}")
+                        if 'relative_l2_error' in eq_error:
+                            report.append(f"      Relative L2 Error:   {eq_error['relative_l2_error']:.6e}")
+                        if 'max_pointwise_error' in eq_error:
+                            report.append(f"      Max Pointwise Error: {eq_error['max_pointwise_error']:.6e}")
+                        if 'relative_max_error' in eq_error:
+                            report.append(f"      Rel. Max Error:      {eq_error['relative_max_error']:.6e}")
+                        if 'n_nodes' in eq_error:
+                            report.append(f"      Nodes:               {eq_error['n_nodes']}")
+            
             report.append("")
+        
+        # ====================================================================
+        # SECTION 2: BULK ERRORS
+        # ====================================================================
+        if bulk_errors is not None:
+            report.append("BULK ERROR ANALYSIS")
+            report.append("-" * 40)
+            
+            # Global bulk errors
+            if 'global_errors' in bulk_errors and bulk_errors['global_errors']:
+                report.append("Global Bulk Errors per Equation:")
+                for eq_result in bulk_errors['global_errors']:
+                    eq_idx = eq_result['equation_idx']
+                    report.append(f"  Equation {eq_idx + 1}:")
+                    report.append(f"    L2 Error:        {eq_result['l2_error']:.6e}")
+                    report.append(f"    Relative Error:  {eq_result['l2_relative_error']:.6e}")
+                    report.append(f"    Solution Norm:   {eq_result['l2_solution_norm']:.6e}")
+            
+            # Domain-wise bulk errors
+            if 'domain_errors' in bulk_errors and bulk_errors['domain_errors']:
+                report.append("\nDomain-wise Bulk Errors:")
+                
+                # Group by domains
+                domains = {}
+                for (domain_idx, eq_idx), eq_error in bulk_errors['domain_errors'].items():
+                    if domain_idx not in domains:
+                        domains[domain_idx] = []
+                    domains[domain_idx].append((eq_idx, eq_error))
+                
+                # Sort and report by domain
+                for domain_idx in sorted(domains.keys()):
+                    equations = sorted(domains[domain_idx], key=lambda x: x[0])
+                    report.append(f"  Domain {domain_idx + 1}:")
+                    
+                    for eq_idx, eq_error in equations:
+                        report.append(f"    Equation {eq_idx + 1}:")
+                        report.append(f"      L2 Error:      {eq_error['l2_error']:.6e}")
+                        if 'solution_norm' in eq_error:
+                            report.append(f"      Solution Norm: {eq_error['solution_norm']:.6e}")
+            
+            report.append("")
+        
+        # ====================================================================
+        # SECTION 3: SUMMARY STATISTICS
+        # ====================================================================
+        report.append("SUMMARY STATISTICS")
+        report.append("-" * 40)
+        
+        # Overall statistics
+        if trace_errors is not None and 'global_errors' in trace_errors:
+            total_trace_equations = len(trace_errors['global_errors'])
+            total_trace_error_sq = sum(eq['euclidean_error']**2 for eq in trace_errors['global_errors'])
+            report.append(f"Trace Analysis:")
+            report.append(f"  Equations analyzed:     {total_trace_equations}")
+            report.append(f"  Overall global error:   {np.sqrt(total_trace_error_sq):.6e}")
+        
+        if bulk_errors is not None and 'global_errors' in bulk_errors:
+            total_bulk_equations = len(bulk_errors['global_errors'])
+            total_bulk_error_sq = sum(eq['l2_error']**2 for eq in bulk_errors['global_errors'])
+            report.append(f"Bulk Analysis:")
+            report.append(f"  Equations analyzed:     {total_bulk_equations}")
+            report.append(f"  Overall global L2 error: {np.sqrt(total_bulk_error_sq):.6e}")
+        
+        # Combined statistics if both are available
+        if trace_errors is not None and bulk_errors is not None:
+            report.append(f"Combined Analysis:")
+            if 'domain_errors' in trace_errors and 'domain_errors' in bulk_errors:
+                total_domains_trace = len(set(k[0] for k in trace_errors['domain_errors'].keys()))
+                total_domains_bulk = len(set(k[0] for k in bulk_errors['domain_errors'].keys()))
+                report.append(f"  Domains with trace data: {total_domains_trace}")
+                report.append(f"  Domains with bulk data:  {total_domains_bulk}")
+        
+        report.append("")
+        report.append("="*70)
         
         return "\n".join(report)
     

@@ -235,6 +235,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     # Extract final solutions
     final_traces, final_multipliers = setup.extract_domain_solutions(current_solution)
+    final_bulk_data = current_bulk_data
     
     # ============================================================================
     # STEP 6a: ERROR ANALYSIS (NEW!)
@@ -242,24 +243,27 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print(f"\nStep 6a: Evaluating final solution error...")  
     
-    errors = error_evaluator.compute_trace_error(
+    trace_errors = error_evaluator.compute_trace_error(
                             numerical_solutions=final_traces, 
                             time=current_time,
                             analytical_functions=None  # Auto-detect if available
                             )
-       
-       
-    error_evaluator.generate_error_report(errors)   
-        
     
-    print(f"\nFinal solution characteristics:")
-    for i, trace in enumerate(final_traces):
-        trace_norm = np.linalg.norm(trace)
-        print(f"  Domain {i}: ||trace|| = {trace_norm:.6e}")
+    bulk_errors = error_evaluator.compute_bulk_error(
+                            bulk_solutions = final_bulk_data, 
+                            time=current_time,
+                            analytical_functions=None  # Auto-detect if available
+                            )
     
-    if len(final_multipliers) > 0:
-        multiplier_norm = np.linalg.norm(final_multipliers)
-        print(f"  Multipliers: ||λ|| = {multiplier_norm:.6e}")
+    # Generate comprehensive error report with both trace and bulk errors
+    if trace_errors is not None or bulk_errors is not None:
+        error_report = error_evaluator.generate_error_report(
+            trace_errors=trace_errors, 
+            bulk_errors=bulk_errors
+        )
+        print(error_report)
+    else:
+        print("✓ No analytical solution available for error computation")
     
     # ============================================================================
     # STEP 6b: FINAL VISUALIZATION
