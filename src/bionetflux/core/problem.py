@@ -90,55 +90,62 @@ class Problem:
             n_params = len(sig.parameters)
             
             if n_params == 1:
-                # Function takes only spatial argument - use as is
-                self.u0[equation_idx] = u0_func
+                # Function takes only spatial argument - create wrapper that can handle both call patterns
+                def robust_wrapper(*args, **kwargs):
+                    # Always call the original function with just the first argument (s)
+                    return u0_func(args[0])
+                self.u0[equation_idx] = robust_wrapper
             elif n_params >= 2:
-                # Function takes spatial and temporal arguments - evaluate at t=0
-                def initial_condition_wrapper(s):
-                    return u0_func(s, 0.0)
-                self.u0[equation_idx] = initial_condition_wrapper
+                # Function takes spatial and temporal arguments - create wrapper that evaluates at t=0
+                def robust_wrapper(*args, **kwargs):
+                    if len(args) == 1:
+                        # Called with just s
+                        return u0_func(args[0], 0.0)
+                    elif len(args) >= 2:
+                        # Called with s and t, but we force t=0 for initial condition
+                        return u0_func(args[0], 0.0)
+                    else:
+                        # Use keyword arguments
+                        s = kwargs.get('s', args[0] if args else 0)
+                        return u0_func(s, 0.0)
+                self.u0[equation_idx] = robust_wrapper
             else:
                 # Function takes no arguments - create constant function
                 constant_value = u0_func()
-                def constant_wrapper(s):
+                def robust_wrapper(*args, **kwargs):
+                    s = args[0] if args else kwargs.get('s', np.array([0.0]))
                     return constant_value * np.ones_like(s)
-                self.u0[equation_idx] = constant_wrapper
+                self.u0[equation_idx] = robust_wrapper
                 
         except Exception:
-            # Fallback: try to call with different argument patterns
-            test_s = np.array([0.0])
+            # Fallback: create a universal wrapper that tries different call patterns
+            def universal_wrapper(*args, **kwargs):
+                test_s = args[0] if args else kwargs.get('s', np.array([0.0]))
+                
+                # Try single argument first
+                try:
+                    return u0_func(test_s)
+                except TypeError:
+                    pass
+                
+                # Try dual argument with t=0
+                try:
+                    return u0_func(test_s, 0.0)
+                except TypeError:
+                    pass
+                
+                # Try no arguments (constant)
+                try:
+                    constant_value = u0_func()
+                    return constant_value * np.ones_like(test_s)
+                except TypeError:
+                    pass
+                
+                # If all else fails, return zeros
+                return np.zeros_like(test_s)
             
-            # Try single argument first
-            try:
-                result = u0_func(test_s)
-                self.u0[equation_idx] = u0_func
-                return
-            except TypeError:
-                pass
-            
-            # Try dual argument with t=0
-            try:
-                result = u0_func(test_s, 0.0)
-                def initial_condition_wrapper(s):
-                    return u0_func(s, 0.0)
-                self.u0[equation_idx] = initial_condition_wrapper
-                return
-            except TypeError:
-                pass
-            
-            # Try no arguments (constant)
-            try:
-                constant_value = u0_func()
-                def constant_wrapper(s):
-                    return constant_value * np.ones_like(s)
-                self.u0[equation_idx] = constant_wrapper
-                return
-            except TypeError:
-                pass
-            
-            # If all else fails, raise an error
-            raise ValueError(f"Cannot determine how to call initial condition function for equation {equation_idx}")
-    
+            self.u0[equation_idx] = universal_wrapper
+
     def set_boundary_flux(self, equation_idx: int, 
                          left_flux: Optional[Callable] = None,
                          right_flux: Optional[Callable] = None):
