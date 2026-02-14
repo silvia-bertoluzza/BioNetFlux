@@ -47,7 +47,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print("Step 1: Setting up solver...")
     
-    geometry = build_arc_sequence_geometry(N=4, start=2.0, length=1.0)
+    geometry = build_arc_sequence_geometry(N=1, start=2.0, length=1.0)
 
     # Try to call quick_setup with error handling for config compatibility    
     try:
@@ -251,8 +251,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     bulk_errors = error_evaluator.compute_bulk_error(
                             bulk_solutions = final_bulk_data, 
-                            time=current_time,
-                            analytical_functions=None  # Auto-detect if available
+                            time=current_time
                             )
     
     # Generate comprehensive error report with both trace and bulk errors

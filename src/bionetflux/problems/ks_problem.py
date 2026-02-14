@@ -166,6 +166,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     domain_force_functions = config.get('domain_force_functions', {})
     domain_exact_solutions = config.get('domain_exact_solutions', {})
     
+
     print(f"Domain-specific initial conditions found: {len(domain_initial_conditions)}")
     for key, value in domain_initial_conditions.items():
         print(f"  {key} = {value}")
@@ -198,9 +199,15 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     dchi_func = config_manager.function_resolver.resolve_function(dchi_func_name)
     
     u = exact_solutions['u']
+    u_func = config_manager.function_resolver.resolve_function(exact_solutions['u'])
+
+    phi = exact_solutions['phi']
+    phi_func = config_manager.function_resolver.resolve_function(exact_solutions['phi'])
 
     u_x = exact_solution_derivatives['u']
     phi_x = exact_solution_derivatives['phi']
+    u_x_func = config_manager.function_resolver.resolve_function(exact_solution_derivatives['u'])
+    phi_x_func = config_manager.function_resolver.resolve_function(exact_solution_derivatives['phi'])
     
     
     
@@ -209,8 +216,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     a = reaction['a']
     b = reaction['b']
     
-    flux_u = lambda s, t: nu * u_x(s, t) + chi(s) * u(s, t) * phi_x(s, t)
-    flux_phi = lambda s, t: - mu * phi_x(s, t)  
+    flux_u = lambda s, t: nu * u_x_func(s, t) + chi_func(s) * u_func(s, t) * phi_x_func(s, t)
+    flux_phi = lambda s, t: mu * phi_x_func(s, t)  
     
     # Combine into parameter array (matches KS_traveling_wave order: [mu, nu, a, b])
     parameters = np.array([mu, nu, a, b])
@@ -324,8 +331,14 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         
         # Set chemotaxis for Keller-Segel
         problem.set_chemotaxis(chi_func, dchi_func)  # Use resolved functions
-        # problem.set_boundary_flux(0, left_flux=u_x, right_flux=u_x)  
-        # problem.set_boundary_flux(1, left_flux=phi_x, right_flux=phi_x)
+        
+        # Set flux functions for Keller-Segel (using the resolved chi function)
+        
+        problem.set_solution(0, u_func)  # Exact solution for u (if provided
+        problem.set_solution(1, phi_func)  # Exact solution for phi (if provided)
+
+        problem.set_boundary_flux(0, left_flux=flux_u, right_flux=flux_u)  
+        problem.set_boundary_flux(1, left_flux=flux_phi, right_flux=flux_phi)
         
         # Set 2D coordinates for visualization from geometry
         problem.set_extrema(domain_info.extrema_start, domain_info.extrema_end)
@@ -399,6 +412,16 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     
     constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
     
+
+    left_boundary = geometry.domains[0].domain_start  # Assuming left boundary is at the start of the first domain
+    right_boundary = geometry.domains[-1].domain_start + geometry.domains[-1].domain_length  # Assuming right boundary is at the end of the last domain
+
+    constraint_manager.add_neumann(0, 0, left_boundary, lambda t: - flux_u(left_boundary, t))  # u equation at start
+    constraint_manager.add_neumann(1, 0, left_boundary, lambda t: - flux_phi(left_boundary, t))  # phi equation at start
+
+    constraint_manager.add_neumann(0, len(problems)-1, right_boundary, lambda t: flux_u(right_boundary, t))  # u equation at end
+    constraint_manager.add_neumann(1, len(problems)-1, right_boundary, lambda t: flux_phi(right_boundary, t))  # phi equation at end
+
     # Map constraints to discretizations
     constraint_manager.map_to_discretizations(discretizations)
     

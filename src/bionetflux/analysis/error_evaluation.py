@@ -79,6 +79,86 @@ class ErrorEvaluator:
         
         # Automatically extract analytical solutions from problems
         self.analytical_solutions = retrieve_analytical_solution(problems)
+        
+        # ====================================================================
+        # DEBUG SECTION: Print analytical solutions information
+        # ====================================================================
+        print("\n" + "="*60)
+        print("DEBUG: ErrorEvaluator Initialization")
+        print("="*60)
+        print(f"Number of domains: {self.n_domains}")
+        print(f"Number of problems: {len(self.problems)}")
+        print(f"Number of discretizations: {len(self.discretizations)}")
+        print("\nAnalytical solutions extracted:")
+        
+        
+
+
+        if not self.analytical_solutions:
+            print("  ❌ No analytical solutions found in any domain")
+        else:
+            for domain_key, functions in self.analytical_solutions.items():
+                print(f"  {domain_key}:")
+                if functions is None:
+                    print(f"    ❌ None (no analytical solution available)")
+                elif isinstance(functions, list):
+                    print(f"    ✅ List with {len(functions)} functions:")
+                    for i, func in enumerate(functions):
+                        if callable(func):
+                            print(f"      Equation {i}: {func.__name__} (callable)")
+                            try: 
+                                print(f"        Test call: {func(0.5, 1.0)}")  # Test call with sample inputs
+                            except Exception as e:
+                                print(f"        ❌ Test call failed: {e}")
+                        else:
+                            print(f"      Equation {i}: {type(func).__name__} (not callable)")
+        
+        # Test evaluation of all callable functions from problem.solution at (0.5, 1.5)
+        print("\nTest evaluation at point (0.5, 1.5):")
+        for i, problem in enumerate(self.problems):
+            if hasattr(problem, 'solution') and problem.solution is not None:
+                print(f"  Problem {i}:")
+                if callable(problem.solution):
+                    try:
+                        result = problem.solution(0.5, 1.5)
+                        print(f"    Single function: {result}")
+                    except Exception as e:
+                        print(f"    ❌ Single function evaluation failed: {e}")
+                elif isinstance(problem.solution, (list, tuple)):
+                    for eq_idx, func in enumerate(problem.solution):
+                        if callable(func):
+                            try:
+                                result = func(0.5, 1.5)
+                                print(f"    Equation {eq_idx}: {result}")
+                            except Exception as e:
+                                print(f"    ❌ Equation {eq_idx} evaluation failed: {e}")
+                        else:
+                            print(f"    ❌ Equation {eq_idx}: not callable")
+                else:
+                    print(f"    ❌ Solution is not callable or list")
+            else:
+                print(f"  Problem {i}: No solution attribute")
+        
+        # Check consistency with problem equations
+        print("\nConsistency check with problem.neq:")
+        for i, problem in enumerate(self.problems):
+            domain_key = f'domain_{i}'
+            functions = self.analytical_solutions.get(domain_key, None)
+            print(f"  Domain {i}: problem.neq={problem.neq}, functions={len(functions) if functions else 0}")
+            
+            
+
+            if functions and len(functions) != problem.neq:
+                print(f"    ⚠️  WARNING: Mismatch between problem.neq and number of analytical functions")
+        
+        
+        print("="*60)
+        print("END DEBUG: ErrorEvaluator Initialization")
+        print("="*60 + "\n")
+        # ====================================================================
+        # END DEBUG SECTION
+        # ====================================================================
+        
     
     def compute_trace_error(self, 
                         numerical_solutions: List[np.ndarray], 
@@ -412,6 +492,17 @@ class ErrorEvaluator:
             
             plt.figure(figsize=(10, 6))
             plt.plot(x_plot, y_plot, 'b-', linewidth=2, label=f'Numerical (Eq {eq_idx})')
+            
+            # Plot analytical solution if available
+            if analytical_functions and eq_idx < len(analytical_functions):
+                x_analytical = np.linspace(discretization.nodes[0], discretization.nodes[-1], 200)
+                y_analytical = [analytical_functions[eq_idx](x, time) for x in x_analytical]
+                plt.plot(x_analytical, y_analytical, 'r--', linewidth=2, label=f'Analytical (Eq {eq_idx})')
+            else:
+                # Zero analytical solution
+                x_analytical = np.linspace(discretization.nodes[0], discretization.nodes[-1], 200)
+                y_analytical = np.zeros_like(x_analytical)
+                plt.plot(x_analytical, y_analytical, 'r--', linewidth=2, label=f'Analytical (Zero, Eq {eq_idx})')
             
             # Mark element boundaries
             for boundary in discretization.nodes:
