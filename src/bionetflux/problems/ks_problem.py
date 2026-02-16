@@ -194,18 +194,22 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     chi_func_name = chemotaxis['chi']    # Should be "constant" 
     dchi_func_name = chemotaxis['dchi']  # Should be "zeros"
     
+    f_u_func_name = force_functions['u_f']  # Should be "cos(t) + 1.0e-11 * s"
+    f_phi_func_name = force_functions['phi_f']  # Should be "-(s + sin(t))"
+    force_func_u = config_manager.function_resolver.resolve_function(f_u_func_name)
+    force_func_phi = config_manager.function_resolver.resolve_function(f_phi_func_name)
+    
     # Resolve the function names to actual callables
     chi_func = config_manager.function_resolver.resolve_function(chi_func_name)
     dchi_func = config_manager.function_resolver.resolve_function(dchi_func_name)
     
     u = exact_solutions['u']
     u_func = config_manager.function_resolver.resolve_function(u)
-
     phi = exact_solutions['phi']
     phi_func = config_manager.function_resolver.resolve_function(phi)
 
-    u_x = exact_solution_derivatives['u']
-    phi_x = exact_solution_derivatives['phi']
+    u_x = exact_solution_derivatives['u_x']
+    phi_x = exact_solution_derivatives['phi_x']
     u_x_func = config_manager.function_resolver.resolve_function(u_x)
     phi_x_func = config_manager.function_resolver.resolve_function(phi_x)
     
@@ -288,8 +292,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         function_checks = [
             ('initial_conditions["u"]', initial_conditions.get('u')),
             ('initial_conditions["phi"]', initial_conditions.get('phi')),
-            ('force_functions["u"]', force_functions.get('u')),
-            ('force_functions["phi"]', force_functions.get('phi')),
+            ('force_functions["u_f"]', force_func_u),
+            ('force_functions["phi"]', force_func_phi),
             ('chi_func', chi_func),      # Use resolved functions
             ('dchi_func', dchi_func)     # Use resolved functions
         ]
@@ -326,8 +330,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         problem.set_initial_condition(1, initial_conditions.get('phi'))  # Chemical concentration
         
         # Set DEFAULT force functions from config (already resolved to callables)
-        problem.set_force(0, force_functions['u'])
-        problem.set_force(1, force_functions['phi'])
+        problem.set_force(0, force_func_u)
+        problem.set_force(1, force_func_phi)
         
         # Set chemotaxis for Keller-Segel
         problem.set_chemotaxis(chi_func, dchi_func)  # Use resolved functions
@@ -346,8 +350,6 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         
         
         problems.append(problem)
-        
-        
         
         # Create discretization for this domain with config parameters
         discretization = Discretization(
@@ -424,7 +426,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
 
     # Map constraints to discretizations
     constraint_manager.map_to_discretizations(discretizations)
-    
+     
     # ============================================================================
     # SECTION 6: GLOBAL DISCRETIZATION AND FINALIZATION
     # ============================================================================

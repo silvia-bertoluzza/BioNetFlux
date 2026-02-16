@@ -85,7 +85,7 @@ class FunctionResolver:
             # Traveling wave
             'traveling_wave_u': lambda s, t=0: ((5 * np.exp(s - t/2)) - (4 * np.exp(2*s - t)) / (np.exp(s - t/2) - 1)
             ) / (np.exp(s - t/2) - 1) - 5/8,
-            'traveling_wave_phi': lambda s, t=0: 5/4 - (2 * np.exp(s - t/2)) / (np.exp(s - t/2) - 1),
+            'traveling_wave_phi': lambda s, t=0: (5/4) * s - (5/8) * t - 2 * np.log(np.exp(s - t/2) - 1),
             'traveling_wave_u_x': lambda s, t=0: 8 * np.exp(3*s - 3*t/2) / (np.exp(s - t/2) - 1)**3 - 13 * np.exp(2*s - t) / (np.exp(s - t/2) - 1)**2 + 5 * np.exp(s - t/2) / (np.exp(s - t/2) - 1),
             'traveling_wave_phi_x': lambda s, t=0: 5/4 - (2 * np.exp(s - t/2)) / (np.exp(s - t/2) - 1),  # Defined as method below
             
@@ -121,13 +121,21 @@ class FunctionResolver:
             expr = sp.sympify(expr_str)
             
             # Convert to numpy-compatible function
-            func = sp.lambdify(symbols, expr, 'numpy')
+            raw_func = sp.lambdify(symbols, expr, 'numpy')
             
             # Wrap to handle single argument case
             if len(variables) == 1:
-                return lambda s, t=0: func(s)
+                return lambda s, t=0: raw_func(s)
             else:
-                return func
+                # Wrap function to ensure output always matches shape of s
+                def wrapped_func(s, t):
+                    s = np.asarray(s)
+                    result = raw_func(s, t)
+                    # If result is scalar, broadcast it to match shape of s
+                    if np.isscalar(result):
+                        return np.full_like(s, result, dtype=float)
+                    return result
+                return wrapped_func
                 
         except Exception as e:
             raise ValueError(f"Failed to parse expression '{expr_str}': {e}")

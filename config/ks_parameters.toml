@@ -36,12 +36,12 @@ u = "traveling_wave_u"     # Use traveling wave solution for initial u
 phi = "traveling_wave_phi"   # Use traveling wave solution for initial v
 
 [exact_solution_derivatives]
-u = "traveling_wave_u_x" # Derivative of traveling wave solution for u
-phi = "traveling_wave_phi_x" # Derivative of traveling wave solution for v
+u_x = "traveling_wave_u_x" # Derivative of traveling wave solution for u
+phi_x = "traveling_wave_phi_x" # Derivative of traveling wave solution for v
 
 [force_functions]
-u = "zeros"      # Zero force for u (from KS_traveling_wave)
-phi = "zeros"      # Zero force for v (from KS_traveling_wave)
+u_f = "zeros"      # Zero force for u (from KS_traveling_wave)
+phi_f = "zeros"      # Zero force for v (from KS_traveling_wave)
 
 # Domain-specific overrides for initial conditions
 [domain_initial_conditions]
