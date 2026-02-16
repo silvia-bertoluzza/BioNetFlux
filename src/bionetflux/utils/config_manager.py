@@ -61,6 +61,7 @@ class FunctionResolver:
             'zeros': lambda s, t=0: np.zeros_like(s),
             'ones': lambda s, t=0: np.ones_like(s),
             'constant': lambda s, t=0: np.ones_like(s),
+            '-constant': lambda s, t=0: - np.ones_like(s),
             
             # Trigonometric functions  
             'sin_2pi': lambda s, t=0: np.sin(2 * np.pi * s),
@@ -85,12 +86,8 @@ class FunctionResolver:
             'traveling_wave_u': lambda s, t=0: ((5 * np.exp(s - t/2)) - (4 * np.exp(2*s - t)) / (np.exp(s - t/2) - 1)
             ) / (np.exp(s - t/2) - 1) - 5/8,
             'traveling_wave_phi': lambda s, t=0: 5/4 - (2 * np.exp(s - t/2)) / (np.exp(s - t/2) - 1),
-            'traveling_wave_u_x': lambda s, t=0: (
-                3 * np.exp(2*s - t) + 5 * np.exp(s - t/2)
-            ) / (np.exp(s - t/2) - 1)**3,
-            'traveling_wave_phi_x': lambda s, t=0: (
-                2 * np.exp(s - t/2) * (np.exp(s - t/2) - 1) + 2 * np.exp(2*(s - t/2))
-            ) / (np.exp(s - t/2) - 1)**2,   
+            'traveling_wave_u_x': lambda s, t=0: 8 * np.exp(3*s - 3*t/2) / (np.exp(s - t/2) - 1)**3 - 13 * np.exp(2*s - t) / (np.exp(s - t/2) - 1)**2 + 5 * np.exp(s - t/2) / (np.exp(s - t/2) - 1),
+            'traveling_wave_phi_x': lambda s, t=0: 5/4 - (2 * np.exp(s - t/2)) / (np.exp(s - t/2) - 1),  # Defined as method below
             
         }
     
@@ -365,7 +362,7 @@ class BaseConfigManager(ABC):
         """Get default configuration file path for this problem type."""
         return f"config/{self.problem_type}_parameters.toml"
     
-    def _traveling_wave_u(self, s, t=0):
+    def _traveling_wave_u_old(self, s, t=0):
         """
         Keller-Segel traveling wave analytical solution for u (cell density).
         From KS_traveling_wave_double_arc.py solution_u function.
@@ -392,6 +389,35 @@ class BaseConfigManager(ABC):
         
         return (5 * exp_st2) / safe_denominator - (4 * exp_2st) / (safe_denominator**2) - 5/8
 
+    def _traveling_wave_u(self, s, t=0):
+        """
+        Keller-Segel traveling wave analytical solution for u (cell density).
+        From KS_traveling_wave_double_arc.py solution_u function.
+        
+        Args:
+            s: Spatial coordinate(s) - can be scalar or array
+            t: Time coordinate - scalar
+            
+        Returns:
+            Solution value at (s,t)
+        """
+        s = np.asarray(s)
+        exp_st2 = np.exp(s - t/2)
+        exp_2st = np.exp(2*s - t)
+        
+        # Avoid division by zero when exp_st2 = 1 (i.e., when s = t/2)
+        denominator = exp_st2 - 1
+        
+        # Add small epsilon to avoid exact zero
+        epsilon = 1e-15
+        safe_denominator = np.where(np.abs(denominator) < epsilon, 
+                                  np.sign(denominator) * epsilon, 
+                                  denominator)
+
+        u = (5 * exp_st2) / safe_denominator - (4 * exp_2st) / (safe_denominator**2) - 5/8
+        
+        return u
+
     def _traveling_wave_phi(self, s, t=0):
         """
         Keller-Segel traveling wave analytical solution for phi (chemical concentration).
@@ -417,6 +443,33 @@ class BaseConfigManager(ABC):
         return (5*s)/4 - (5*t)/8 - 2*np.log(np.abs(safe_denominator))
 
     def _traveling_wave_u_x(self, s, t=0):
+        """
+        Spatial derivative of traveling wave u solution for chemotaxis term.
+        From KS_traveling_wave_double_arc.py u_x function.
+        
+        Args:
+            s: Spatial coordinate(s) - can be scalar or array
+            t: Time coordinate - scalar
+        Returns:
+            Derivative value at (s,t)
+        """
+        s = np.asarray(s)
+        exp_st2 = np.exp(s - t/2)
+        exp_2st = np.exp(2*s - t)
+        exp_3st = np.exp(3*s - 3*t/2)
+        
+        # Avoid division by zero
+        denominator = exp_st2 - 1
+        epsilon = 1e-15
+        safe_denominator = np.where(np.abs(denominator) < epsilon, 
+                                  np.sign(denominator) * epsilon, 
+                                  denominator)
+        
+        u_x = 8 * exp_3st / (safe_denominator**3) - 13 * exp_2st / (safe_denominator**2) + 5 * exp_st2 / safe_denominator
+        
+        return u_x
+    
+    def _traveling_wave_u_x_old(self, s, t=0):
         """
         Spatial derivative of traveling wave u solution for chemotaxis term.
         From KS_traveling_wave_double_arc.py u_x function.
@@ -464,3 +517,4 @@ class BaseConfigManager(ABC):
                                   denominator)
         
         return 5/4 - (2 * exp_st2) / safe_denominator
+

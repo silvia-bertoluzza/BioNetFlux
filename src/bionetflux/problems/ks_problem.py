@@ -199,15 +199,15 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     dchi_func = config_manager.function_resolver.resolve_function(dchi_func_name)
     
     u = exact_solutions['u']
-    u_func = config_manager.function_resolver.resolve_function(exact_solutions['u'])
+    u_func = config_manager.function_resolver.resolve_function(u)
 
     phi = exact_solutions['phi']
-    phi_func = config_manager.function_resolver.resolve_function(exact_solutions['phi'])
+    phi_func = config_manager.function_resolver.resolve_function(phi)
 
     u_x = exact_solution_derivatives['u']
     phi_x = exact_solution_derivatives['phi']
-    u_x_func = config_manager.function_resolver.resolve_function(exact_solution_derivatives['u'])
-    phi_x_func = config_manager.function_resolver.resolve_function(exact_solution_derivatives['phi'])
+    u_x_func = config_manager.function_resolver.resolve_function(u_x)
+    phi_x_func = config_manager.function_resolver.resolve_function(phi_x)
     
     
     
@@ -216,7 +216,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     a = reaction['a']
     b = reaction['b']
     
-    flux_u = lambda s, t: nu * u_x_func(s, t) + chi_func(s) * u_func(s, t) * phi_x_func(s, t)
+    flux_u = lambda s, t: nu * u_x_func(s, t) - nu * chi_func(s) * u_func(s, t) * phi_x_func(s, t) 
     flux_phi = lambda s, t: mu * phi_x_func(s, t)  
     
     # Combine into parameter array (matches KS_traveling_wave order: [mu, nu, a, b])
