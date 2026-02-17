@@ -144,7 +144,9 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
                             bulk_solutions = final_bulk_data, 
                             time=current_time
                             )
-    
+
+
+
     # Generate comprehensive error report with both trace and bulk errors
     if trace_errors is not None or bulk_errors is not None:
         error_report = error_evaluator.generate_error_report(
@@ -152,8 +154,28 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
             bulk_errors=bulk_errors
         )
         print(error_report)
+        
+        # Extract data for file output
+        n_elements = setup.global_discretization.spatial_discretizations[0].n_elements
+        euclidean_trace_error = trace_errors[0]['euclidean'] if trace_errors and len(trace_errors) > 0 else float('nan')
+        l2_bulk_error_eq0 = bulk_errors[0]['L2'] if bulk_errors and len(bulk_errors) > 0 else float('nan')
+        l2_bulk_error_eq1 = bulk_errors[1]['L2'] if bulk_errors and len(bulk_errors) > 1 else float('nan')
+        
+        # Append results to file
+        results_file = "evolution_results.txt"
+        with open(results_file, "a") as f:
+            f.write(f"{dt:.6e}\t{n_elements}\t{euclidean_trace_error:.6e}\t{l2_bulk_error_eq0:.6e}\t{l2_bulk_error_eq1:.6e}\n")
+        
+        print(f"Results appended to {results_file}")
     else:
         print("No analytical solution available for error computation")
+        
+        # Still log basic parameters even without errors
+        n_elements = setup.global_discretization.spatial_discretizations[0].n_elements
+        results_file = "evolution_results.txt"
+        with open(results_file, "a") as f:
+            f.write(f"{dt:.6e}\t{n_elements}\tnan\tnan\tnan\n")
+        print(f"Basic parameters appended to {results_file}")
     
     return setup, time_stepper, solution_history, time_history
 
