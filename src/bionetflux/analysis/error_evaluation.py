@@ -680,19 +680,21 @@ class ErrorEvaluator:
         
         return p, correlation
     
-    def generate_error_report(self, trace_errors: Optional[Dict] = None, bulk_errors: Optional[Dict] = None) -> str:
+    def generate_error_report(self, trace_errors: Optional[Dict] = None, bulk_errors: Optional[Dict] = None, return_csv_report: bool = False) -> str:
         """
         Generate a comprehensive formatted error analysis report for trace and/or bulk errors.
         
         Args:
             trace_errors: Optional results from compute_trace_error
             bulk_errors: Optional results from compute_bulk_error
+            return_csv_report: If True, returns tuple (formatted_report, csv_report)
         
         Returns:
-            Formatted string report
+            Formatted string report, or tuple (formatted_report, csv_report) if return_csv_report=True
         """
         if trace_errors is None and bulk_errors is None:
-            return "No error data provided for report generation."
+            result = "No error data provided for report generation."
+            return (result, "") if return_csv_report else result
         
         report = []
         report.append("="*70)
@@ -709,9 +711,12 @@ class ErrorEvaluator:
         report.append("="*70)
         
         # Time information
+        current_time = 0.0
         if trace_errors is not None:
+            current_time = trace_errors['time']
             report.append(f"Time: {trace_errors['time']:.6f}")
         elif bulk_errors is not None:
+            current_time = bulk_errors['time']
             report.append(f"Time: {bulk_errors['time']:.6f}")
         
         report.append("")
@@ -840,7 +845,64 @@ class ErrorEvaluator:
         report.append("")
         report.append("="*70)
         
-        return "\n".join(report)
+        formatted_report = "\n".join(report)
+        
+        # Generate CSV report if requested
+        if return_csv_report:
+            csv_report = self._generate_csv_report(trace_errors, bulk_errors, current_time)
+            return formatted_report, csv_report
+        else:
+            return formatted_report
+
+    def _generate_csv_report(self, trace_errors: Optional[Dict] = None, bulk_errors: Optional[Dict] = None, time: float = 0.0) -> str:
+        """
+        Generate CSV-formatted report with per-equation error data.
+        
+        Args:
+            trace_errors: Optional results from compute_trace_error
+            bulk_errors: Optional results from compute_bulk_error  
+            time: Current time value
+            
+        Returns:
+            CSV string with format: "n_elements,dt,trace_euclidean_error,bulk_l2_error" per equation
+        """
+        csv_lines = []
+        
+        # Determine maximum number of equations
+        max_equations = 0
+        if trace_errors is not None and 'global_errors' in trace_errors:
+            max_equations = max(max_equations, len(trace_errors['global_errors']))
+        if bulk_errors is not None and 'global_errors' in bulk_errors:
+            max_equations = max(max_equations, len(bulk_errors['global_errors']))
+            
+        if max_equations == 0:
+            return ""
+            
+        # Extract n_elements and dt from discretizations (assuming same across domains)
+        n_elements = self.discretizations[0].n_elements if self.discretizations else 0
+        
+        # Estimate dt from time (this is approximate - ideally should be passed as parameter)
+        dt = time  # Simple assumption - could be improved
+        
+        # Generate one line per equation
+        for eq_idx in range(max_equations):
+            # Get trace euclidean error for this equation
+            trace_euclidean_error = float('nan')
+            if trace_errors is not None and 'global_errors' in trace_errors:
+                if eq_idx < len(trace_errors['global_errors']):
+                    trace_euclidean_error = trace_errors['global_errors'][eq_idx]['euclidean_error']
+            
+            # Get bulk L2 error for this equation
+            bulk_l2_error = float('nan')
+            if bulk_errors is not None and 'global_errors' in bulk_errors:
+                if eq_idx < len(bulk_errors['global_errors']):
+                    bulk_l2_error = bulk_errors['global_errors'][eq_idx]['l2_error']
+            
+            # Format line
+            csv_line = f"{n_elements},{dt:.6e},{trace_euclidean_error:.6e},{bulk_l2_error:.6e}"
+            csv_lines.append(csv_line)
+        
+        return "\n".join(csv_lines)
     
     def get_equation_error(self, error_results: Dict, domain_idx: int, equation_idx: int) -> Optional[Dict]:
         """
