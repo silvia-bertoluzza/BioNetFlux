@@ -21,8 +21,133 @@ from bionetflux.time_integration import TimeStepper
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry, build_grid_geometry
 from bionetflux.core.minimal_error_evaluator import MinimalErrorEvaluator
 import numpy as np
+import matplotlib.pyplot as plt
 import time
 from typing import Optional
+
+
+def plot_trace_solution(trace_solutions, problems, discretizations, current_time, equation_idx):
+    """
+    Plot trace solution (nodal values) with analytical solution overlay.
+    
+    Args:
+        trace_solutions: List of trace solutions per domain
+        problems: Problem instances
+        discretizations: Spatial discretifications
+        current_time: Current time value
+        equation_idx: Equation index to plot
+    """
+    plt.figure(figsize=(10, 6))
+    
+    for domain_idx, (trace_sol, problem, disc) in enumerate(zip(trace_solutions, problems, discretizations)):
+        # Get nodes for this domain
+        nodes = disc.nodes
+        
+        # Extract trace values for this equation
+        # Trace solution is stacked by equation: [u0_node0, u0_node1, ..., u1_node1, ...]
+        n_equations = problem.neq
+        n_nodes = len(nodes)
+        
+        # Extract values for this equation from stacked format
+        start_idx = equation_idx * n_nodes
+        end_idx = start_idx + n_nodes
+        trace_values = trace_sol[start_idx:end_idx]
+        
+        # Ensure we have the right number of values
+        if len(trace_values) != n_nodes:
+            print(f"Warning: Domain {domain_idx}, equation {equation_idx}: expected {n_nodes} values, got {len(trace_values)}")
+            continue
+        
+        # Plot numerical solution
+        plt.plot(nodes, trace_values, 'bo-', label=f'Domain {domain_idx} - Numerical', 
+                markersize=4, linewidth=2)
+        
+        # Plot analytical solution if available
+        if hasattr(problem, 'solution') and equation_idx < len(problem.solution):
+            try:
+                analytical_values = problem.solution[equation_idx](nodes, current_time)
+                plt.plot(nodes, analytical_values, 'r--', 
+                        label=f'Domain {domain_idx} - Analytical', linewidth=2)
+            except:
+                pass  # No analytical solution available
+    
+    plt.xlabel('x')
+    plt.ylabel(f'Trace Solution - Equation {equation_idx}')
+    plt.title(f'Trace Solution Comparison - Equation {equation_idx} at t = {current_time:.6f}')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+
+def plot_bulk_solution(bulk_solutions, problems, discretizations, current_time, equation_idx):
+    """
+    Plot bulk solution (discontinuous piecewise linear per element) with analytical solution overlay.
+    
+    Args:
+        bulk_solutions: List of BulkData objects per domain
+        problems: Problem instances  
+        discretizations: Spatial discretifications
+        current_time: Current time value
+        equation_idx: Equation index to plot
+    """
+    plt.figure(figsize=(10, 6))
+    
+    for domain_idx, (bulk_data, problem, disc) in enumerate(zip(bulk_solutions, problems, discretizations)):
+        # Get elements and nodes
+        elements = disc.elements
+        nodes = disc.nodes
+        n_equations = problem.neq
+        n_elements = len(elements)
+        
+        # Get bulk solution data from BulkData object
+        bulk_sol = bulk_data.get_data()
+        
+        # Plot each element segment independently (discontinuous)
+        for elem_idx, element in enumerate(elements):
+            # Get element nodes
+            node_indices = element
+            elem_nodes = [nodes[node_indices[0]], nodes[node_indices[1]]]
+            
+            # Extract bulk values for this element and equation
+            # Bulk solution format: shape (2*n_equations, n_elements)
+            # For each element, we have 2*n_equations values (left and right node for each equation)
+            bulk_values = []
+            for node_in_elem in range(2):  # 2 nodes per element
+                # For bulk solution: row = equation*2 + node_in_element, col = element_index
+                bulk_idx = equation_idx * 2 + node_in_elem
+                if bulk_idx < bulk_sol.shape[0] and elem_idx < bulk_sol.shape[1]:
+                    bulk_values.append(bulk_sol[bulk_idx, elem_idx])
+                else:
+                    print(f"Warning: Bulk solution index out of bounds for domain {domain_idx}, element {elem_idx}")
+                    bulk_values.append(0.0)
+            
+            # Plot element segment
+            if elem_idx == 0 and domain_idx == 0:  # Only add label once
+                plt.plot(elem_nodes, bulk_values, 'b-', linewidth=2, 
+                        label='Numerical (discontinuous)')
+            else:
+                plt.plot(elem_nodes, bulk_values, 'b-', linewidth=2)
+        
+        # Plot analytical solution if available
+        if hasattr(problem, 'solution') and equation_idx < len(problem.solution):
+            try:
+                # Create fine grid for smooth analytical solution
+                x_fine = np.linspace(nodes[0], nodes[-1], 200)
+                analytical_values = problem.solution[equation_idx](x_fine, current_time)
+                if domain_idx == 0:  # Only add label once
+                    plt.plot(x_fine, analytical_values, 'r--', 
+                            label='Analytical', linewidth=2)
+                else:
+                    plt.plot(x_fine, analytical_values, 'r--', linewidth=2)
+            except:
+                pass  # No analytical solution available
+    
+    plt.xlabel('x')
+    plt.ylabel(f'Bulk Solution - Equation {equation_idx}')
+    plt.title(f'Bulk Solution Comparison - Equation {equation_idx} at t = {current_time:.6f}')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
 
 
 def run_evolution_with_time_stepper(config_file: Optional[str] = None):
@@ -37,7 +162,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # STEP 1: SOLVER SETUP (Enhanced with config file support and error handling)
     # ============================================================================
     
-    geometry = build_arc_sequence_geometry(N=2, start=0.5, length=1.0)
+    geometry = build_arc_sequence_geometry(N=1, start=0.5, length=1.0)
 
     # Try to call quick_setup with error handling for config compatibility    
     try:
@@ -86,7 +211,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # Time evolution parameters
     current_time = 0.0
     dt = setup.global_discretization.dt
-    T = min(0.5, setup.global_discretization.T)  # Limit runtime for demo
+    T = setup.global_discretization.T  
     max_time_steps = int(T / dt) + 1
     
     # Solution history for analysis
@@ -98,7 +223,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # TIME EVOLUTION LOOP
     time_step = 0
     
-    while current_time + dt <= T and time_step < max_time_steps:
+    while current_time < T - dt/2 and time_step < max_time_steps:
         time_step += 1
         
         # SINGLE CALL REPLACES ~50 LINES OF COMPLEX NEWTON ITERATION CODE!
@@ -109,10 +234,11 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
             dt=dt
         )
         
+        current_time += dt
+
         # Handle result
         if result.converged:
             # Update state for next iteration
-            current_time += dt
             current_solution = result.updated_solution
             current_bulk_data = result.updated_bulk_data
             
@@ -137,6 +263,9 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     # ERROR ANALYSIS using MinimalErrorEvaluator
     
+
+
+
     error_evaluator = MinimalErrorEvaluator()
     
     # Compute trace errors
@@ -190,6 +319,45 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
         print("\nNo analytical solutions available for error computation")
     else:
         print("\nError analysis completed successfully")
+
+    # ============================================================================
+    # PLOTTING RESULTS
+    # ============================================================================
+    
+    print("\n=== GENERATING SOLUTION PLOTS ===")
+    
+    # Get number of equations from problem
+    problem = setup.problems[0]
+    n_equations = problem.neq
+    
+    print(f"Problem has {n_equations} equations")
+    print(f"Trace solutions shapes: {[trace.shape for trace in final_traces]}")
+    print(f"Bulk solutions shapes: {[bulk.get_data().shape for bulk in final_bulk_data]}")
+    
+    # Plot solutions for each equation
+    for eq_idx in range(n_equations):
+        print(f"Plotting equation {eq_idx}...")
+        
+        # Plot trace solution
+        plot_trace_solution(
+            trace_solutions=final_traces,
+            problems=setup.problems,
+            discretizations=setup.global_discretization.spatial_discretizations,
+            current_time=current_time,
+            equation_idx=eq_idx
+        )
+        
+        # Plot bulk solution  
+        plot_bulk_solution(
+            bulk_solutions=final_bulk_data,
+            problems=setup.problems,
+            discretizations=setup.global_discretization.spatial_discretizations,
+            current_time=current_time,
+            equation_idx=eq_idx
+        )
+    
+    print(f"Generated plots for {n_equations} equations")
+    plt.show()
 
     
     return setup, time_stepper, solution_history, time_history

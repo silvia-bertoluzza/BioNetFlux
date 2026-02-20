@@ -1,366 +1,342 @@
 #!/usr/bin/env python3
 """
-Lean script for testing real initialization against MATLAB implementation using TimeStepper.
-Shows how to use the new TimeStepper module for clean time evolution with HDG trace error evaluation.
-Demonstrates dramatic simplification from ~50 lines of Newton iteration to single function calls.
-"""
+Batch Error Analysis Script for BioNetFlux
 
-# TODO: The integration of constraints in the whole process is not 100% clean. Check and improve
-#       - Constraints attribute access is inconsistent
-#       - Constraint handling in global assembler needs review
-#       - Interface between setup.constraints and solver components unclear
-#       - Need unified constraint management system
+This script runs convergence analysis by varying dt and n_elements parameters
+in the KS problem configuration and collecting error results.
+"""
 
 import sys
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-plt.close('all')
+import subprocess
+import itertools
+import toml
+import csv
+import time
+from datetime import datetime
+from pathlib import Path
 
-# Add the python_port directory to path for absolute imports
+# Add the src directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from setup_solver import quick_setup
-from bionetflux.time_integration import TimeStepper
-from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
-from bionetflux.analysis.error_evaluation import ErrorEvaluator, create_analytical_solutions_example
 
-# filename = "bionetflux.problems.reduced_ooc_problem"  # New geometry-based problem
-filename = "bionetflux.problems.KS_traveling_wave"  # Original test_problem2 for MATLAB
+def modify_toml_parameters(config_file: str, dt: float, n_elements: int):
+    """
+    Modify the TOML configuration file with new dt and n_elements values.
     
-print("="*60)
-print("BIONETFLUX TIME STEPPER WITH HDG ERROR EVALUATION")
-print("="*60)
-print("Testing TimeStepper module with HDG trace error evaluation")
-
-# =============================================================================
-# STEP 1: Initialize the solver setup
-# =============================================================================
-print("\nStep 1: Initializing solver setup...")
-setup = quick_setup(filename, validate=True)
-print("✓ Setup initialized and validated")
-
-# Get problem information
-info = setup.get_problem_info()
-print(f"✓ Problem: {info['problem_name']}")
-print(f"  Domains: {info['num_domains']}")
-print(f"  Total elements: {info['total_elements']}")
-print(f"  Total trace DOFs: {info['total_trace_dofs']}")
-
-# Check if constraints attribute exists before accessing it
-if hasattr(setup, 'constraints') and setup.constraints is not None:
-    print(f"  Constraints: {info['num_constraints']}")
-else:
-    print(f"  Constraints: Not available (attribute missing)")
-
-print(f"  Time discretization: dt={info['time_discretization']['dt']}, T={info['time_discretization']['T']}")
-
-# =============================================================================
-# STEP 2: Initialize TimeStepper (NEW!)
-# =============================================================================
-print("\nStep 2: Initializing TimeStepper...")
-
-# Create TimeStepper with custom Newton solver configuration
-time_stepper = TimeStepper(setup, verbose=True)
-
-# Initialize solution at t=0 - REPLACES STEPS 2-4 from original!
-current_solution, current_bulk_data = time_stepper.initialize_solution()
-
-print("✓ TimeStepper initialized with solution at t=0")
-print(f"  Initial solution: shape {current_solution.shape}")
-print(f"  Initial bulk data: {len(current_bulk_data)} domains")
-
-# Extract initial trace solutions for analysis
-initial_traces, multipliers = setup.extract_domain_solutions(current_solution)
-print("✓ Initial trace solutions extracted:")
-for i, trace in enumerate(initial_traces):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-
-# =============================================================================
-# STEP 3: Initialize visualization and error evaluation
-# =============================================================================
-print("\nStep 3: Initializing visualization and error evaluation...")
-
-# Initialize the lean matplotlib plotter
-plotter = LeanMatplotlibPlotter(
-    problems=setup.problems,
-    discretizations=setup.global_discretization.spatial_discretizations,
-    equation_names=None,  # Will auto-detect based on problem type
-    figsize=(12, 8),
-    output_dir="outputs/plots"  # Set directory for saving figures
-)
-
-# Initialize the L2 error evaluator
-error_evaluator = ErrorEvaluator(
-    problems=setup.problems,
-    discretizations=setup.global_discretization.spatial_discretizations
-)
-
-# HDG trace error configuration
-alpha_hdg = 0.5  # HDG scaling parameter (h^0.5 scaling)
-use_hdg_formulation = True  # Enable HDG trace error formulation
-
-analytical_solutions = error_evaluator.get_analytical_solutions()
-print("✓ HDG Error Evaluator initialized with automatically extracted analytical solutions")
-print(f"  HDG formulation: {'Enabled' if use_hdg_formulation else 'Disabled'}")
-print(f"  Scaling parameter α: {alpha_hdg}")
-
-# Compute initial HDG trace error
-print("\nComputing initial HDG trace error...")
-initial_error_results = error_evaluator.compute_trace_error(
-    numerical_solutions=initial_traces,
-    time=0.0,
-    analytical_functions=None,  # Use auto-extracted analytical solutions
-    alpha=alpha_hdg,
-    use_hdg_formulation=use_hdg_formulation
-)
-
-print("✓ Initial HDG trace error computed:")
-print(f"  Global HDG Error: {initial_error_results['global_error']:.6e}")
-print(f"  Relative Global Error: {initial_error_results.get('relative_global_error', 'N/A'):.6e}")
-
-# Store error history for convergence analysis
-error_history = [initial_error_results]
-time_history_error = [0.0]
-
-# =============================================================================
-# STEP 4: Time Evolution using TimeStepper (MASSIVELY SIMPLIFIED!)
-# =============================================================================
-print("\nStep 4: Starting time evolution with TimeStepper...")
-
-# Get time parameters
-dt = setup.global_discretization.dt
-T = info['time_discretization']['T']
-
-print(f"Time evolution parameters:")
-print(f"  Time step dt: {dt}")
-print(f"  Final time T: {T}")
-print(f"  Number of time steps: {int(T/dt)}")
-
-# Initialize time evolution variables
-time_step = 0
-max_time_steps = int(T/dt) + 1  # Safety limit
-solution_history = [current_solution.copy()]  # Store solution history
-time_history = [0.0]  # Store time history
-current_time = 0.0
-
-print("✓ Starting time evolution loop - each step is ONE function call!")
-
-# TIME EVOLUTION LOOP - SIMPLIFIED FROM ~50 LINES TO 1 LINE PER STEP!
-while current_time + dt <= T and time_step < max_time_steps:
-    time_step += 1
-    print(f"\n--- Time Step {time_step}: t = {current_time:.6f} → {current_time + dt:.6f} ---")
+    Args:
+        config_file: Path to the TOML configuration file
+        dt: New time step value
+        n_elements: New number of elements value
+    """
+    # Read current configuration
+    with open(config_file, 'r') as f:
+        config = toml.load(f)
     
-    # SINGLE CALL REPLACES THE ENTIRE NEWTON ITERATION SECTION!
-    result = time_stepper.advance_time_step(
-        current_solution=current_solution,
-        current_bulk_data=current_bulk_data,
-        current_time=current_time,
-        dt=dt
-    )
+    # Update parameters
+    config['time_parameters']['dt'] = dt
+    config['discretization']['n_elements'] = n_elements
     
-    # Handle TimeStepper result
-    if result.converged:
-        print(f"  ✓ TimeStepper success: {result.iterations} Newton its, "
-              f"||R|| = {result.final_residual_norm:.6e}")
+    # Write back to file
+    with open(config_file, 'w') as f:
+        toml.dump(config, f)
+    
+    print(f"Updated config: dt={dt}, n_elements={n_elements}")
+
+
+def run_evolution_example(config_file: str):
+    """
+    Run the evolution example with the specified configuration file.
+    
+    Args:
+        config_file: Path to the configuration file
         
-        # Update state for next iteration
-        current_time += dt
-        current_solution = result.updated_solution
-        current_bulk_data = result.updated_bulk_data
+    Returns:
+        tuple: (return_code, stdout, stderr)
+    """
+    script_path = os.path.join(os.path.dirname(__file__), "evolution_example_ks.py")
+    
+    try:
+        result = subprocess.run(
+            [sys.executable, script_path, config_file],
+            capture_output=True,
+            text=True,
+            timeout=300,  # 5 minute timeout
+            cwd=os.path.dirname(__file__)
+        )
+        return result.returncode, result.stdout, result.stderr
+    except subprocess.TimeoutExpired:
+        return -1, "", "Process timed out after 5 minutes"
+    except Exception as e:
+        return -1, "", str(e)
+
+
+def parse_error_results(stdout: str, dt: float, n_elements: int):
+    """
+    Parse error results from the evolution example output.
+    
+    Args:
+        stdout: Standard output from the evolution example
+        dt: Time step used
+        n_elements: Number of elements used
         
-        # Store history
-        solution_history.append(current_solution.copy())
-        time_history.append(current_time)
+    Returns:
+        dict: Parsed error information
+    """
+    lines = stdout.split('\n')
+    
+    result = {
+        'dt': dt,
+        'n_elements': n_elements,
+        'final_time': None,
+        'successful_steps': None,
+        'trace_errors': {},
+        'bulk_errors': {},
+        'has_errors': False
+    }
+    
+    # Extract basic run information
+    for line in lines:
+        if "Evolution completed:" in line:
+            # Extract final time and steps
+            parts = line.split()
+            for i, part in enumerate(parts):
+                if part == "time:" and i + 1 < len(parts):
+                    result['final_time'] = float(parts[i + 1])
+                if "/" in part and "steps" in parts[i + 1:i + 3]:
+                    steps_info = part.split('/')
+                    if len(steps_info) == 2:
+                        result['successful_steps'] = int(steps_info[0])
+    
+    # Parse error sections
+    in_trace_section = False
+    in_bulk_section = False
+    
+    for line in lines:
+        # Check for error section headers
+        if "TRACE ERRORS (weighted Euclidean):" in line:
+            in_trace_section = True
+            in_bulk_section = False
+            continue
+        elif "BULK ERRORS (L2 norm):" in line:
+            in_trace_section = False
+            in_bulk_section = True
+            continue
+        elif line.strip() == "":
+            # Empty line might end a section
+            continue
+        elif not line.startswith("  ") and line.strip():
+            # Non-indented line that's not empty ends the current section
+            if "Error analysis completed successfully" in line:
+                break
+            in_trace_section = False
+            in_bulk_section = False
+            continue
         
-    else:
-        print(f"  ✗ TimeStepper failed: {result.iterations} Newton its, "
-              f"||R|| = {result.final_residual_norm:.6e}")
-        print("  Stopping time evolution due to convergence failure")
-        print(result.summary())  # Detailed error information
-        break
-
-    # Compute HDG trace error at current time step
-    current_traces, current_multipliers = setup.extract_domain_solutions(current_solution)
-    current_error_results = error_evaluator.compute_trace_error(
-        numerical_solutions=current_traces,
-        time=current_time,
-        analytical_functions=None,  # Use auto-extracted analytical solutions
-        alpha=alpha_hdg,
-        use_hdg_formulation=use_hdg_formulation
-    )
+        # Parse error values
+        if in_trace_section or in_bulk_section:
+            # Look for lines starting with "  Equation"
+            if line.strip().startswith("Equation"):
+                try:
+                    parts = line.strip().split()
+                    if len(parts) >= 3:
+                        eq_num = int(parts[1].rstrip(':'))
+                        error_val = float(parts[2])
+                        
+                        if in_trace_section:
+                            result['trace_errors'][f'eq_{eq_num}'] = error_val
+                        else:  # in_bulk_section
+                            result['bulk_errors'][f'eq_{eq_num}'] = error_val
+                        
+                        result['has_errors'] = True
+                        
+                except (ValueError, IndexError):
+                    continue
     
-    # Compute bulk error at current time step
-    current_bulk_error_results = error_evaluator.compute_bulk_error(
-        bulk_solutions=current_bulk_data,
-        time=current_time
-    )
+    return result
+
+
+def save_results_to_csv(results: list, output_file: str):
+    """
+    Save error analysis results to CSV file.
     
-    # Store error history
-    error_history.append(current_error_results)
-    time_history_error.append(current_time)
+    Args:
+        results: List of result dictionaries
+        output_file: Output CSV file path
+    """
+    if not results:
+        print("No results to save")
+        return
     
-    # Print error information with HDG-specific details
-    error_type = 'HDG' if use_hdg_formulation else 'L2'
-    print(f"  {error_type} Trace Error: {current_error_results['global_error']:.6e} "
-          f"(relative: {current_error_results.get('relative_global_error', 'N/A'):.6e})")
-    print(f"  Bulk L2 Error: {current_bulk_error_results['global_error']:.6e} "
-          f"(relative: {current_bulk_error_results.get('relative_global_error', 'N/A'):.6e})")
+    # Determine all possible equation indices
+    all_trace_eqs = set()
+    all_bulk_eqs = set()
     
-    # Print equation-specific HDG errors
-    if use_hdg_formulation and len(current_error_results['global_error_per_equation']) > 0:
-        print(f"  Per-equation {error_type} errors:")
-        for eq_result in current_error_results['global_error_per_equation']:
-            eq_idx = eq_result['equation_idx']
-            error_key = 'global_hdg_error' if use_hdg_formulation else 'global_l2_error'
-            print(f"    Eq {eq_idx+1}: {eq_result[error_key]:.6e}")
-
-print("\n✓ Time evolution completed with TimeStepper!")
-print(f"📊 TIMESTEPPER PERFORMANCE SUMMARY:")
-print(f"   - Total time steps: {time_step}")
-print(f"   - All Newton iterations handled automatically")
-print(f"   - Automatic error handling and reporting")
-print(f"   - Clean separation of concerns")
-print(f"   - Detailed convergence information available")
-
-# =============================================================================
-# STEP 5: Extract Final Solutions and Analysis
-# =============================================================================
-print("\nStep 5: Extracting final trace solutions and creating analysis...")
-
-# Extract final trace solutions from global solution
-final_traces, final_multipliers = setup.extract_domain_solutions(current_solution)
-
-print("✓ Final trace solutions extracted:")
-for i, trace in enumerate(final_traces):
-    print(f"  Domain {i+1}: shape {trace.shape}, range [{np.min(trace):.6e}, {np.max(trace):.6e}]")
-
-print(f"✓ Final multipliers: shape {final_multipliers.shape}, range [{np.min(final_multipliers):.6e}, {np.max(final_multipliers):.6e}]")
-
-# Show all plots
-plotter.show_all()
-
-# =============================================================================
-# STEP 6: Solution Summary
-# =============================================================================
-print("\nStep 6: Solution analysis summary...")
-
-# Print summary statistics
-print("\nTimeStepper Evolution Summary:")
-print(f"  Time evolution: t = 0 → {current_time:.4f}")
-print(f"  Number of time steps completed: {time_step}")
-print(f"  Final global solution norm: {np.linalg.norm(current_solution):.6e}")
-
-n_domains = len(setup.problems)
-n_equations = setup.problems[0].neq
-
-for domain_idx in range(n_domains):
-    print(f"\n  Domain {domain_idx + 1}:")
-    n_nodes = len(setup.global_discretization.spatial_discretizations[domain_idx].nodes)
+    for result in results:
+        all_trace_eqs.update(result['trace_errors'].keys())
+        all_bulk_eqs.update(result['bulk_errors'].keys())
     
-    for eq_idx in range(n_equations):
-        eq_start = eq_idx * n_nodes
-        eq_end = eq_start + n_nodes
-        initial_values = initial_traces[domain_idx][eq_start:eq_end]
-        final_values = final_traces[domain_idx][eq_start:eq_end]
+    # Sort equation keys for consistent ordering
+    all_trace_eqs = sorted(all_trace_eqs)
+    all_bulk_eqs = sorted(all_bulk_eqs)
+    
+    # Prepare CSV headers
+    headers = ['dt', 'n_elements', 'final_time', 'successful_steps', 'run_status']
+    headers.extend([f'trace_{eq}' for eq in all_trace_eqs])
+    headers.extend([f'bulk_{eq}' for eq in all_bulk_eqs])
+    
+    # Write CSV file
+    with open(output_file, 'w', newline='') as f:
+        writer = csv.DictWriter(f, fieldnames=headers)
+        writer.writeheader()
         
-        initial_norm = np.linalg.norm(initial_values)
-        final_norm = np.linalg.norm(final_values)
-        max_change = np.max(np.abs(final_values - initial_values))
-        relative_change = max_change / (initial_norm + 1e-12)  # Avoid division by zero
-        
-        print(f"    Equation {eq_idx + 1}: ||u_initial||={initial_norm:.6e}, ||u_final||={final_norm:.6e}")
-        print(f"                      Max change: {max_change:.6e}, Relative change: {relative_change:.6e}")
-
-print(f"\n✓ Final solution analysis completed!")
-print(f"✓ Matplotlib plots saved and displayed")
-
-# =============================================================================
-# STEP 7: Enhanced Error Analysis and Reporting with HDG
-# =============================================================================
-print("\nStep 7: Enhanced HDG error analysis and reporting...")
-
-# Generate final HDG trace error report
-final_error_report = error_evaluator.generate_error_report(error_history[-1])
-print("HDG TRACE ERROR REPORT:")
-print(final_error_report)
-
-# Generate final bulk error report
-final_bulk_error_results = error_evaluator.compute_bulk_error(
-    bulk_solutions=current_bulk_data,
-    time=current_time
-)
-final_bulk_error_report = error_evaluator.generate_error_report(final_bulk_error_results)
-print("\nBULK ERROR REPORT:")
-print(final_bulk_error_report)
-
-# Enhanced error evolution plotting with HDG information
-fig, axes = plt.subplots(3, 1, figsize=(12, 10))
-
-# Extract error data
-global_errors = [err['global_error'] for err in error_history]
-relative_errors = [err.get('relative_global_error', np.nan) for err in error_history]
-
-# Plot 1: Global error evolution
-axes[0].semilogy(time_history_error, global_errors, 'b-o', markersize=4)
-axes[0].set_xlabel('Time')
-error_label = f'Global {"HDG" if use_hdg_formulation else "L2"} Error'
-if use_hdg_formulation:
-    error_label += f' (h^{alpha_hdg} scaling)'
-axes[0].set_ylabel(error_label)
-axes[0].set_title('TimeStepper: HDG Trace Error Evolution' if use_hdg_formulation else 'TimeStepper: L2 Trace Error Evolution')
-axes[0].grid(True, alpha=0.3)
-
-# Plot 2: Relative error evolution
-valid_relative = [err for err in relative_errors if not np.isnan(err) and not np.isinf(err)]
-if valid_relative:
-    axes[1].semilogy(time_history_error[:len(valid_relative)], valid_relative, 'r-s', markersize=4)
-    axes[1].set_xlabel('Time')
-    axes[1].set_ylabel('Relative Error')
-    axes[1].set_title('TimeStepper: Relative Error Evolution')
-    axes[1].grid(True, alpha=0.3)
-else:
-    axes[1].text(0.5, 0.5, 'No valid relative errors', ha='center', va='center', transform=axes[1].transAxes)
-
-# Plot 3: Per-equation error evolution
-if use_hdg_formulation and len(error_history) > 1:
-    n_equations = len(error_history[0]['global_error_per_equation'])
-    colors = ['red', 'blue', 'green', 'orange', 'purple', 'brown']
+        for result in results:
+            row = {
+                'dt': result['dt'],
+                'n_elements': result['n_elements'],
+                'final_time': result.get('final_time', 'N/A'),
+                'successful_steps': result.get('successful_steps', 'N/A'),
+                'run_status': 'success' if result['has_errors'] else 'no_errors'
+            }
+            
+            # Add trace errors
+            for eq in all_trace_eqs:
+                row[f'trace_{eq}'] = result['trace_errors'].get(eq, 'N/A')
+            
+            # Add bulk errors
+            for eq in all_bulk_eqs:
+                row[f'bulk_{eq}'] = result['bulk_errors'].get(eq, 'N/A')
+            
+            writer.writerow(row)
     
-    for eq_idx in range(n_equations):
-        eq_errors = []
-        for err_result in error_history:
-            if eq_idx < len(err_result['global_error_per_equation']):
-                error_key = 'global_hdg_error' if use_hdg_formulation else 'global_l2_error'
-                eq_errors.append(err_result['global_error_per_equation'][eq_idx][error_key])
+    print(f"Results saved to {output_file}")
+
+
+def main():
+    """Main batch analysis function."""
+    
+    print("=== BioNetFlux Batch Error Analysis ===")
+    print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Configuration parameters
+    dt_values = [0.1, 0.05, 0.025, 0.0125, 0.00625, 0.003125, 0.0015625, 0.00078125]
+    n_elements_values = [10, 20, 40, 80, 160]
+    
+    # File paths
+    config_dir = os.path.join(os.path.dirname(__file__), "..", "config")
+    config_file = os.path.join(config_dir, "ks_parameters.toml")
+    backup_config = os.path.join(config_dir, "ks_parameters_backup.toml")
+    output_file = os.path.join(os.path.dirname(__file__), "batch_error_analysis_results.csv")
+    
+    # Create backup of original config
+    if not os.path.exists(backup_config):
+        import shutil
+        shutil.copy2(config_file, backup_config)
+        print(f"Created backup: {backup_config}")
+    
+    # Verify files exist
+    if not os.path.exists(config_file):
+        print(f"ERROR: Configuration file not found: {config_file}")
+        return
+    
+    # Generate all parameter combinations
+    param_combinations = list(itertools.product(dt_values, n_elements_values))
+    total_runs = len(param_combinations)
+    
+    print(f"Running {total_runs} parameter combinations:")
+    print(f"  dt values: {dt_values}")
+    print(f"  n_elements values: {n_elements_values}")
+    print()
+    
+    # Storage for results
+    all_results = []
+    successful_runs = 0
+    failed_runs = 0
+    
+    # Run analysis for each combination
+    for i, (dt, n_elements) in enumerate(param_combinations, 1):
+        print(f"Run {i}/{total_runs}: dt={dt}, n_elements={n_elements}")
+        print("-" * 50)
+        
+        try:
+            # Update configuration file
+            modify_toml_parameters(config_file, dt, n_elements)
+            
+            # Run evolution example
+            return_code, stdout, stderr = run_evolution_example(config_file)
+            
+            if return_code == 0:
+                # Parse results
+                result = parse_error_results(stdout, dt, n_elements)
+                all_results.append(result)
+                
+                if result['has_errors']:
+                    print(f"✓ Success: Computed errors for dt={dt}, n_elements={n_elements}")
+                    successful_runs += 1
+                else:
+                    print(f"⚠ Warning: No errors computed (likely missing analytical solutions)")
+                    successful_runs += 1
             else:
-                eq_errors.append(np.nan)
+                print(f"✗ Failed: Return code {return_code}")
+                if stderr:
+                    print(f"Error output: {stderr[:200]}...")
+                failed_runs += 1
+                
+                # Still add a result entry for tracking
+                result = {
+                    'dt': dt,
+                    'n_elements': n_elements,
+                    'final_time': None,
+                    'successful_steps': None,
+                    'trace_errors': {},
+                    'bulk_errors': {},
+                    'has_errors': False
+                }
+                all_results.append(result)
         
-        valid_eq_errors = [err for err in eq_errors if not np.isnan(err)]
-        if valid_eq_errors:
-            color = colors[eq_idx % len(colors)]
-            axes[2].semilogy(time_history_error[:len(valid_eq_errors)], valid_eq_errors, 
-                           f'{color[0]}-', marker='o', markersize=3, label=f'Equation {eq_idx+1}')
+        except Exception as e:
+            print(f"✗ Exception occurred: {e}")
+            failed_runs += 1
+        
+        print()
+        time.sleep(1)  # Brief pause between runs
     
-    axes[2].set_xlabel('Time')
-    axes[2].set_ylabel(f'Per-Equation {"HDG" if use_hdg_formulation else "L2"} Error')
-    axes[2].set_title('TimeStepper: Per-Equation Error Evolution')
-    axes[2].grid(True, alpha=0.3)
-    axes[2].legend()
-else:
-    axes[2].text(0.5, 0.5, 'Per-equation data not available', ha='center', va='center', transform=axes[2].transAxes)
+    # Save all results
+    save_results_to_csv(all_results, output_file)
+    
+    # Restore original configuration
+    if os.path.exists(backup_config):
+        import shutil
+        shutil.copy2(backup_config, config_file)
+        print(f"Restored original configuration from backup")
+    
+    # Summary
+    print("=== BATCH ANALYSIS SUMMARY ===")
+    print(f"Total runs: {total_runs}")
+    print(f"Successful: {successful_runs}")
+    print(f"Failed: {failed_runs}")
+    print(f"Results saved to: {output_file}")
+    print(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    
+    # Show error summary if available
+    error_results = [r for r in all_results if r['has_errors']]
+    if error_results:
+        print(f"\nError computation successful for {len(error_results)} parameter combinations")
+        print("Error range summary:")
+        
+        # Calculate error ranges
+        all_trace_errors = []
+        all_bulk_errors = []
+        
+        for result in error_results:
+            all_trace_errors.extend(result['trace_errors'].values())
+            all_bulk_errors.extend(result['bulk_errors'].values())
+        
+        if all_trace_errors:
+            print(f"  Trace errors: [{min(all_trace_errors):.2e}, {max(all_trace_errors):.2e}]")
+        if all_bulk_errors:
+            print(f"  Bulk errors:  [{min(all_bulk_errors):.2e}, {max(all_bulk_errors):.2e}]")
 
-plt.tight_layout()
-plt.savefig("outputs/plots/timestepper_hdg_error_evolution.png", dpi=300, bbox_inches='tight')
-print("✓ TimeStepper HDG error evolution plot saved")
 
-print(f"\n🎉 TimeStepper example completed successfully!")
-print(f"📊 KEY IMPROVEMENTS WITH TIMESTEPPER:")
-print(f"   - Time advancement: 1 line instead of ~50 lines of Newton code")
-print(f"   - Automatic error handling and detailed reporting")  
-print(f"   - Clean separation of concerns between time stepping and error analysis")
-print(f"   - Comprehensive convergence information in TimeStepResult")
-print(f"   - Easy to extend with adaptive time stepping capabilities")
-print(f"   - Maintainable and testable code structure")
-
-
+if __name__ == "__main__":
+    main()

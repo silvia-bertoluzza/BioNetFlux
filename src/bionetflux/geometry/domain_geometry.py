@@ -1374,3 +1374,158 @@ def build_arc_sequence_geometry(N: int = 2, start: float = 0.0, length: float = 
     
     return geometry
 
+def build_labyrinth_geometry(n_cols: int = 3, n_rows: int = 8, cell_size: float = 1.0):
+    """
+    Build a 1D labyrinth geometry composed of vertical spines and staggered
+    horizontal connectors. This produces a serpentine path from top (inlet)
+    to bottom (outlet) similar to the provided picture.
+
+    Args:
+        n_cols: Number of vertical spines across the width (must be >= 2).
+        n_rows: Number of horizontal connector rows (controls vertical resolution).
+        cell_size: Physical spacing between adjacent spine x-coordinates and between rows.
+
+    Returns:
+        DomainGeometry: labyrinth geometry instance
+    """
+    if n_cols < 2:
+        raise ValueError("n_cols must be >= 2")
+    if n_rows < 1:
+        raise ValueError("n_rows must be >= 1")
+
+    print(f"Creating labyrinth geometry: cols={n_cols}, rows={n_rows}, cell_size={cell_size}")
+
+    geometry = DomainGeometry("labyrinth_geometry")
+
+    # --- Create vertical spines ---
+    # center the spines around x=0
+    total_width = (n_cols - 1) * cell_size
+    x0 = - total_width / 2.0
+
+    spine_ids = []
+    for c in range(n_cols):
+        x = x0 + c * cell_size
+        # vertical spine runs from top to bottom of labyrinth:
+        y_top = (n_rows + 1) * cell_size / 2.0
+        y_bottom = - (n_rows + 1) * cell_size / 2.0
+        domain_id = geometry.add_domain(
+            extrema_start=(x, y_top),
+            extrema_end=(x, y_bottom),
+            name=f"spine_{c}",
+            display_color="darkgray"
+        )
+        spine_ids.append(domain_id)
+
+    # --- Create horizontal connectors ---
+    # We'll make n_rows rows of connectors. For each row:
+    #  - even rows connect a left spine to the center spine area,
+    #  - odd rows connect a right spine to the center spine area,
+    # producing a staggered serpentine connectivity.
+    horizontal_ids = []
+    y_values = np.linspace(y_top - cell_size, y_bottom + cell_size, n_rows)
+    for r, y in enumerate(y_values):
+        # choose whether this row connects left->center or right->center (staggered)
+        if (r % 2) == 0:
+            # left half connectors: from leftmost spine to middle spine (or nearest)
+            x_start = x0
+            x_end = 0.0  # connect towards center
+            color = "red"
+            name_prefix = "leftrow"
+        else:
+            # right half connectors: from rightmost spine to center
+            x_start = x0 + (n_cols - 1) * cell_size
+            x_end = 0.0
+            color = "orange"
+            name_prefix = "rightrow"
+
+        # create a horizontal connector domain
+        dom_id = geometry.add_domain(
+            extrema_start=(x_start, y),
+            extrema_end=(x_end, y),
+            name=f"{name_prefix}_{r}",
+            display_color=color
+        )
+        horizontal_ids.append(dom_id)
+
+        # optionally create a short connector on the other side to complete path segments
+        # This makes the labyrinth more maze-like by adding a short connector near the center
+        short_dom_id = geometry.add_domain(
+            extrema_start=(x_end, y),
+            extrema_end=(x_end + 0.2 * cell_size if (r % 2) == 0 else x_end - 0.2 * cell_size, y),
+            name=f"centerstub_{r}",
+            display_color="pink"
+        )
+        horizontal_ids.append(short_dom_id)
+
+    # --- Add exterior boundaries (inlet/outlet) ---
+    # Inlet at the top of the center spine; outlet at the bottom of the center spine.
+    center_spine_idx = spine_ids[len(spine_ids) // 2]
+    center_spine = geometry.get_domain(center_spine_idx)
+    # Add exterior at top (domain_start = 0.0)
+    geometry.add_exterior_boundary(center_spine_idx, 0.0)
+    # Add exterior at bottom (domain_end)
+    geometry.add_exterior_boundary(center_spine_idx, center_spine.domain_length)
+
+    # --- Connect horizontals to spines ---
+    # For each horizontal connector we find the appropriate spine endpoints and map the
+    # endpoints to the parameter space of the target spines, then create interior connections.
+    # We use the geometry.get_domain(spine_id).domain_length to map physical y to parameter.
+
+    # helper: map physical y on a vertical spine to its parameter value
+    def vertical_param_from_y(spine_dom, y_coord):
+        # spine_dom.extrema_start[1] is top y, extrema_end[1] is bottom y
+        y_top_local = spine_dom.extrema_start[1]
+        y_bottom_local = spine_dom.extrema_end[1]
+        # avoid division by zero
+        if abs(y_top_local - y_bottom_local) < 1e-12:
+            return 0.0
+        t = (y_top_local - y_coord) / (y_top_local - y_bottom_local)  # 0 at top, 1 at bottom
+        # map to domain parameter [domain_start, domain_start + domain_length]
+        return spine_dom.domain_start + t * spine_dom.domain_length
+
+    for hid in horizontal_ids:
+        h_dom = geometry.get_domain(hid)
+        x1, y1 = h_dom.extrema_start
+        x2, y2 = h_dom.extrema_end
+
+        # find nearest vertical spine to start and end x
+        # choose spine indices by distance in x
+        start_spine_idx = min(range(len(spine_ids)),
+                              key=lambda i: abs(geometry.get_domain(spine_ids[i]).extrema_start[0] - x1))
+        end_spine_idx = min(range(len(spine_ids)),
+                            key=lambda i: abs(geometry.get_domain(spine_ids[i]).extrema_start[0] - x2))
+
+        spine_dom_start = geometry.get_domain(spine_ids[start_spine_idx])
+        spine_dom_end   = geometry.get_domain(spine_ids[end_spine_idx])
+
+        # Map horizontal start/end physical y to spine parameter spaces
+        param_on_start_spine = vertical_param_from_y(spine_dom_start, y1)
+        param_on_end_spine = vertical_param_from_y(spine_dom_end, y2)
+
+        # Add interior connections: horizontal start ↔ start spine, horizontal end ↔ end spine
+        # horizontal start: parameter1 = 0.0 (start of horizontal domain)
+        # horizontal end: parameter1 = horizontal domain length (end of horizontal)
+        geometry.add_connection(domain1_id=hid, domain2_id=spine_ids[start_spine_idx],
+                                parameter1=0.0, parameter2=param_on_start_spine)
+        geometry.add_connection(domain1_id=hid, domain2_id=spine_ids[end_spine_idx],
+                                parameter1=geometry.get_domain(hid).domain_length, parameter2=param_on_end_spine)
+
+    # Some optional cleaning / extra boundaries:
+    # add exterior boundaries at the leftmost and rightmost spines' outer ends
+    left_spine = geometry.get_domain(spine_ids[0])
+    right_spine = geometry.get_domain(spine_ids[-1])
+    geometry.add_exterior_boundary(spine_ids[0], left_spine.domain_start)  # top of left spine
+    geometry.add_exterior_boundary(spine_ids[-1], right_spine.domain_start)  # top of right spine
+    geometry.add_exterior_boundary(spine_ids[0], left_spine.domain_start + left_spine.domain_length)  # bottom left
+    geometry.add_exterior_boundary(spine_ids[-1], right_spine.domain_start + right_spine.domain_length)  # bottom right
+
+    print("✓ Labyrinth geometry created:")
+    print(f"  - Vertical spines: {len(spine_ids)}")
+    print(f"  - Horizontal & stubs: {len(horizontal_ids)}")
+    print(f"  - Domains total: {geometry.num_domains()}")
+    print(f"  - Connections total: {geometry.num_connections()}")
+    print(f"  - Boundary connections: {len(geometry.get_boundary_connections())}")
+    print(f"  - Interior connections: {len(geometry.get_interior_connections())}")
+
+    return geometry
+
