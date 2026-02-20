@@ -175,6 +175,10 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
             tuple: (local_solution, flux, flux_trace, jacobian)
         """
         
+        print("\n" + "="*80)
+        print("STATIC CONDENSATION DEBUG - INPUT")
+        print("="*80)
+        
         # Handle None local_source
         if local_source is None:
             local_source = np.zeros((4, 1))
@@ -194,6 +198,13 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         local_trace = local_trace.reshape(-1, 1) if local_trace.ndim == 1 else local_trace
         local_source = local_source.reshape(-1, 1) if local_source.ndim == 1 else local_source
         
+        print(f"local_trace shape: {local_trace.shape}")
+        print(f"local_trace:\n{local_trace}")
+        print(f"local_source shape: {local_source.shape}")
+        print(f"local_source:\n{local_source}")
+        print(f"dt: {self.dt}")
+        print(f"Problem parameters: {self.problem.parameters}")
+        
         # Extract matrices
         L1 = self.sc_matrices['L1']
         L2 = self.sc_matrices['L2']
@@ -208,47 +219,121 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         B2hat = self.sc_matrices['B2hat']
         B3hat = self.sc_matrices['B3hat']
         
+        print(f"\nKey matrix shapes:")
+        print(f"L1: {L1.shape}, L2: {L2.shape}, M: {M.shape}")
+        print(f"B0: {B0.shape}, B4: {B4.shape}, Q: {Q.shape}")
+        print(f"Av: {Av.shape}")
+        
+        print(f"\nMatrix L1:\n{L1}")
+        print(f"Matrix L2:\n{L2}")
+        print(f"Matrix M:\n{M}")
+        print(f"Matrix B0:\n{B0}")
+        
+        print("\n" + "="*80)
+        print("STATIC CONDENSATION DEBUG - INTERMEDIATE COMPUTATIONS")
+        print("="*80)
+        
         # Step 0: Preparation of the source term
         gu = local_source[[0, 1]]  # Entries 0 and 1
         gp = local_source[[2, 3]]  # Entries 2 and 3
         
+        print(f"gu (source for u):\n{gu}")
+        print(f"gp (source for phi):\n{gp}")
+        
         g1 = L1 @ gu
-        g2 = L2 @ (gp + self.dt * self.problem.parameters[3] * M @ g1)
+        print(f"g1 = L1 @ gu:\n{g1}")
+        
+        intermediate_term = self.dt * self.problem.parameters[3] * M @ g1
+        print(f"dt * b * M @ g1:\n{intermediate_term}")
+        
+        g2_input = gp + intermediate_term
+        print(f"gp + dt*b*M@g1:\n{g2_input}")
+        
+        g2 = L2 @ g2_input
+        print(f"g2 = L2 @ (gp + dt*b*M@g1):\n{g2}")
+        
         g3 = self.problem.parameters[0] * IM @ D @ g2
+        print(f"g3 = mu * IM @ D @ g2:\n{g3}")
         
         # Concatenate g1, g2, and g3 vertically
         G0 = np.vstack([g1, g2, g3])
+        print(f"G0 = [g1; g2; g3]:\n{G0}")
         
         # Step 1: Trace to solution mapping
-        local_solution = B0 @ local_trace + G0
+        B0_trace = B0 @ local_trace
+        print(f"B0 @ local_trace:\n{B0_trace}")
+        
+        local_solution = B0_trace + G0
+        print(f"local_solution = B0@local_trace + G0:\n{local_solution}")
         
         # Step 2: Compute average phi for chemotaxis
-        # .item() converts single-element array to scalar
-        phi_avg = float((Av @ local_solution).item())
+        Av_solution = Av @ local_solution
+        print(f"Av @ local_solution:\n{Av_solution}")
+        
+        phi_avg = float(Av_solution.item())
+        print(f"phi_avg (scalar): {phi_avg}")
         
         # Get chi value at average phi
         chi_val = (self.problem.chi(phi_avg) if 
                    hasattr(self.problem, 'chi') else 1.0) # Default chi=1.0 if not defined
+        print(f"chi_val: {chi_val}")
         
         # Step 3: Compute flux
         linear_flux = B4 @ local_trace
-        nonlinear_flux = chi_val * (local_solution.T @ Q @ local_solution)
+        print(f"linear_flux = B4 @ local_trace:\n{linear_flux}")
+        
+        Q_solution = Q @ local_solution
+        print(f"Q @ local_solution:\n{Q_solution}")
+        
+        quad_form = local_solution.T @ Q_solution
+        print(f"local_solution.T @ Q @ local_solution:\n{quad_form}")
+        
+        nonlinear_flux = chi_val * quad_form
+        print(f"nonlinear_flux = chi_val * quad_form:\n{nonlinear_flux}")
+        
         flux = linear_flux + nonlinear_flux
+        print(f"flux = linear_flux + nonlinear_flux:\n{flux}")
 
         # Step 4: Compute flux trace
-        flux_trace = (B1hat @ flux +
-                      B2hat @ local_solution +
-                      B3hat @ local_trace)
+        flux_trace_term1 = B1hat @ flux
+        print(f"B1hat @ flux:\n{flux_trace_term1}")
+        
+        flux_trace_term2 = B2hat @ local_solution
+        print(f"B2hat @ local_solution:\n{flux_trace_term2}")
+        
+        flux_trace_term3 = B3hat @ local_trace
+        print(f"B3hat @ local_trace:\n{flux_trace_term3}")
+        
+        flux_trace = flux_trace_term1 + flux_trace_term2 + flux_trace_term3
+        print(f"flux_trace = sum of terms:\n{flux_trace}")
 
         # Step 5: Compute Jacobian for Newton's method
         jacobian = self._compute_jacobian(local_trace, local_solution, phi_avg)
+        print(f"jacobian:\n{jacobian}")
         
         # Reorganize output: append last two entries of local_solution to flux
         # and truncate local_solution to remove last two entries
         neq = 2  # Keller-Segel has 2 equations
         flux_extension = local_solution[2*neq:]  # Last 2 entries (flux-like)
+        print(f"flux_extension (last 2 entries of local_solution):\n{flux_extension}")
+        
         new_flux = np.vstack([flux, flux_extension])  # Append to flux
+        print(f"new_flux = [flux; flux_extension]:\n{new_flux}")
+        
         new_local_solution = local_solution[:2*neq]   # Keep first 2*neq entries
+        print(f"new_local_solution (first {2*neq} entries):\n{new_local_solution}")
+        
+        print("\n" + "="*80)
+        print("STATIC CONDENSATION DEBUG - FINAL OUTPUT")
+        print("="*80)
+        print(f"Final local_solution shape: {new_local_solution.shape}")
+        print(f"Final local_solution:\n{new_local_solution}")
+        print(f"Final flux shape: {new_flux.shape}")
+        print(f"Final flux:\n{new_flux}")
+        print(f"Final flux_trace shape: {flux_trace.shape}")
+        print(f"Final flux_trace:\n{flux_trace}")
+        print(f"Final jacobian shape: {jacobian.shape}")
+        print("="*80 + "\n")
         
         return new_local_solution, new_flux, flux_trace, jacobian
     

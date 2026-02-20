@@ -221,10 +221,11 @@ class TimeStepper:
             
             # Update bulk_data objects with new solutions
             # Following the pattern from evolution+plotting_example.py lines 342-350
+
             updated_bulk_data = []
             
             for i, new_bulk_array in enumerate(updated_bulk_solutions):
-                
+
                 # Create new BulkData object or update existing one
                 # Copy the structure from the original example
                 new_bulk_data = self.bulk_manager.create_bulk_data(
@@ -232,6 +233,7 @@ class TimeStepper:
                     problem=self.problems[i],
                     discretization=self.discretizations[i]
                 )
+
                 # Directly set the data array (following example pattern)
                 new_bulk_data.data = new_bulk_array.copy()
                 updated_bulk_data.append(new_bulk_data)

@@ -239,6 +239,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
         # Handle result
         if result.converged:
             # Update state for next iteration
+            old_bulk_data = current_bulk_data
             current_solution = result.updated_solution
             current_bulk_data = result.updated_bulk_data
             
@@ -265,7 +266,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
 
 
-
+   
     error_evaluator = MinimalErrorEvaluator()
     
     # Compute trace errors
