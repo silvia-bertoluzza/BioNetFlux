@@ -92,12 +92,34 @@ class NewtonSolver:
         for iteration in range(max_iter):
             # Evaluate residual and Jacobian using BioNetFlux global assembler
             try:
+                print(f"\n🔧 NEWTON DEBUG - Before assemble_residual_and_jacobian (iteration {iteration})")
+                print(f"   Input global_solution shape: {newton_solution.shape}")
+                print(f"   Input global_solution FULL VALUES:\n{newton_solution}")
+                print(f"   Input forcing_terms count: {len(forcing_terms)}")
+                print(f"   Input forcing_terms details:")
+                for i, ft in enumerate(forcing_terms):
+                    print(f"      Domain {i}: shape={ft.shape}, norm={np.linalg.norm(ft):.6e}")
+                    print(f"      Domain {i} FULL VALUES:\n{ft}")
+                print(f"   Input static_condensations count: {len(static_condensations)}")
+                print(f"   Input time: {current_time}")
+                
                 current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
                     global_solution=newton_solution,
                     forcing_terms=forcing_terms,
                     static_condensations=static_condensations,
                     time=current_time  # Updated variable name
                 )
+                
+                print(f"✅ NEWTON DEBUG - After assemble_residual_and_jacobian (iteration {iteration})")
+                print(f"   Output residual shape: {current_residual.shape}")
+                print(f"   Output residual norm: {np.linalg.norm(current_residual):.6e}")
+                print(f"   Output residual FULL VALUES:\n{current_residual}")
+                print(f"   Output jacobian shape: {current_jacobian.shape}")
+                print(f"   Output jacobian condition: {np.linalg.cond(current_jacobian):.6e}")
+                print(f"   Output jacobian (max/min): max={np.max(current_jacobian):.6e}, min={np.min(current_jacobian):.6e}")
+                print(f"   Output jacobian FULL MATRIX:\n{current_jacobian}")
+
+
             except Exception as e:
                 if self.verbose:
                     print(f"    Iteration {iteration}: Residual/Jacobian assembly failed ({e})")
@@ -231,6 +253,16 @@ class NewtonSolver:
         for iteration in range(self.max_iterations):
             # Evaluate residual and Jacobian at current point
             try:
+                print(f"\n🔍 LINE SEARCH DEBUG - Before assemble_residual_and_jacobian (iteration {iteration})")
+                print(f"   Input global_solution shape: {newton_solution.shape}")
+                print(f"   Input global_solution norm: {np.linalg.norm(newton_solution):.6e}")
+                print(f"   Input global_solution FULL VALUES:\n{newton_solution}")
+                print(f"   Input forcing_terms details:")
+                for i, ft in enumerate(forcing_terms):
+                    print(f"      Domain {i}: shape={ft.shape}, norm={np.linalg.norm(ft):.6e}")
+                    print(f"      Domain {i} FULL VALUES:\n{ft}")
+                print(f"   Input time: {current_time}")
+                
                 current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
                     global_solution=newton_solution,
                     forcing_terms=forcing_terms,
@@ -288,6 +320,10 @@ class NewtonSolver:
                 
                 try:
                     # Evaluate residual at candidate point
+                    print(f"      🔍 LINE SEARCH - Testing candidate α={alpha:.3f}")
+                    print(f"         Candidate solution norm: {np.linalg.norm(solution_candidate):.6e}")
+                    print(f"         Candidate solution FULL VALUES:\n{solution_candidate}")
+                    
                     residual_candidate, _ = global_assembler.assemble_residual_and_jacobian(
                         global_solution=solution_candidate,
                         forcing_terms=forcing_terms,
@@ -295,6 +331,10 @@ class NewtonSolver:
                         time=current_time  # Updated variable name
                     )
                     residual_candidate_norm = np.linalg.norm(residual_candidate)
+                    
+                    print(f"         Candidate residual norm: {residual_candidate_norm:.6e}")
+                    print(f"         Candidate residual FULL VALUES:\n{residual_candidate}")
+                    print(f"         Previous residual norm: {residual_norm:.6e}")
                     
                     # Accept if residual decreased (simple Armijo condition)
                     if residual_candidate_norm < residual_norm:
@@ -378,12 +418,29 @@ class NewtonSolver:
         for iteration in range(self.max_iterations):
             # Evaluate residual and Jacobian
             try:
+                print(f"\n🔧 DAMPED NEWTON DEBUG - Before assemble_residual_and_jacobian (iteration {iteration})")
+                print(f"   Input global_solution shape: {newton_solution.shape}")
+                print(f"   Input global_solution norm: {np.linalg.norm(newton_solution):.6e}")
+                print(f"   Input global_solution FULL VALUES:\n{newton_solution}")
+                print(f"   Input forcing_terms details:")
+                for i, ft in enumerate(forcing_terms):
+                    print(f"      Domain {i}: shape={ft.shape}, norm={np.linalg.norm(ft):.6e}")
+                    print(f"      Domain {i} FULL VALUES:\n{ft}")
+                print(f"   Input time: {current_time}")
+                print(f"   Damping factor: {damping_factor}")
+                
                 current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
                     global_solution=newton_solution,
                     forcing_terms=forcing_terms,
                     static_condensations=static_condensations,
                     time=current_time  # Updated variable name
                 )
+                
+                print(f"✅ DAMPED NEWTON DEBUG - After assemble_residual_and_jacobian (iteration {iteration})")
+                print(f"   Output residual norm: {np.linalg.norm(current_residual):.6e}")
+                print(f"   Output residual FULL VALUES:\n{current_residual}")
+                print(f"   Output jacobian condition: {np.linalg.cond(current_jacobian):.6e}")
+                print(f"   Output jacobian FULL MATRIX:\n{current_jacobian}")
             except Exception as e:
                 if self.verbose:
                     print(f"    Iteration {iteration}: Assembly failed ({e})")
