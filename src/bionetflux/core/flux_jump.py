@@ -29,10 +29,25 @@ def domain_flux_jump(
             - JF: neq*(N+1)×neq*(N+1) Jacobian matrix
     """
     
+    print("\n" + "="*80)
+    print("FLUX JUMP DEBUG - STARTING DOMAIN_FLUX_JUMP")
+    print("="*80)
+    
     # Deduce N and neq from forcing_term shape
     N = forcing_term.shape[1]  # Number of elements
     neq = forcing_term.shape[0] // 2  # Number of equations
     n_nodes = N + 1
+    
+    print(f"Problem dimensions:")
+    print(f"  N (elements): {N}")
+    print(f"  neq (equations): {neq}")
+    print(f"  n_nodes: {n_nodes}")
+    print(f"  trace_solution shape: {trace_solution.shape}")
+    print(f"  forcing_term shape: {forcing_term.shape}")
+    
+    print(f"\nInput data:")
+    print(f"  trace_solution:\n{trace_solution}")
+    print(f"  forcing_term:\n{forcing_term}")
     
     # Initialize outputs
     coeffs_per_element_sol = 2*neq  # Flexible: 2*(2*neq - 1) coefficients per element
@@ -40,15 +55,30 @@ def domain_flux_jump(
     U = np.zeros((coeffs_per_element_sol, N))  # 2*(2*neq - 1) × N matrix of bulk solutions
     F = np.zeros((neq * n_nodes, 1)) # Flexible: neq * (N+1) vector
     JF = np.zeros((neq * n_nodes, neq * n_nodes))
+
+
+    print(f"\nInitialized outputs:")
+    print(f"  coeffs_per_element_sol: {coeffs_per_element_sol}")
+    print(f"  coeffs_per_element_flux: {coeffs_per_element_flux}")
+    print(f"  U shape: {U.shape}")
+    print(f"  F shape: {F.shape}")
+    print(f"  JF shape: {JF.shape}")
     
     # Set boundary conditions in F
     # F([1; N+1; N+2; 2*(N+1)]) = problem.NeumannData in MATLAB (1-indexed)
     # Convert to 0-indexed: [0; N; N+1; 2*N+1]
     
+    print(f"\n" + "-"*40)
+    print(f"STARTING ELEMENT LOOP")
+    print("-"*40)
+    
     # Cycle over elements
     for k in range(N):
+        print(f"\n🔄 ELEMENT {k+1}/{N}:")
         # Create logical indexing for element k
         # This selects nodes k and k+1 for all equations
+        
+        print(f"  📍 Creating local indices for element {k+1}:")
         
         # Initialize local_indices as vector of length 2*neq
         local_indices = np.zeros(2 * neq, dtype=int)
@@ -58,35 +88,75 @@ def domain_flux_jump(
             # For equation ieq: indices k and k+1 in the corresponding block
             local_indices[ieq * 2] = ieq * n_nodes + k      # Left node for equation ieq
             local_indices[ieq * 2 + 1] = ieq * n_nodes + (k + 1)  # Right node for equation ieq
+            print(f"    Equation {ieq}: indices [{local_indices[ieq * 2]}, {local_indices[ieq * 2 + 1]}]")
+        
+        print(f"  📍 local_indices: {local_indices}")
         
         # Extract local forcing term for element k
         gk = forcing_term[:, k].reshape(-1, 1)  # (2*neq)×1 vector
+        print(f"  📊 Extracted gk (forcing) shape: {gk.shape}")
+        print(f"  📊 gk content:\n{gk}")
         
         # Extract local trace values for element k
         local_trace = trace_solution[local_indices].reshape(-1, 1)  # (2*neq)×1 vector
+        print(f"  📊 Extracted local_trace shape: {local_trace.shape}")
+        print(f"  📊 local_trace content:\n{local_trace}")
         
         # Apply static condensation
         try:
+            print(f"  🔧 Calling static condensation...")
             local_solution, flux, flux_trace, jacobian = static_condensation.static_condensation(
                 local_trace, gk)
             flux_trace = flux_trace.reshape(-1, 1)  # Ensure column vector
             local_solution = local_solution.reshape(-1,)  # Ensure column vector
             
+            print(f"  ✅ Static condensation complete:")
+            print(f"    local_solution shape: {local_solution.shape}")
+            print(f"    local_solution: {local_solution}")
+            print(f"    flux shape: {flux.shape if hasattr(flux, 'shape') else 'scalar'}")
+            print(f"    flux: {flux}")
+            print(f"    flux_trace shape: {flux_trace.shape}")
+            print(f"    flux_trace:\n{flux_trace}")
+            print(f"    jacobian shape: {jacobian.shape}")
+            print(f"    jacobian:\n{jacobian}")
+            
             # Store bulk solution for element k
             U[:, k] = local_solution
+            print(f"  💾 Stored bulk solution in U[:, {k}]")
+            print(f"  💾 U[:, {k}]: {U[:, k]}")
             
-        
             # Update flux jump vector F
             # Add flux trace contributions to the global residual
+            print(f"  🎯 Before F update - F[local_indices]:\n{F[local_indices]}")
             F[local_indices] += flux_trace
-            
+            print(f"  🎯 After F update - F[local_indices]:\n{F[local_indices]}")
             
             # Update Jacobian JF
             # Add local Jacobian contributions to global Jacobian
+            print(f"  🎯 Adding jacobian to JF at indices {local_indices}")
+            JF_old = JF[np.ix_(local_indices, local_indices)].copy()
             np.add.at(JF, (local_indices[:, None], local_indices[None, :]), jacobian)
+            JF_new = JF[np.ix_(local_indices, local_indices)]
+            print(f"  🎯 JF block before:\n{JF_old}")
+            print(f"  🎯 JF block after:\n{JF_new}")
             
         except Exception as e:
+            print(f"  ❌ STATIC CONDENSATION FAILED for element {k+1}: {e}")
             raise RuntimeError(f"Static condensation failed for element {k+1}: {e}")
+    
+    print(f"\n" + "="*80)
+    print(f"FLUX JUMP DEBUG - FINAL RESULTS")
+    print(f"="*80)
+    print(f"Final U (bulk solutions) shape: {U.shape}")
+    print(f"Final U:\n{U}")
+    print(f"Final F (flux jumps) shape: {F.shape}")
+    print(f"Final F (max/min/norm): max={np.max(F):.6e}, min={np.min(F):.6e}, norm={np.linalg.norm(F):.6e}")
+    print(f"Final F:\n{F}")
+    print(f"Final JF (Jacobian) shape: {JF.shape}")
+    print(f"Final JF condition number: {np.linalg.cond(JF):.6e}")
+    print(f"Final JF (max/min): max={np.max(JF):.6e}, min={np.min(JF):.6e}")
+    print(f"Final JF:\n{JF}")
+    print(f"="*80)
     
     return U, F, JF
 

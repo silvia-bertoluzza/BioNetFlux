@@ -193,7 +193,9 @@ class SolverSetup:
         
         # Initialize multipliers to zero
         n_multipliers = self.constraint_manager.n_multipliers if self.constraint_manager else 0
-        initial_multipliers = np.zeros(n_multipliers)
+        # initial_multipliers = np.zeros(n_multipliers)
+
+        initial_multipliers = [-0.5, -1.0, -0.5, 1.0]
         
         return trace_solutions, initial_multipliers
     

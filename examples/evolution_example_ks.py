@@ -11,7 +11,6 @@ encapsulates all the Newton iteration and bulk data management.
 import sys
 import os
 
-from scipy import setup
 # Add the python_port directory to path for absolute imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -162,6 +161,14 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # STEP 1: SOLVER SETUP (Enhanced with config file support and error handling)
     # ============================================================================
     
+    print("\n" + "="*80)
+    print("🔧 PHASE 1: SOLVER SETUP AND CONFIGURATION")
+    print("="*80)
+    if config_file:
+        print(f"📁 Loading configuration from: {config_file}")
+    else:
+        print("⚠️  Using default configuration (no config file provided)")
+    
     geometry = build_arc_sequence_geometry(N=1, start=0.5, length=1.0)
 
     # Try to call quick_setup with error handling for config compatibility    
@@ -194,6 +201,12 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # STEP 2: TIME STEPPER INITIALIZATION
     # ============================================================================
     
+    print("\n" + "="*80)
+    print("⏱️  PHASE 2: TIME STEPPER INITIALIZATION")
+    print("="*80)
+    print(f"📊 Problem info: {info['num_domains']} domains, {info['total_elements']} total elements")
+    print(f"🔧 Time discretization: dt={info['time_discretization']['dt']}, T={info['time_discretization']['T']}")
+    
     # Create time stepper with Newton solver configuration
     time_stepper = TimeStepper(setup, verbose=True)
     
@@ -208,6 +221,10 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # STEP 3: TIME EVOLUTION
     # ============================================================================
     
+    print("\n" + "="*80)
+    print("🚀 PHASE 3: TIME EVOLUTION LOOP")
+    print("="*80)
+    
     # Time evolution parameters
     current_time = 0.0
     dt = setup.global_discretization.dt
@@ -218,13 +235,17 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     solution_history = [current_solution.copy()]
     time_history = [current_time]
     
-    print(f"Evolution Parameters: t ∈ [0, {T}], dt = {dt}, max steps = {max_time_steps}")
+    print(f"⚙️  Evolution Parameters: t ∈ [0, {T}], dt = {dt}, max steps = {max_time_steps}")
+    print(f"🎯 Starting time evolution...")
     
     # TIME EVOLUTION LOOP
     time_step = 0
     
     while current_time < T - dt/2 and time_step < max_time_steps:
         time_step += 1
+        
+        if time_step % 10 == 1 or time_step <= 3:  # Print progress for first few steps and every 10th step
+            print(f"  ⏳ Step {time_step}/{max_time_steps}: t = {current_time:.6f}")
         
         # SINGLE CALL REPLACES ~50 LINES OF COMPLEX NEWTON ITERATION CODE!
         result = time_stepper.advance_time_step(
@@ -255,8 +276,17 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # FINAL RESULTS AND ERROR ANALYSIS
     # ============================================================================
     
+    print("\n" + "="*80)
+    print("📈 PHASE 4: FINAL RESULTS AND ERROR ANALYSIS")
+    print("="*80)
+    
     successful_steps = len(solution_history) - 1  # Subtract initial condition
-    print(f"Evolution completed: {successful_steps}/{max_time_steps} steps, final time: {current_time:.6f}")
+    print(f"✅ Evolution completed: {successful_steps}/{max_time_steps} steps, final time: {current_time:.6f}")
+    
+    if successful_steps == max_time_steps:
+        print("🎉 All time steps completed successfully!")
+    elif successful_steps < max_time_steps:
+        print(f"⚠️  Early termination: {max_time_steps - successful_steps} steps failed")
     
     # Extract final solutions
     final_traces, final_multipliers = setup.extract_domain_solutions(current_solution)
@@ -325,7 +355,9 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # PLOTTING RESULTS
     # ============================================================================
     
-    print("\n=== GENERATING SOLUTION PLOTS ===")
+    print("\n" + "="*80)
+    print("📊 PHASE 5: PLOTTING RESULTS")
+    print("="*80)
     
     # Get number of equations from problem
     problem = setup.problems[0]
@@ -367,6 +399,11 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
 if __name__ == "__main__":
     """Main execution with config file support."""
     
+    print("\n" + "="*80)
+    print("🌟 BIONETFLUX EVOLUTION EXAMPLE - KS PROBLEM")
+    print("="*80)
+    print("📝 Initializing simulation...")
+    
     # Check for config file argument
     config_file = None
     if len(sys.argv) > 1:
@@ -390,6 +427,10 @@ if __name__ == "__main__":
             sys.exit(1)
         
         setup, time_stepper, sol_history, time_hist = result
+        
+        print("\n" + "="*80)
+        print("🎊 SIMULATION COMPLETED SUCCESSFULLY!")
+        print("="*80)
         
     except KeyboardInterrupt:
         print(f"Execution interrupted by user")

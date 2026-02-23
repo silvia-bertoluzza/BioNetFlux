@@ -172,11 +172,22 @@ class TimeStepper:
                     previous_bulk_solution=bulk_sol.data,
                     external_force=source.data
                 )
+
                 forcing_terms.append(forcing_term)
             
+            # DEBUG: Print forcing term values for debugging
+            print(f"DEBUG: Forcing term values:")
+            for i, ft in enumerate(forcing_terms):
+                print(f"  Domain {i}: shape={ft.shape}, min={np.min(ft):.6e}, max={np.max(ft):.6e}, norm={np.linalg.norm(ft):.6e}")
+                if ft.size <= 20:  # Only print full values for small arrays
+                    print(f"    Full values: {ft.flatten()}")
+            
+            print(f"DEBUG:    ✓ Forcing terms assembled for {len(forcing_terms)} domains")
             if self.verbose:
                 print(f"    ✓ Forcing terms assembled for {len(forcing_terms)} domains")
         except Exception as e:
+            print(f"DEBUG    ✗ Forcing term assembly failed: {e}")
+            
             if self.verbose:
                 print(f"    ✗ Forcing term assembly failed: {e}")
             return self._create_failed_result(current_solution, current_bulk_data,
