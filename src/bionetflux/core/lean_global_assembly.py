@@ -104,6 +104,28 @@ class GlobalAssembler:
         Returns:
             tuple: (residual, jacobian) - Global residual vector and Jacobian matrix
         """
+        # ═══════════════════════════════════════════════════════════════════════
+        # 🔍 DETAILED DEBUG: ASSEMBLE_RESIDUAL_AND_JACOBIAN START  
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"\n🔧 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian START")
+        print(f"📊 Input parameters:")
+        print(f"   - time: {time}")
+        print(f"   - n_domains: {self.n_domains}")
+        print(f"   - total_trace_dofs: {self.total_trace_dofs}")
+        print(f"   - n_multipliers: {self.n_multipliers}")
+        print(f"   - total_dofs: {self.total_dofs}")
+        print(f"   - global_solution shape: {global_solution.shape}")
+        print(f"   - global_solution values: {global_solution}")
+        print(f"   - len(forcing_terms): {len(forcing_terms)}")
+        print(f"   - len(static_condensations): {len(static_condensations)}")
+        
+        for i, ft in enumerate(forcing_terms):
+            print(f"   - forcing_terms[{i}] shape: {ft.shape}")
+            print(f"   - forcing_terms[{i}] values:\n{ft}")
+        
+        print(f"📍 Domain trace offsets: {self.domain_trace_offsets}")
+        print(f"📍 Domain trace sizes: {self.domain_trace_sizes}")
+        
         # Validate inputs
         if len(forcing_terms) != self.n_domains:
             raise ValueError(f"Number of forcing terms ({len(forcing_terms)}) != number of domains ({self.n_domains})")
@@ -115,17 +137,50 @@ class GlobalAssembler:
         trace_solutions = self._extract_trace_solutions(global_solution)
         multipliers = global_solution[self.total_trace_dofs:] if self.n_multipliers > 0 else np.array([])
         
+        print(f"\n🔄 After extraction:")
+        print(f"   - trace_solutions length: {len(trace_solutions)}")
+        for i, ts in enumerate(trace_solutions):
+            print(f"   - trace_solutions[{i}] shape: {ts.shape}")
+            print(f"   - trace_solutions[{i}] values: {ts}")
+        print(f"   - multipliers shape: {multipliers.shape}")
+        print(f"   - multipliers values: {multipliers}")
+        
         # Initialize global residual and Jacobian
         residual = np.zeros(self.total_dofs)
         jacobian = np.zeros((self.total_dofs, self.total_dofs))
         
+        print(f"\n🔢 Initialized:")
+        print(f"   - residual shape: {residual.shape}")
+        print(f"   - jacobian shape: {jacobian.shape}")
+        print(f"   - residual initial values: {residual}")
+        print(f"   - jacobian initial norm: {np.linalg.norm(jacobian)}")
+        
         # Assemble domain contributions
+        print(f"\n🔄 DOMAIN ASSEMBLY LOOP START")
         for i in range(self.n_domains):
+            print(f"\n   ⚡ Processing domain {i}/{self.n_domains-1}")
+            
             # Validate forcing term shape
             expected_rows = 2 * self.bulk_manager.domain_data_list[i].neq
             expected_cols = self.bulk_manager.domain_data_list[i].n_elements
+            print(f"   📊 Domain {i} validation:")
+            print(f"      - expected_rows: {expected_rows}")
+            print(f"      - expected_cols: {expected_cols}")
+            print(f"      - forcing_terms[{i}] shape: {forcing_terms[i].shape}")
+            print(f"      - bulk_manager.domain_data_list[{i}].neq: {self.bulk_manager.domain_data_list[i].neq}")
+            print(f"      - bulk_manager.domain_data_list[{i}].n_elements: {self.bulk_manager.domain_data_list[i].n_elements}")
+            
             if forcing_terms[i].shape != (expected_rows, expected_cols):
                 raise ValueError(f"Domain {i} forcing term shape {forcing_terms[i].shape} != expected ({expected_rows}, {expected_cols})")
+            
+            print(f"   🔧 Domain {i} inputs to domain_flux_jump:")
+            print(f"      - trace_solutions[{i}] shape: {trace_solutions[i].shape}")
+            print(f"      - trace_solutions[{i}] values: {trace_solutions[i]}")
+            print(f"      - trace_solutions[{i}].reshape(-1,1) shape: {trace_solutions[i].reshape(-1, 1).shape}")
+            print(f"      - trace_solutions[{i}].reshape(-1,1) values:\n{trace_solutions[i].reshape(-1, 1)}")
+            print(f"      - forcing_terms[{i}] shape: {forcing_terms[i].shape}")
+            print(f"      - forcing_terms[{i}] values:\n{forcing_terms[i]}")
+            print(f"      - static_condensations[{i}] type: {type(static_condensations[i])}")
             
             # Compute domain flux jump using static condensation
             U, F, JF = domain_flux_jump(
@@ -135,21 +190,58 @@ class GlobalAssembler:
                 static_condensations[i]
             )
             
+            print(f"   ✅ Domain {i} outputs from domain_flux_jump:")
+            print(f"      - U shape: {U.shape}")
+            print(f"      - U values:\n{U}")
+            print(f"      - F shape: {F.shape}")
+            print(f"      - F values:\n{F}")
+            print(f"      - JF shape: {JF.shape}")
+            print(f"      - JF values:\n{JF}")
+            print(f"      - F.flatten() values: {F.flatten()}")
+            
             # Add domain residual to global residual
             start_idx = self.domain_trace_offsets[i]
             end_idx = start_idx + self.domain_trace_sizes[i]
+            print(f"   📍 Domain {i} global assembly:")
+            print(f"      - start_idx: {start_idx}")
+            print(f"      - end_idx: {end_idx}")
+            print(f"      - domain_trace_sizes[{i}]: {self.domain_trace_sizes[i]}")
+            print(f"      - residual[{start_idx}:{end_idx}] before: {residual[start_idx:end_idx]}")
+            
             residual[start_idx:end_idx] += F.flatten()
             
+            print(f"      - residual[{start_idx}:{end_idx}] after: {residual[start_idx:end_idx]}")
+            
             # Add domain Jacobian to global Jacobian
+            print(f"      - jacobian[{start_idx}:{end_idx}, {start_idx}:{end_idx}] before:\n{jacobian[start_idx:end_idx, start_idx:end_idx]}")
             jacobian[start_idx:end_idx, start_idx:end_idx] += JF
+            print(f"      - jacobian[{start_idx}:{end_idx}, {start_idx}:{end_idx}] after:\n{jacobian[start_idx:end_idx, start_idx:end_idx]}")
+        
+        print(f"\n🔄 DOMAIN ASSEMBLY LOOP COMPLETE")
+        print(f"   - residual after domain assembly: {residual}")
+        print(f"   - jacobian norm after domain assembly: {np.linalg.norm(jacobian)}")
+        print(f"   - jacobian after domain assembly:\n{jacobian}")
         
         # Add constraint contributions if present
         if self.constraint_manager is not None and self.n_multipliers > 0:
+            print(f"\n🔗 CONSTRAINT ASSEMBLY START")
+            print(f"   - constraint_manager: {self.constraint_manager}")
+            print(f"   - n_multipliers: {self.n_multipliers}")
+            print(f"   - number of constraints: {len(self.constraint_manager.constraints)}")
+            
             # Add multiplier contributions to trace residuals
             multiplier_idx = 0
             
             for constraint_idx, constraint in enumerate(self.constraint_manager.constraints):
+                print(f"\n   ⭐ Processing constraint {constraint_idx}")
+                print(f"      - constraint type: {type(constraint)}")
+                print(f"      - constraint.is_boundary_condition: {constraint.is_boundary_condition}")
+                print(f"      - constraint.domains: {constraint.domains}")
+                print(f"      - constraint.equation_index: {constraint.equation_index}")
+                
                 node_indices = self.constraint_manager.get_node_indices(constraint_idx)
+                print(f"      - node_indices: {node_indices}")
+                print(f"      - current multiplier_idx: {multiplier_idx}")
                 
                 if constraint.is_boundary_condition:
                     # Single domain constraint
@@ -157,14 +249,26 @@ class GlobalAssembler:
                     node_idx = node_indices[0]
                     eq_idx = constraint.equation_index
                     
+                    print(f"      - boundary constraint processing:")
+                    print(f"         - domain_idx: {domain_idx}")
+                    print(f"         - node_idx: {node_idx}")
+                    print(f"         - eq_idx: {eq_idx}")
+                    
                     # Calculate global trace index
                     domain_offset = self.domain_trace_offsets[domain_idx]
                     domain_data = self.bulk_manager.domain_data_list[domain_idx]
                     n_nodes = domain_data.n_elements + 1
                     trace_idx = domain_offset + eq_idx * n_nodes + node_idx
                     
+                    print(f"         - domain_offset: {domain_offset}")
+                    print(f"         - n_nodes: {n_nodes}")
+                    print(f"         - trace_idx calculation: {domain_offset} + {eq_idx} * {n_nodes} + {node_idx} = {trace_idx}")
+                    print(f"         - multipliers[{multiplier_idx}]: {multipliers[multiplier_idx]}")
+                    print(f"         - residual[{trace_idx}] before: {residual[trace_idx]}")
+                    
                     # Add multiplier value to trace residual
                     residual[trace_idx] += multipliers[multiplier_idx]
+                    print(f"         - residual[{trace_idx}] after: {residual[trace_idx]}")
                     multiplier_idx += 1
                     
                 else:
@@ -172,6 +276,13 @@ class GlobalAssembler:
                     domain1_idx, domain2_idx = constraint.domains
                     node1_idx, node2_idx = node_indices
                     eq_idx = constraint.equation_index
+                    
+                    print(f"      - junction constraint processing:")
+                    print(f"         - domain1_idx: {domain1_idx}")
+                    print(f"         - domain2_idx: {domain2_idx}")
+                    print(f"         - node1_idx: {node1_idx}")
+                    print(f"         - node2_idx: {node2_idx}")
+                    print(f"         - eq_idx: {eq_idx}")
                     
                     # Calculate global trace indices for both domains
                     domain1_offset = self.domain_trace_offsets[domain1_idx]
@@ -184,23 +295,84 @@ class GlobalAssembler:
                     trace1_idx = domain1_offset + eq_idx * n_nodes1 + node1_idx
                     trace2_idx = domain2_offset + eq_idx * n_nodes2 + node2_idx
                     
+                    print(f"         - domain1_offset: {domain1_offset}, n_nodes1: {n_nodes1}")
+                    print(f"         - domain2_offset: {domain2_offset}, n_nodes2: {n_nodes2}")
+                    print(f"         - trace1_idx: {domain1_offset} + {eq_idx} * {n_nodes1} + {node1_idx} = {trace1_idx}")
+                    print(f"         - trace2_idx: {domain2_offset} + {eq_idx} * {n_nodes2} + {node2_idx} = {trace2_idx}")
+                    print(f"         - multipliers[{multiplier_idx}]: {multipliers[multiplier_idx]}")
+                    print(f"         - multipliers[{multiplier_idx + 1}]: {multipliers[multiplier_idx + 1]}")
+                    print(f"         - residual[{trace1_idx}] before: {residual[trace1_idx]}")
+                    print(f"         - residual[{trace2_idx}] before: {residual[trace2_idx]}")
+                    
                     # Add multiplier values to both trace residuals
                     residual[trace1_idx] += multipliers[multiplier_idx]
                     residual[trace2_idx] += multipliers[multiplier_idx + 1]
+                    print(f"         - residual[{trace1_idx}] after: {residual[trace1_idx]}")
+                    print(f"         - residual[{trace2_idx}] after: {residual[trace2_idx]}")
                     multiplier_idx += 2
+            
+            print(f"\n   🧮 Computing constraint residuals...")
+            print(f"      - input trace_solutions: {[ts.shape for ts in trace_solutions]}")
+            print(f"      - input multipliers: {multipliers}")
+            print(f"      - input time: {time}")
             
             # Compute constraint residuals
             constraint_residuals = self.constraint_manager.compute_constraint_residuals(
                 trace_solutions, multipliers, time, domain_data_list=self.bulk_manager.domain_data_list
             )            
             
+            print(f"      - computed constraint_residuals shape: {constraint_residuals.shape}")
+            print(f"      - computed constraint_residuals values: {constraint_residuals}")
+            print(f"      - residual[{self.total_trace_dofs}:] before: {residual[self.total_trace_dofs:]}")
+            
             # Add constraint residuals to global residual
             residual[self.total_trace_dofs:] = constraint_residuals
+            print(f"      - residual[{self.total_trace_dofs}:] after: {residual[self.total_trace_dofs:]}")
+            
+            print(f"\n   🔗 Adding constraint Jacobian contributions...")
+            print(f"      - jacobian before constraint jacobian:\n{jacobian}")
             
             # Add constraint Jacobian contributions
             self._add_constraint_jacobian_contributions(
                 jacobian, trace_solutions, multipliers, time
             )
+            print(f"      - jacobian after constraint jacobian:\n{jacobian}")
+        
+        else:
+            print(f"\n🔗 NO CONSTRAINTS TO PROCESS")
+            print(f"   - constraint_manager: {self.constraint_manager}")
+            print(f"   - n_multipliers: {self.n_multipliers}")
+        
+        # ═══════════════════════════════════════════════════════════════════════
+        # 🏁 DETAILED DEBUG: ASSEMBLE_RESIDUAL_AND_JACOBIAN FINAL RESULTS
+        # ═══════════════════════════════════════════════════════════════════════
+        print(f"\n🏁 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian FINAL RESULTS")
+        print(f"📊 Final output values:")
+        print(f"   - residual shape: {residual.shape}")
+        print(f"   - residual values: {residual}")
+        print(f"   - residual norm: {np.linalg.norm(residual)}")
+        print(f"   - jacobian shape: {jacobian.shape}")
+        print(f"   - jacobian norm: {np.linalg.norm(jacobian)}")
+        print(f"   - jacobian values:\n{jacobian}")
+        print(f"   - jacobian diagonal: {np.diag(jacobian)}")
+        print(f"   - jacobian max element: {np.max(jacobian)}")
+        print(f"   - jacobian min element: {np.min(jacobian)}")
+        print(f"   - residual max element: {np.max(residual)}")
+        print(f"   - residual min element: {np.min(residual)}")
+        
+        # Print detailed breakdown of residual and jacobian by domain
+        print(f"\n📋 Final breakdown by domain:")
+        for i in range(self.n_domains):
+            start_idx = self.domain_trace_offsets[i]
+            end_idx = start_idx + self.domain_trace_sizes[i]
+            print(f"   - Domain {i} residual[{start_idx}:{end_idx}]: {residual[start_idx:end_idx]}")
+            print(f"   - Domain {i} jacobian[{start_idx}:{end_idx}, {start_idx}:{end_idx}]:\n{jacobian[start_idx:end_idx, start_idx:end_idx]}")
+        
+        if self.n_multipliers > 0:
+            print(f"   - Multiplier residual[{self.total_trace_dofs}:]: {residual[self.total_trace_dofs:]}")
+            print(f"   - Multiplier jacobian block shape: {jacobian[self.total_trace_dofs:, :].shape}")
+        
+        print(f"✅ GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian COMPLETE\n")
         
         return residual, jacobian
 

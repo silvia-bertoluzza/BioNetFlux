@@ -1,0 +1,2022 @@
+
+================================================================================
+🌟 BIONETFLUX EVOLUTION EXAMPLE - KS PROBLEM
+================================================================================
+📝 Initializing simulation...
+
+================================================================================
+🔧 PHASE 1: SOLVER SETUP AND CONFIGURATION
+================================================================================
+📁 Loading configuration from: ../config/ks_debug_parameters.toml
+Creating arc sequence geometry with N=1 segments...
+  Start: x=0.5, segment length: 1.0
+  Total span: x ∈ [0.5, 1.5]
+✓ Arc sequence geometry created:
+  - 1 aligned segments along y=0.5
+  - Each segment: length=1.0, parameter space [0, 1]
+  - Total physical length: 1.0
+  - Total domains: 1
+  - Total connections: 2
+    - Boundary connections: 2
+    - Interior connections: 0
+Quick setup: problem_module='bionetflux.problems.ks_problem', config_file='../config/ks_debug_parameters.toml'
+Validating config file compatibility...
+Loading configuration from: ../config/ks_debug_parameters.toml
+✓ Configuration loaded and validated successfully
+✓ Config file '../config/ks_debug_parameters.toml' is compatible with ks problem type
+Loading Keller-Segel configuration...
+Loading configuration from: ../config/ks_debug_parameters.toml
+✓ Configuration loaded and validated successfully
+Domain-specific initial conditions found: 0
+Domain-specific force functions found: 0
+Domain-specific exact solutions found: 0
+✓ KS Configuration loaded:
+  Problem: KS_Traveling_Wave_Problem (2 equations)
+  Time: T=1.0, dt=1.0
+  Diffusion: mu=1.0, nu=1.0
+  Reaction: a=1.0, b=0.0
+Setting up KS mathematical functions...
+✓ KS Mathematical functions configured:
+  - Chemotaxis: chi (constant), dchi
+  - Initial conditions: loaded from config
+  - Force functions: loaded from config
+Using provided geometry: 'arc_sequence_geometry' with 1 domains
+  - Connections: 2
+✓ Provided geometry validation passed
+Creating KS problem instances from geometry with config parameters...
+  Creating KS problem for domain 0: segment_1
+  Validating function callability...
+    ✓ initial_conditions["u"] is callable
+    ✓ initial_conditions["phi"] is callable
+    ✓ force_functions["u_f"] is callable
+    ✓ force_functions["phi"] is callable
+    ✓ chi_func is callable
+    ✓ dchi_func is callable
+  ✓ All required functions are callable
+Applying domain-specific initial conditions...
+Applying domain-specific force functions...
+✓ Created 1 KS problem instances with config parameters
+Finalizing KS global discretization...
+✓ KS Global discretization created:
+  Time: dt=1.0, T=1.0, steps=1
+  Domains: 1
+  Constraints: 4
+  Multipliers: 4
+Validating KS problem setup...
+✓ KS Problem 0 validated
+
+🎉 Keller-Segel problem 'KS_Traveling_Wave_Problem' ready!
+📊 KS PROBLEM SUMMARY:
+   - Geometry: arc_sequence_geometry with 1 domains
+   - Physics: Keller-Segel parameters from config
+   - 2 equations per domain (2 total equations)
+   - 4 constraints
+   - Total DOFs: 4
+Validating setup for problem: KS_Traveling_Wave_Problem
+Number of domains: 1
+Total DOFs: 8
+✓ Initial conditions created
+✓ Global vector round-trip test passed
+✓ Bulk solutions created
+✓ Forcing terms computed
+
+🔧 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian START
+📊 Input parameters:
+   - time: 0.0
+   - n_domains: 1
+   - total_trace_dofs: 4
+   - n_multipliers: 4
+   - total_dofs: 8
+   - global_solution shape: (8,)
+   - global_solution values: [ 0.5  1.5  0.5  1.5 -0.5 -1.  -0.5  1. ]
+   - len(forcing_terms): 1
+   - len(static_condensations): 1
+   - forcing_terms[0] shape: (4, 1)
+   - forcing_terms[0] values:
+[[0.5       ]
+ [0.5       ]
+ [0.41666667]
+ [0.58333333]]
+📍 Domain trace offsets: [0]
+📍 Domain trace sizes: [4]
+
+🔄 After extraction:
+   - trace_solutions length: 1
+   - trace_solutions[0] shape: (4,)
+   - trace_solutions[0] values: [0.5 1.5 0.5 1.5]
+   - multipliers shape: (4,)
+   - multipliers values: [-0.5 -1.  -0.5  1. ]
+
+🔢 Initialized:
+   - residual shape: (8,)
+   - jacobian shape: (8, 8)
+   - residual initial values: [0. 0. 0. 0. 0. 0. 0. 0.]
+   - jacobian initial norm: 0.0
+
+🔄 DOMAIN ASSEMBLY LOOP START
+
+   ⚡ Processing domain 0/0
+   📊 Domain 0 validation:
+      - expected_rows: 4
+      - expected_cols: 1
+      - forcing_terms[0] shape: (4, 1)
+      - bulk_manager.domain_data_list[0].neq: 2
+      - bulk_manager.domain_data_list[0].n_elements: 1
+   🔧 Domain 0 inputs to domain_flux_jump:
+      - trace_solutions[0] shape: (4,)
+      - trace_solutions[0] values: [0.5 1.5 0.5 1.5]
+      - trace_solutions[0].reshape(-1,1) shape: (4, 1)
+      - trace_solutions[0].reshape(-1,1) values:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+      - forcing_terms[0] shape: (4, 1)
+      - forcing_terms[0] values:
+[[0.5       ]
+ [0.5       ]
+ [0.41666667]
+ [0.58333333]]
+      - static_condensations[0] type: <class 'bionetflux.core.static_condensation_keller_segel.KellerSegelStaticCondensation'>
+
+================================================================================
+FLUX JUMP DEBUG - STARTING DOMAIN_FLUX_JUMP
+================================================================================
+Problem dimensions:
+  N (elements): 1
+  neq (equations): 2
+  n_nodes: 2
+  trace_solution shape: (4, 1)
+  forcing_term shape: (4, 1)
+
+Input data:
+  trace_solution:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+  forcing_term:
+[[0.5       ]
+ [0.5       ]
+ [0.41666667]
+ [0.58333333]]
+
+Initialized outputs:
+  coeffs_per_element_sol: 4
+  coeffs_per_element_flux: 3
+  U shape: (4, 1)
+  F shape: (4, 1)
+  JF shape: (4, 4)
+
+----------------------------------------
+STARTING ELEMENT LOOP
+----------------------------------------
+
+🔄 ELEMENT 1/1:
+  📍 Creating local indices for element 1:
+    Equation 0: indices [0, 1]
+    Equation 1: indices [2, 3]
+  📍 local_indices: [0 1 2 3]
+  📊 Extracted gk (forcing) shape: (4, 1)
+  📊 gk content:
+[[0.5       ]
+ [0.5       ]
+ [0.41666667]
+ [0.58333333]]
+  📊 Extracted local_trace shape: (4, 1)
+  📊 local_trace content:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+  🔧 Calling static condensation...
+  ✅ Static condensation complete:
+    local_solution shape: (4,)
+    local_solution: [0.57142857 1.42857143 0.5        1.375     ]
+    flux shape: (3, 1)
+    flux: [[ 0.05357143]
+ [-0.625     ]
+ [-1.375     ]]
+    flux_trace shape: (4, 1)
+    flux_trace:
+[[ 0.01785714]
+ [-0.01785714]
+ [ 0.625     ]
+ [-1.5       ]]
+    jacobian shape: (4, 4)
+    jacobian:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+  💾 Stored bulk solution in U[:, 0]
+  💾 U[:, 0]: [0.57142857 1.42857143 0.5        1.375     ]
+  🎯 Before F update - F[local_indices]:
+[[0.]
+ [0.]
+ [0.]
+ [0.]]
+  🎯 After F update - F[local_indices]:
+[[ 0.01785714]
+ [-0.01785714]
+ [ 0.625     ]
+ [-1.5       ]]
+  🎯 Adding jacobian to JF at indices [0 1 2 3]
+  🎯 JF block before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+  🎯 JF block after:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+================================================================================
+FLUX JUMP DEBUG - FINAL RESULTS
+================================================================================
+Final U (bulk solutions) shape: (4, 1)
+Final U:
+[[0.57142857]
+ [1.42857143]
+ [0.5       ]
+ [1.375     ]]
+Final F (flux jumps) shape: (4, 1)
+Final F (max/min/norm): max=6.250000e-01, min=-1.500000e+00, norm=1.625196e+00
+Final F:
+[[ 0.01785714]
+ [-0.01785714]
+ [ 0.625     ]
+ [-1.5       ]]
+Final JF (Jacobian) shape: (4, 4)
+Final JF condition number: 1.080791e+01
+Final JF (max/min): max=1.184524e+00, min=-1.562500e+00
+Final JF:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+================================================================================
+   ✅ Domain 0 outputs from domain_flux_jump:
+      - U shape: (4, 1)
+      - U values:
+[[0.57142857]
+ [1.42857143]
+ [0.5       ]
+ [1.375     ]]
+      - F shape: (4, 1)
+      - F values:
+[[ 0.01785714]
+ [-0.01785714]
+ [ 0.625     ]
+ [-1.5       ]]
+      - JF shape: (4, 4)
+      - JF values:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+      - F.flatten() values: [ 0.01785714 -0.01785714  0.625      -1.5       ]
+   📍 Domain 0 global assembly:
+      - start_idx: 0
+      - end_idx: 4
+      - domain_trace_sizes[0]: 4
+      - residual[0:4] before: [0. 0. 0. 0.]
+      - residual[0:4] after: [ 0.01785714 -0.01785714  0.625      -1.5       ]
+      - jacobian[0:4, 0:4] before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+      - jacobian[0:4, 0:4] after:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+🔄 DOMAIN ASSEMBLY LOOP COMPLETE
+   - residual after domain assembly: [ 0.01785714 -0.01785714  0.625      -1.5         0.          0.
+  0.          0.        ]
+   - jacobian norm after domain assembly: 3.813042459828308
+   - jacobian after domain assembly:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143  0.          0.
+   0.          0.        ]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143  0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+
+🔗 CONSTRAINT ASSEMBLY START
+   - constraint_manager: <bionetflux.core.constraints.ConstraintManager object at 0x10a0a6c00>
+   - n_multipliers: 4
+   - number of constraints: 4
+
+   ⭐ Processing constraint 0
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [0]
+      - current multiplier_idx: 0
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 0 = 0
+         - multipliers[0]: -0.5
+         - residual[0] before: 0.017857142857143016
+         - residual[0] after: -0.482142857142857
+
+   ⭐ Processing constraint 1
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [0]
+      - current multiplier_idx: 1
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 0 = 2
+         - multipliers[1]: -1.0
+         - residual[2] before: 0.6249999993711002
+         - residual[2] after: -0.3750000006288998
+
+   ⭐ Processing constraint 2
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [1]
+      - current multiplier_idx: 2
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 1 = 1
+         - multipliers[2]: -0.5
+         - residual[1] before: -0.017857142857143238
+         - residual[1] after: -0.5178571428571432
+
+   ⭐ Processing constraint 3
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [1]
+      - current multiplier_idx: 3
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 1 = 3
+         - multipliers[3]: 1.0
+         - residual[3] before: -1.4999999993711004
+         - residual[3] after: -0.4999999993711004
+
+   🧮 Computing constraint residuals...
+      - input trace_solutions: [(4,)]
+      - input multipliers: [-0.5 -1.  -0.5  1. ]
+      - input time: 0.0
+      - computed constraint_residuals shape: (4,)
+      - computed constraint_residuals values: [0. 0. 0. 0.]
+      - residual[4:] before: [0. 0. 0. 0.]
+      - residual[4:] after: [0. 0. 0. 0.]
+
+   🔗 Adding constraint Jacobian contributions...
+      - jacobian before constraint jacobian:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143  0.          0.
+   0.          0.        ]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143  0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+      - jacobian after constraint jacobian:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143  1.          0.
+   0.          0.        ]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143  0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+
+🏁 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian FINAL RESULTS
+📊 Final output values:
+   - residual shape: (8,)
+   - residual values: [-0.48214286 -0.51785714 -0.375      -0.5         0.          0.
+  0.          0.        ]
+   - residual norm: 0.944067134765752
+   - jacobian shape: (8, 8)
+   - jacobian norm: 4.747556508400244
+   - jacobian values:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143  1.          0.
+   0.          0.        ]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143  0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+   - jacobian diagonal: [-1.51785714 -0.85119048 -1.5625     -1.5625      1.          1.
+  1.          1.        ]
+   - jacobian max element: 1.1845238095238093
+   - jacobian min element: -1.5625000000000002
+   - residual max element: 0.0
+   - residual min element: -0.5178571428571432
+
+📋 Final breakdown by domain:
+   - Domain 0 residual[0:4]: [-0.48214286 -0.51785714 -0.375      -0.5       ]
+   - Domain 0 jacobian[0:4, 0:4]:
+[[-1.51785714  0.51785714  0.94642857 -1.05357143]
+ [ 1.18452381 -0.85119048 -0.94642857  1.05357143]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+   - Multiplier residual[4:]: [0. 0. 0. 0.]
+   - Multiplier jacobian block shape: (4, 8)
+✅ GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian COMPLETE
+
+✓ Global residual and Jacobian assembled
+  Residual norm: 9.440671e-01
+  Jacobian condition number: 1.62e+01
+
+================================================================================
+⏱️  PHASE 2: TIME STEPPER INITIALIZATION
+================================================================================
+📊 Problem info: 1 domains, 1 total elements
+🔧 Time discretization: dt=1.0, T=1.0
+Initializing solution at t=0...
+    ✓ Initial trace solutions created for 1 domains
+    ✓ Initial multipliers created: 4 values
+    ✓ Global solution vector assembled: shape (8,)
+    ✓ Bulk data initialized for 1 domains
+    ✓ Initialization at t=0 completed
+
+================================================================================
+🚀 PHASE 3: TIME EVOLUTION LOOP
+================================================================================
+⚙️  Evolution Parameters: t ∈ [0, 1.0], dt = 1.0, max steps = 2
+🎯 Starting time evolution...
+  ⏳ Step 1/2: t = 0.000000
+  TimeStepper: advancing from t=0.000000 to t=1.000000
+    ✓ Source terms computed
+DEBUG: Forcing term values:
+  Domain 0: shape=(4, 1), min=8.333333e-01, max=1.166667e+00, norm=2.017286e+00
+    Full values: [0.91666667 1.08333333 0.83333333 1.16666667]
+DEBUG:    ✓ Forcing terms assembled for 1 domains
+    ✓ Forcing terms assembled for 1 domains
+    Starting Newton iterations...
+  Newton solver: tolerance=1.0e-10, max_iterations=20
+    Time: 1.000000
+    Forcing terms: 1 domains
+
+🔧 NEWTON DEBUG - Before assemble_residual_and_jacobian (iteration 0)
+   Input global_solution shape: (8,)
+   Input global_solution FULL VALUES:
+[ 0.5  1.5  0.5  1.5 -0.5 -1.  -0.5  1. ]
+   Input forcing_terms count: 1
+   Input forcing_terms details:
+      Domain 0: shape=(4, 1), norm=2.017286e+00
+      Domain 0 FULL VALUES:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+   Input static_condensations count: 1
+   Input time: 1.0
+
+🔧 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian START
+📊 Input parameters:
+   - time: 1.0
+   - n_domains: 1
+   - total_trace_dofs: 4
+   - n_multipliers: 4
+   - total_dofs: 8
+   - global_solution shape: (8,)
+   - global_solution values: [ 0.5  1.5  0.5  1.5 -0.5 -1.  -0.5  1. ]
+   - len(forcing_terms): 1
+   - len(static_condensations): 1
+   - forcing_terms[0] shape: (4, 1)
+   - forcing_terms[0] values:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+📍 Domain trace offsets: [0]
+📍 Domain trace sizes: [4]
+
+🔄 After extraction:
+   - trace_solutions length: 1
+   - trace_solutions[0] shape: (4,)
+   - trace_solutions[0] values: [0.5 1.5 0.5 1.5]
+   - multipliers shape: (4,)
+   - multipliers values: [-0.5 -1.  -0.5  1. ]
+
+🔢 Initialized:
+   - residual shape: (8,)
+   - jacobian shape: (8, 8)
+   - residual initial values: [0. 0. 0. 0. 0. 0. 0. 0.]
+   - jacobian initial norm: 0.0
+
+🔄 DOMAIN ASSEMBLY LOOP START
+
+   ⚡ Processing domain 0/0
+   📊 Domain 0 validation:
+      - expected_rows: 4
+      - expected_cols: 1
+      - forcing_terms[0] shape: (4, 1)
+      - bulk_manager.domain_data_list[0].neq: 2
+      - bulk_manager.domain_data_list[0].n_elements: 1
+   🔧 Domain 0 inputs to domain_flux_jump:
+      - trace_solutions[0] shape: (4,)
+      - trace_solutions[0] values: [0.5 1.5 0.5 1.5]
+      - trace_solutions[0].reshape(-1,1) shape: (4, 1)
+      - trace_solutions[0].reshape(-1,1) values:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+      - forcing_terms[0] shape: (4, 1)
+      - forcing_terms[0] values:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+      - static_condensations[0] type: <class 'bionetflux.core.static_condensation_keller_segel.KellerSegelStaticCondensation'>
+
+================================================================================
+FLUX JUMP DEBUG - STARTING DOMAIN_FLUX_JUMP
+================================================================================
+Problem dimensions:
+  N (elements): 1
+  neq (equations): 2
+  n_nodes: 2
+  trace_solution shape: (4, 1)
+  forcing_term shape: (4, 1)
+
+Input data:
+  trace_solution:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+  forcing_term:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+
+Initialized outputs:
+  coeffs_per_element_sol: 4
+  coeffs_per_element_flux: 3
+  U shape: (4, 1)
+  F shape: (4, 1)
+  JF shape: (4, 4)
+
+----------------------------------------
+STARTING ELEMENT LOOP
+----------------------------------------
+
+🔄 ELEMENT 1/1:
+  📍 Creating local indices for element 1:
+    Equation 0: indices [0, 1]
+    Equation 1: indices [2, 3]
+  📍 local_indices: [0 1 2 3]
+  📊 Extracted gk (forcing) shape: (4, 1)
+  📊 gk content:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+  📊 Extracted local_trace shape: (4, 1)
+  📊 local_trace content:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+  🔧 Calling static condensation...
+  ✅ Static condensation complete:
+    local_solution shape: (4,)
+    local_solution: [0.83333333 1.83333333 0.5        1.5       ]
+    flux shape: (3, 1)
+    flux: [[ 0.33333333]
+ [-1.        ]
+ [-1.        ]]
+    flux_trace shape: (4, 1)
+    flux_trace:
+[[ 0.        ]
+ [ 0.66666667]
+ [ 1.        ]
+ [-1.        ]]
+    jacobian shape: (4, 4)
+    jacobian:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+  💾 Stored bulk solution in U[:, 0]
+  💾 U[:, 0]: [0.83333333 1.83333333 0.5        1.5       ]
+  🎯 Before F update - F[local_indices]:
+[[0.]
+ [0.]
+ [0.]
+ [0.]]
+  🎯 After F update - F[local_indices]:
+[[ 0.        ]
+ [ 0.66666667]
+ [ 1.        ]
+ [-1.        ]]
+  🎯 Adding jacobian to JF at indices [0 1 2 3]
+  🎯 JF block before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+  🎯 JF block after:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+================================================================================
+FLUX JUMP DEBUG - FINAL RESULTS
+================================================================================
+Final U (bulk solutions) shape: (4, 1)
+Final U:
+[[0.83333333]
+ [1.83333333]
+ [0.5       ]
+ [1.5       ]]
+Final F (flux jumps) shape: (4, 1)
+Final F (max/min/norm): max=1.000000e+00, min=-1.000000e+00, norm=1.563472e+00
+Final F:
+[[ 0.        ]
+ [ 0.66666667]
+ [ 1.        ]
+ [-1.        ]]
+Final JF (Jacobian) shape: (4, 4)
+Final JF condition number: 1.243541e+01
+Final JF (max/min): max=1.395833e+00, min=-1.571429e+00
+Final JF:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+================================================================================
+   ✅ Domain 0 outputs from domain_flux_jump:
+      - U shape: (4, 1)
+      - U values:
+[[0.83333333]
+ [1.83333333]
+ [0.5       ]
+ [1.5       ]]
+      - F shape: (4, 1)
+      - F values:
+[[ 0.        ]
+ [ 0.66666667]
+ [ 1.        ]
+ [-1.        ]]
+      - JF shape: (4, 4)
+      - JF values:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+      - F.flatten() values: [ 0.          0.66666667  1.         -1.        ]
+   📍 Domain 0 global assembly:
+      - start_idx: 0
+      - end_idx: 4
+      - domain_trace_sizes[0]: 4
+      - residual[0:4] before: [0. 0. 0. 0.]
+      - residual[0:4] after: [ 0.          0.66666667  1.         -1.        ]
+      - jacobian[0:4, 0:4] before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+      - jacobian[0:4, 0:4] after:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+🔄 DOMAIN ASSEMBLY LOOP COMPLETE
+   - residual after domain assembly: [ 0.          0.66666667  1.         -1.          0.          0.
+  0.          0.        ]
+   - jacobian norm after domain assembly: 4.254674300267947
+   - jacobian after domain assembly:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333  0.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333  0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+
+🔗 CONSTRAINT ASSEMBLY START
+   - constraint_manager: <bionetflux.core.constraints.ConstraintManager object at 0x10a0a6c00>
+   - n_multipliers: 4
+   - number of constraints: 4
+
+   ⭐ Processing constraint 0
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [0]
+      - current multiplier_idx: 0
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 0 = 0
+         - multipliers[0]: -0.5
+         - residual[0] before: 0.0
+         - residual[0] after: -0.5
+
+   ⭐ Processing constraint 1
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [0]
+      - current multiplier_idx: 1
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 0 = 2
+         - multipliers[1]: -1.0
+         - residual[2] before: 0.9999999993711002
+         - residual[2] after: -6.288998211090302e-10
+
+   ⭐ Processing constraint 2
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [1]
+      - current multiplier_idx: 2
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 1 = 1
+         - multipliers[2]: -0.5
+         - residual[1] before: 0.6666666666666665
+         - residual[1] after: 0.16666666666666652
+
+   ⭐ Processing constraint 3
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [1]
+      - current multiplier_idx: 3
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 1 = 3
+         - multipliers[3]: 1.0
+         - residual[3] before: -0.9999999993711004
+         - residual[3] after: 6.288995990644253e-10
+
+   🧮 Computing constraint residuals...
+      - input trace_solutions: [(4,)]
+      - input multipliers: [-0.5 -1.  -0.5  1. ]
+      - input time: 1.0
+      - computed constraint_residuals shape: (4,)
+      - computed constraint_residuals values: [0. 0. 0. 0.]
+      - residual[4:] before: [0. 0. 0. 0.]
+      - residual[4:] after: [0. 0. 0. 0.]
+
+   🔗 Adding constraint Jacobian contributions...
+      - jacobian before constraint jacobian:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333  0.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333  0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+      - jacobian after constraint jacobian:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333  1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333  0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+
+🏁 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian FINAL RESULTS
+📊 Final output values:
+   - residual shape: (8,)
+   - residual values: [-5.00000000e-01  1.66666667e-01 -6.28899821e-10  6.28899599e-10
+  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+   - residual norm: 0.5270462766947298
+   - jacobian shape: (8, 8)
+   - jacobian norm: 5.109036445491512
+   - jacobian values:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333  1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333  0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+   - jacobian diagonal: [-1.57142857 -0.9047619  -1.5625     -1.5625      1.          1.
+  1.          1.        ]
+   - jacobian max element: 1.395833333333333
+   - jacobian min element: -1.5714285714285714
+   - residual max element: 0.16666666666666652
+   - residual min element: -0.5
+
+📋 Final breakdown by domain:
+   - Domain 0 residual[0:4]: [-5.00000000e-01  1.66666667e-01 -6.28899821e-10  6.28899599e-10]
+   - Domain 0 jacobian[0:4, 0:4]:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+   - Multiplier residual[4:]: [0. 0. 0. 0.]
+   - Multiplier jacobian block shape: (4, 8)
+✅ GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian COMPLETE
+
+✅ NEWTON DEBUG - After assemble_residual_and_jacobian (iteration 0)
+   Output residual shape: (8,)
+   Output residual norm: 5.270463e-01
+   Output residual FULL VALUES:
+[-5.00000000e-01  1.66666667e-01 -6.28899821e-10  6.28899599e-10
+  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+   Output jacobian shape: (8, 8)
+   Output jacobian condition: 1.840988e+01
+   Output jacobian (max/min): max=1.395833e+00, min=-1.571429e+00
+   Output jacobian FULL MATRIX:
+[[-1.57142857  0.57142857  1.27083333 -1.39583333  1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -1.27083333  1.39583333  0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+    Newton iteration 0: ||R|| = 5.270463e-01
+                                 cond(J) = 1.84e+01
+                                 ||δx|| = 7.071068e-01
+
+🔧 NEWTON DEBUG - Before assemble_residual_and_jacobian (iteration 1)
+   Input global_solution shape: (8,)
+   Input global_solution FULL VALUES:
+[-3.47835982e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00
+ -5.00000000e-01 -1.00000000e+00 -5.00000000e-01  1.00000000e+00]
+   Input forcing_terms count: 1
+   Input forcing_terms details:
+      Domain 0: shape=(4, 1), norm=2.017286e+00
+      Domain 0 FULL VALUES:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+   Input static_condensations count: 1
+   Input time: 1.0
+
+🔧 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian START
+📊 Input parameters:
+   - time: 1.0
+   - n_domains: 1
+   - total_trace_dofs: 4
+   - n_multipliers: 4
+   - total_dofs: 8
+   - global_solution shape: (8,)
+   - global_solution values: [-3.47835982e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00
+ -5.00000000e-01 -1.00000000e+00 -5.00000000e-01  1.00000000e+00]
+   - len(forcing_terms): 1
+   - len(static_condensations): 1
+   - forcing_terms[0] shape: (4, 1)
+   - forcing_terms[0] values:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+📍 Domain trace offsets: [0]
+📍 Domain trace sizes: [4]
+
+🔄 After extraction:
+   - trace_solutions length: 1
+   - trace_solutions[0] shape: (4,)
+   - trace_solutions[0] values: [-3.47835982e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00]
+   - multipliers shape: (4,)
+   - multipliers values: [-0.5 -1.  -0.5  1. ]
+
+🔢 Initialized:
+   - residual shape: (8,)
+   - jacobian shape: (8, 8)
+   - residual initial values: [0. 0. 0. 0. 0. 0. 0. 0.]
+   - jacobian initial norm: 0.0
+
+🔄 DOMAIN ASSEMBLY LOOP START
+
+   ⚡ Processing domain 0/0
+   📊 Domain 0 validation:
+      - expected_rows: 4
+      - expected_cols: 1
+      - forcing_terms[0] shape: (4, 1)
+      - bulk_manager.domain_data_list[0].neq: 2
+      - bulk_manager.domain_data_list[0].n_elements: 1
+   🔧 Domain 0 inputs to domain_flux_jump:
+      - trace_solutions[0] shape: (4,)
+      - trace_solutions[0] values: [-3.47835982e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00]
+      - trace_solutions[0].reshape(-1,1) shape: (4, 1)
+      - trace_solutions[0].reshape(-1,1) values:
+[[-3.47835982e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+      - forcing_terms[0] shape: (4, 1)
+      - forcing_terms[0] values:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+      - static_condensations[0] type: <class 'bionetflux.core.static_condensation_keller_segel.KellerSegelStaticCondensation'>
+
+================================================================================
+FLUX JUMP DEBUG - STARTING DOMAIN_FLUX_JUMP
+================================================================================
+Problem dimensions:
+  N (elements): 1
+  neq (equations): 2
+  n_nodes: 2
+  trace_solution shape: (4, 1)
+  forcing_term shape: (4, 1)
+
+Input data:
+  trace_solution:
+[[-3.47835982e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+  forcing_term:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+
+Initialized outputs:
+  coeffs_per_element_sol: 4
+  coeffs_per_element_flux: 3
+  U shape: (4, 1)
+  F shape: (4, 1)
+  JF shape: (4, 4)
+
+----------------------------------------
+STARTING ELEMENT LOOP
+----------------------------------------
+
+🔄 ELEMENT 1/1:
+  📍 Creating local indices for element 1:
+    Equation 0: indices [0, 1]
+    Equation 1: indices [2, 3]
+  📍 local_indices: [0 1 2 3]
+  📊 Extracted gk (forcing) shape: (4, 1)
+  📊 gk content:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+  📊 Extracted local_trace shape: (4, 1)
+  📊 local_trace content:
+[[-3.47835982e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+  🔧 Calling static condensation...
+  ✅ Static condensation complete:
+    local_solution shape: (4,)
+    local_solution: [0.5 1.5 0.5 1.5]
+    flux shape: (3, 1)
+    flux: [[-1.36650025e-10]
+ [-1.00000000e+00]
+ [-1.00000000e+00]]
+    flux_trace shape: (4, 1)
+    flux_trace:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+    jacobian shape: (4, 4)
+    jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+  💾 Stored bulk solution in U[:, 0]
+  💾 U[:, 0]: [0.5 1.5 0.5 1.5]
+  🎯 Before F update - F[local_indices]:
+[[0.]
+ [0.]
+ [0.]
+ [0.]]
+  🎯 After F update - F[local_indices]:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+  🎯 Adding jacobian to JF at indices [0 1 2 3]
+  🎯 JF block before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+  🎯 JF block after:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+================================================================================
+FLUX JUMP DEBUG - FINAL RESULTS
+================================================================================
+Final U (bulk solutions) shape: (4, 1)
+Final U:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+Final F (flux jumps) shape: (4, 1)
+Final F (max/min/norm): max=1.000000e+00, min=-1.000000e+00, norm=1.581139e+00
+Final F:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+Final JF (Jacobian) shape: (4, 4)
+Final JF condition number: 1.089608e+01
+Final JF (max/min): max=1.238095e+00, min=-1.571429e+00
+Final JF:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+================================================================================
+   ✅ Domain 0 outputs from domain_flux_jump:
+      - U shape: (4, 1)
+      - U values:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+      - F shape: (4, 1)
+      - F values:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+      - JF shape: (4, 4)
+      - JF values:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+      - F.flatten() values: [ 0.5  0.5  1.  -1. ]
+   📍 Domain 0 global assembly:
+      - start_idx: 0
+      - end_idx: 4
+      - domain_trace_sizes[0]: 4
+      - residual[0:4] before: [0. 0. 0. 0.]
+      - residual[0:4] after: [ 0.5  0.5  1.  -1. ]
+      - jacobian[0:4, 0:4] before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+      - jacobian[0:4, 0:4] after:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+🔄 DOMAIN ASSEMBLY LOOP COMPLETE
+   - residual after domain assembly: [ 0.5  0.5  1.  -1.   0.   0.   0.   0. ]
+   - jacobian norm after domain assembly: 3.8718396519955443
+   - jacobian after domain assembly:
+[[-1.57142857  0.57142857  0.9375     -1.0625      0.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+
+🔗 CONSTRAINT ASSEMBLY START
+   - constraint_manager: <bionetflux.core.constraints.ConstraintManager object at 0x10a0a6c00>
+   - n_multipliers: 4
+   - number of constraints: 4
+
+   ⭐ Processing constraint 0
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [0]
+      - current multiplier_idx: 0
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 0 = 0
+         - multipliers[0]: -0.5
+         - residual[0] before: 0.5000000001863409
+         - residual[0] after: 1.863409426761109e-10
+
+   ⭐ Processing constraint 1
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [0]
+      - current multiplier_idx: 1
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 0 = 2
+         - multipliers[1]: -1.0
+         - residual[2] before: 1.0
+         - residual[2] after: 0.0
+
+   ⭐ Processing constraint 2
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [1]
+      - current multiplier_idx: 2
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 1 = 1
+         - multipliers[2]: -0.5
+         - residual[1] before: 0.4999999998136593
+         - residual[1] after: -1.8634072063150597e-10
+
+   ⭐ Processing constraint 3
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [1]
+      - current multiplier_idx: 3
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 1 = 3
+         - multipliers[3]: 1.0
+         - residual[3] before: -0.9999999999999996
+         - residual[3] after: 4.440892098500626e-16
+
+   🧮 Computing constraint residuals...
+      - input trace_solutions: [(4,)]
+      - input multipliers: [-0.5 -1.  -0.5  1. ]
+      - input time: 1.0
+      - computed constraint_residuals shape: (4,)
+      - computed constraint_residuals values: [0. 0. 0. 0.]
+      - residual[4:] before: [0. 0. 0. 0.]
+      - residual[4:] after: [0. 0. 0. 0.]
+
+   🔗 Adding constraint Jacobian contributions...
+      - jacobian before constraint jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625      0.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+      - jacobian after constraint jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625      1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+
+🏁 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian FINAL RESULTS
+📊 Final output values:
+   - residual shape: (8,)
+   - residual values: [ 1.86340943e-10 -1.86340721e-10  0.00000000e+00  4.44089210e-16
+  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+   - residual norm: 2.635257313491186e-10
+   - jacobian shape: (8, 8)
+   - jacobian norm: 4.7949079543579325
+   - jacobian values:
+[[-1.57142857  0.57142857  0.9375     -1.0625      1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+   - jacobian diagonal: [-1.57142857 -0.9047619  -1.5625     -1.5625      1.          1.
+  1.          1.        ]
+   - jacobian max element: 1.2380952382815789
+   - jacobian min element: -1.5714285716149121
+   - residual max element: 1.863409426761109e-10
+   - residual min element: -1.8634072063150597e-10
+
+📋 Final breakdown by domain:
+   - Domain 0 residual[0:4]: [ 1.86340943e-10 -1.86340721e-10  0.00000000e+00  4.44089210e-16]
+   - Domain 0 jacobian[0:4, 0:4]:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+   - Multiplier residual[4:]: [0. 0. 0. 0.]
+   - Multiplier jacobian block shape: (4, 8)
+✅ GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian COMPLETE
+
+✅ NEWTON DEBUG - After assemble_residual_and_jacobian (iteration 1)
+   Output residual shape: (8,)
+   Output residual norm: 2.635257e-10
+   Output residual FULL VALUES:
+[ 1.86340943e-10 -1.86340721e-10  0.00000000e+00  4.44089210e-16
+  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+   Output jacobian shape: (8, 8)
+   Output jacobian condition: 1.629737e+01
+   Output jacobian (max/min): max=1.238095e+00, min=-1.571429e+00
+   Output jacobian FULL MATRIX:
+[[-1.57142857  0.57142857  0.9375     -1.0625      1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+    Newton iteration 1: ||R|| = 2.635257e-10
+                                 cond(J) = 1.63e+01
+                                 ||δx|| = 1.229784e-10
+
+🔧 NEWTON DEBUG - Before assemble_residual_and_jacobian (iteration 2)
+   Input global_solution shape: (8,)
+   Input global_solution FULL VALUES:
+[-2.60876805e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00
+ -5.00000000e-01 -1.00000000e+00 -5.00000000e-01  1.00000000e+00]
+   Input forcing_terms count: 1
+   Input forcing_terms details:
+      Domain 0: shape=(4, 1), norm=2.017286e+00
+      Domain 0 FULL VALUES:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+   Input static_condensations count: 1
+   Input time: 1.0
+
+🔧 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian START
+📊 Input parameters:
+   - time: 1.0
+   - n_domains: 1
+   - total_trace_dofs: 4
+   - n_multipliers: 4
+   - total_dofs: 8
+   - global_solution shape: (8,)
+   - global_solution values: [-2.60876805e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00
+ -5.00000000e-01 -1.00000000e+00 -5.00000000e-01  1.00000000e+00]
+   - len(forcing_terms): 1
+   - len(static_condensations): 1
+   - forcing_terms[0] shape: (4, 1)
+   - forcing_terms[0] values:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+📍 Domain trace offsets: [0]
+📍 Domain trace sizes: [4]
+
+🔄 After extraction:
+   - trace_solutions length: 1
+   - trace_solutions[0] shape: (4,)
+   - trace_solutions[0] values: [-2.60876805e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00]
+   - multipliers shape: (4,)
+   - multipliers values: [-0.5 -1.  -0.5  1. ]
+
+🔢 Initialized:
+   - residual shape: (8,)
+   - jacobian shape: (8, 8)
+   - residual initial values: [0. 0. 0. 0. 0. 0. 0. 0.]
+   - jacobian initial norm: 0.0
+
+🔄 DOMAIN ASSEMBLY LOOP START
+
+   ⚡ Processing domain 0/0
+   📊 Domain 0 validation:
+      - expected_rows: 4
+      - expected_cols: 1
+      - forcing_terms[0] shape: (4, 1)
+      - bulk_manager.domain_data_list[0].neq: 2
+      - bulk_manager.domain_data_list[0].n_elements: 1
+   🔧 Domain 0 inputs to domain_flux_jump:
+      - trace_solutions[0] shape: (4,)
+      - trace_solutions[0] values: [-2.60876805e-10  1.00000000e+00  5.00000000e-01  1.50000000e+00]
+      - trace_solutions[0].reshape(-1,1) shape: (4, 1)
+      - trace_solutions[0].reshape(-1,1) values:
+[[-2.60876805e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+      - forcing_terms[0] shape: (4, 1)
+      - forcing_terms[0] values:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+      - static_condensations[0] type: <class 'bionetflux.core.static_condensation_keller_segel.KellerSegelStaticCondensation'>
+
+================================================================================
+FLUX JUMP DEBUG - STARTING DOMAIN_FLUX_JUMP
+================================================================================
+Problem dimensions:
+  N (elements): 1
+  neq (equations): 2
+  n_nodes: 2
+  trace_solution shape: (4, 1)
+  forcing_term shape: (4, 1)
+
+Input data:
+  trace_solution:
+[[-2.60876805e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+  forcing_term:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+
+Initialized outputs:
+  coeffs_per_element_sol: 4
+  coeffs_per_element_flux: 3
+  U shape: (4, 1)
+  F shape: (4, 1)
+  JF shape: (4, 4)
+
+----------------------------------------
+STARTING ELEMENT LOOP
+----------------------------------------
+
+🔄 ELEMENT 1/1:
+  📍 Creating local indices for element 1:
+    Equation 0: indices [0, 1]
+    Equation 1: indices [2, 3]
+  📍 local_indices: [0 1 2 3]
+  📊 Extracted gk (forcing) shape: (4, 1)
+  📊 gk content:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+  📊 Extracted local_trace shape: (4, 1)
+  📊 local_trace content:
+[[-2.60876805e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+  🔧 Calling static condensation...
+  ✅ Static condensation complete:
+    local_solution shape: (4,)
+    local_solution: [0.5 1.5 0.5 1.5]
+    flux shape: (3, 1)
+    flux: [[ 3.72684106e-11]
+ [-1.00000000e+00]
+ [-1.00000000e+00]]
+    flux_trace shape: (4, 1)
+    flux_trace:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+    jacobian shape: (4, 4)
+    jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+  💾 Stored bulk solution in U[:, 0]
+  💾 U[:, 0]: [0.5 1.5 0.5 1.5]
+  🎯 Before F update - F[local_indices]:
+[[0.]
+ [0.]
+ [0.]
+ [0.]]
+  🎯 After F update - F[local_indices]:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+  🎯 Adding jacobian to JF at indices [0 1 2 3]
+  🎯 JF block before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+  🎯 JF block after:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+================================================================================
+FLUX JUMP DEBUG - FINAL RESULTS
+================================================================================
+Final U (bulk solutions) shape: (4, 1)
+Final U:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+Final F (flux jumps) shape: (4, 1)
+Final F (max/min/norm): max=1.000000e+00, min=-1.000000e+00, norm=1.581139e+00
+Final F:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+Final JF (Jacobian) shape: (4, 4)
+Final JF condition number: 1.089608e+01
+Final JF (max/min): max=1.238095e+00, min=-1.571429e+00
+Final JF:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+================================================================================
+   ✅ Domain 0 outputs from domain_flux_jump:
+      - U shape: (4, 1)
+      - U values:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+      - F shape: (4, 1)
+      - F values:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+      - JF shape: (4, 4)
+      - JF values:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+      - F.flatten() values: [ 0.5  0.5  1.  -1. ]
+   📍 Domain 0 global assembly:
+      - start_idx: 0
+      - end_idx: 4
+      - domain_trace_sizes[0]: 4
+      - residual[0:4] before: [0. 0. 0. 0.]
+      - residual[0:4] after: [ 0.5  0.5  1.  -1. ]
+      - jacobian[0:4, 0:4] before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+      - jacobian[0:4, 0:4] after:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+🔄 DOMAIN ASSEMBLY LOOP COMPLETE
+   - residual after domain assembly: [ 0.5  0.5  1.  -1.   0.   0.   0.   0. ]
+   - jacobian norm after domain assembly: 3.8718396519949425
+   - jacobian after domain assembly:
+[[-1.57142857  0.57142857  0.9375     -1.0625      0.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+
+🔗 CONSTRAINT ASSEMBLY START
+   - constraint_manager: <bionetflux.core.constraints.ConstraintManager object at 0x10a0a6c00>
+   - n_multipliers: 4
+   - number of constraints: 4
+
+   ⭐ Processing constraint 0
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [0]
+      - current multiplier_idx: 0
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 0 = 0
+         - multipliers[0]: -0.5
+         - residual[0] before: 0.49999999999999967
+         - residual[0] after: -3.3306690738754696e-16
+
+   ⭐ Processing constraint 1
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [0]
+      - current multiplier_idx: 1
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 0
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 0 = 2
+         - multipliers[1]: -1.0
+         - residual[2] before: 1.0
+         - residual[2] after: 0.0
+
+   ⭐ Processing constraint 2
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 0
+      - node_indices: [1]
+      - current multiplier_idx: 2
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 0
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 0 * 2 + 1 = 1
+         - multipliers[2]: -0.5
+         - residual[1] before: 0.5000000000000002
+         - residual[1] after: 2.220446049250313e-16
+
+   ⭐ Processing constraint 3
+      - constraint type: <class 'bionetflux.core.constraints.Constraint'>
+      - constraint.is_boundary_condition: True
+      - constraint.domains: [0]
+      - constraint.equation_index: 1
+      - node_indices: [1]
+      - current multiplier_idx: 3
+      - boundary constraint processing:
+         - domain_idx: 0
+         - node_idx: 1
+         - eq_idx: 1
+         - domain_offset: 0
+         - n_nodes: 2
+         - trace_idx calculation: 0 + 1 * 2 + 1 = 3
+         - multipliers[3]: 1.0
+         - residual[3] before: -1.0000000000000007
+         - residual[3] after: -6.661338147750939e-16
+
+   🧮 Computing constraint residuals...
+      - input trace_solutions: [(4,)]
+      - input multipliers: [-0.5 -1.  -0.5  1. ]
+      - input time: 1.0
+      - computed constraint_residuals shape: (4,)
+      - computed constraint_residuals values: [0. 0. 0. 0.]
+      - residual[4:] before: [0. 0. 0. 0.]
+      - residual[4:] after: [0. 0. 0. 0.]
+
+   🔗 Adding constraint Jacobian contributions...
+      - jacobian before constraint jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625      0.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   0.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          0.        ]]
+      - jacobian after constraint jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625      1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+
+🏁 GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian FINAL RESULTS
+📊 Final output values:
+   - residual shape: (8,)
+   - residual values: [-3.33066907e-16  2.22044605e-16  0.00000000e+00 -6.66133815e-16
+  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+   - residual norm: 7.771561172376096e-16
+   - jacobian shape: (8, 8)
+   - jacobian norm: 4.794907954357447
+   - jacobian values:
+[[-1.57142857  0.57142857  0.9375     -1.0625      1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+   - jacobian diagonal: [-1.57142857 -0.9047619  -1.5625     -1.5625      1.          1.
+  1.          1.        ]
+   - jacobian max element: 1.2380952382815789
+   - jacobian min element: -1.5714285716149121
+   - residual max element: 2.220446049250313e-16
+   - residual min element: -6.661338147750939e-16
+
+📋 Final breakdown by domain:
+   - Domain 0 residual[0:4]: [-3.33066907e-16  2.22044605e-16  0.00000000e+00 -6.66133815e-16]
+   - Domain 0 jacobian[0:4, 0:4]:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+   - Multiplier residual[4:]: [0. 0. 0. 0.]
+   - Multiplier jacobian block shape: (4, 8)
+✅ GLOBAL_ASSEMBLY DEBUG - assemble_residual_and_jacobian COMPLETE
+
+✅ NEWTON DEBUG - After assemble_residual_and_jacobian (iteration 2)
+   Output residual shape: (8,)
+   Output residual norm: 7.771561e-16
+   Output residual FULL VALUES:
+[-3.33066907e-16  2.22044605e-16  0.00000000e+00 -6.66133815e-16
+  0.00000000e+00  0.00000000e+00  0.00000000e+00  0.00000000e+00]
+   Output jacobian shape: (8, 8)
+   Output jacobian condition: 1.629737e+01
+   Output jacobian (max/min): max=1.238095e+00, min=-1.571429e+00
+   Output jacobian FULL MATRIX:
+[[-1.57142857  0.57142857  0.9375     -1.0625      1.          0.
+   0.          0.        ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625      0.          0.
+   1.          0.        ]
+ [ 0.          0.         -1.5625      0.6875      0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.6875     -1.5625      0.          0.
+   0.          1.        ]
+ [ 0.          0.          0.          0.          1.          0.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          1.
+   0.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   1.          0.        ]
+ [ 0.          0.          0.          0.          0.          0.
+   0.          1.        ]]
+    ✓ Newton converged in 3 iterations
+      Final residual norm: 7.771561e-16
+
+================================================================================
+FLUX JUMP DEBUG - STARTING DOMAIN_FLUX_JUMP
+================================================================================
+Problem dimensions:
+  N (elements): 1
+  neq (equations): 2
+  n_nodes: 2
+  trace_solution shape: (4, 1)
+  forcing_term shape: (4, 1)
+
+Input data:
+  trace_solution:
+[[-2.60876805e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+  forcing_term:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+
+Initialized outputs:
+  coeffs_per_element_sol: 4
+  coeffs_per_element_flux: 3
+  U shape: (4, 1)
+  F shape: (4, 1)
+  JF shape: (4, 4)
+
+----------------------------------------
+STARTING ELEMENT LOOP
+----------------------------------------
+
+🔄 ELEMENT 1/1:
+  📍 Creating local indices for element 1:
+    Equation 0: indices [0, 1]
+    Equation 1: indices [2, 3]
+  📍 local_indices: [0 1 2 3]
+  📊 Extracted gk (forcing) shape: (4, 1)
+  📊 gk content:
+[[0.91666667]
+ [1.08333333]
+ [0.83333333]
+ [1.16666667]]
+  📊 Extracted local_trace shape: (4, 1)
+  📊 local_trace content:
+[[-2.60876805e-10]
+ [ 1.00000000e+00]
+ [ 5.00000000e-01]
+ [ 1.50000000e+00]]
+  🔧 Calling static condensation...
+  ✅ Static condensation complete:
+    local_solution shape: (4,)
+    local_solution: [0.5 1.5 0.5 1.5]
+    flux shape: (3, 1)
+    flux: [[ 3.72684106e-11]
+ [-1.00000000e+00]
+ [-1.00000000e+00]]
+    flux_trace shape: (4, 1)
+    flux_trace:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+    jacobian shape: (4, 4)
+    jacobian:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+  💾 Stored bulk solution in U[:, 0]
+  💾 U[:, 0]: [0.5 1.5 0.5 1.5]
+  🎯 Before F update - F[local_indices]:
+[[0.]
+ [0.]
+ [0.]
+ [0.]]
+  🎯 After F update - F[local_indices]:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+  🎯 Adding jacobian to JF at indices [0 1 2 3]
+  🎯 JF block before:
+[[0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]
+ [0. 0. 0. 0.]]
+  🎯 JF block after:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+
+================================================================================
+FLUX JUMP DEBUG - FINAL RESULTS
+================================================================================
+Final U (bulk solutions) shape: (4, 1)
+Final U:
+[[0.5]
+ [1.5]
+ [0.5]
+ [1.5]]
+Final F (flux jumps) shape: (4, 1)
+Final F (max/min/norm): max=1.000000e+00, min=-1.000000e+00, norm=1.581139e+00
+Final F:
+[[ 0.5]
+ [ 0.5]
+ [ 1. ]
+ [-1. ]]
+Final JF (Jacobian) shape: (4, 4)
+Final JF condition number: 1.089608e+01
+Final JF (max/min): max=1.238095e+00, min=-1.571429e+00
+Final JF:
+[[-1.57142857  0.57142857  0.9375     -1.0625    ]
+ [ 1.23809524 -0.9047619  -0.9375      1.0625    ]
+ [ 0.          0.         -1.5625      0.6875    ]
+ [ 0.          0.          0.6875     -1.5625    ]]
+================================================================================
+    ✓ Bulk data updated for 1 domains
+    ✓ Time step completed successfully in 0.1431s
+    ✓ Newton converged in 3 iterations
+    ✓ Final residual norm: 7.771561e-16
+
+================================================================================
+📈 PHASE 4: FINAL RESULTS AND ERROR ANALYSIS
+================================================================================
+✅ Evolution completed: 1/2 steps, final time: 1.000000
+⚠️  Early termination: 1 steps failed
+
+=== ERROR ANALYSIS RESULTS ===
+Time: 1.000000
+Time step: 1.00e+00
+Elements: 1
+
+TRACE ERRORS (weighted Euclidean):
+  Equation 0: 7.071068e-01
+    Domain 0: 7.071068e-01
+  Equation 1: 3.952884e-10
+    Domain 0: 3.952884e-10
+
+BULK ERRORS (L2 norm):
+  Equation 0: 9.128785e-11
+    Domain 0: 9.128785e-11
+  Equation 1: 3.423296e-10
+    Domain 0: 3.423296e-10
+
+Error analysis completed successfully
+
+================================================================================
+📊 PHASE 5: PLOTTING RESULTS
+================================================================================
+Problem has 2 equations
+Trace solutions shapes: [(4,)]
+Bulk solutions shapes: [(4, 1)]
+Plotting equation 0...
+Plotting equation 1...
+Generated plots for 2 equations
+
+================================================================================
+🎊 SIMULATION COMPLETED SUCCESSFULLY!
+================================================================================
