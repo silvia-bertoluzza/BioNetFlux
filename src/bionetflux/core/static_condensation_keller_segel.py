@@ -16,8 +16,16 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
     """
     Static condensation implementation for Keller-Segel problems.
     Equivalent to MATLAB scBlocks.m and StaticC.m for Keller-Segel model.
+
+    Flux polynomial orders:
+        - Equation 0 (u): P0 flux (1 DOF per element)
+        - Equation 1 (φ): P1 flux (2 DOFs per element)
     """
-  
+
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1]  # P0 for u, P1 for φ
+
     def build_matrices(self) -> Dict[str, np.ndarray]:
         """
         Build static condensation matrices for Keller-Segel model.
