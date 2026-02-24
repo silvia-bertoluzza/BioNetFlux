@@ -140,6 +140,163 @@ class MinimalErrorEvaluator:
         
         return {'local': local_errors, 'global': global_errors}
     
+    def compute_flux_error(self,
+                          flux_data: List,
+                          problems: List[Problem],
+                          discretizations: List[Discretization],
+                          static_condensations: List,
+                          time: float) -> Dict[str, Dict[int, Union[float, None]]]:
+        """
+        Compute L2 error for flux solutions using 4-point Legendre quadrature.
+        
+        Handles both P0 (constant) and P1 (linear) flux representations
+        based on ``flux_orders`` stored on each static condensation object.
+        
+        Args:
+            flux_data: List of flux coefficient arrays (one per domain).
+                       Each array has shape (total_flux_dofs_per_element, N).
+                       May be None for domains that don't produce flux data.
+            problems: List of Problem objects with ``flux_solution`` attributes
+            discretizations: List of Discretization objects
+            static_condensations: List of StaticCondensationBase objects
+                (used to read ``flux_orders``)
+            time: Time for analytical solution evaluation
+            
+        Returns:
+            Dict with structure ``{'local': {domain_idx: {eq_idx: error}},
+            'global': {eq_idx: global_error}}``
+        """
+        n_domains = len(problems)
+        local_errors = {}
+        global_errors_squared: Dict[int, float] = {}
+        equations_computed: Dict[int, bool] = {}
+        
+        # Initialize global error accumulation
+        for domain_idx in range(n_domains):
+            neq = problems[domain_idx].neq
+            for eq_idx in range(neq):
+                if eq_idx not in global_errors_squared:
+                    global_errors_squared[eq_idx] = 0.0
+                    equations_computed[eq_idx] = False
+        
+        for domain_idx in range(n_domains):
+            problem = problems[domain_idx]
+            discretization = discretizations[domain_idx]
+            sc = static_condensations[domain_idx]
+            flux_array = flux_data[domain_idx] if flux_data is not None else None
+            
+            domain_errors = self._compute_domain_flux_error(
+                flux_array, problem, discretization, sc, time
+            )
+            local_errors[domain_idx] = domain_errors
+            
+            for eq_idx, error_val in domain_errors.items():
+                if error_val is not None:
+                    global_errors_squared[eq_idx] += error_val ** 2
+                    equations_computed[eq_idx] = True
+        
+        global_errors = {}
+        for eq_idx, error_sq in global_errors_squared.items():
+            if equations_computed.get(eq_idx, False):
+                global_errors[eq_idx] = np.sqrt(max(0, error_sq))
+            else:
+                global_errors[eq_idx] = None
+        
+        return {'local': local_errors, 'global': global_errors}
+    
+    def _compute_domain_flux_error(self,
+                                   flux_array,
+                                   problem: Problem,
+                                   discretization: Discretization,
+                                   static_condensation,
+                                   time: float) -> Dict[int, Union[float, None]]:
+        """Compute flux L2 error for a single domain using 4-point quadrature."""
+        neq = problem.neq
+        n_elements = discretization.n_elements
+        nodes = discretization.nodes
+        flux_orders = static_condensation.flux_orders
+        flux_dofs = static_condensation.flux_dofs_per_element  # list of DOFs per eq
+        
+        # Check if flux data is available
+        if flux_array is None:
+            return {eq_idx: None for eq_idx in range(neq)}
+        
+        # Check analytical flux solutions availability
+        flux_funcs = self._get_flux_analytical_functions(problem)
+        if flux_funcs is None:
+            warnings.warn("No analytical flux solutions found for flux error computation")
+            return {eq_idx: None for eq_idx in range(neq)}
+        
+        domain_errors = {}
+        
+        # Compute DOF offsets for each equation within the J column
+        dof_offsets = []
+        offset = 0
+        for eq_idx in range(neq):
+            dof_offsets.append(offset)
+            offset += flux_dofs[eq_idx]
+        
+        for eq_idx in range(neq):
+            if eq_idx >= len(flux_funcs) or flux_funcs[eq_idx] is None:
+                warnings.warn(f"No analytical flux solution for equation {eq_idx}")
+                domain_errors[eq_idx] = None
+                continue
+            
+            try:
+                error_squared = 0.0
+                order = flux_orders[eq_idx]
+                n_dofs = flux_dofs[eq_idx]
+                eq_offset = dof_offsets[eq_idx]
+                
+                for elem_idx in range(n_elements):
+                    x_left = nodes[elem_idx]
+                    x_right = nodes[elem_idx + 1]
+                    h_elem = x_right - x_left
+                    
+                    # Extract flux coefficients for this element and equation
+                    coeffs = flux_array[eq_offset:eq_offset + n_dofs, elem_idx]
+                    
+                    # Map quadrature nodes to physical element
+                    xi_01 = (self.quad_nodes + 1) / 2  # Map [-1,1] to [0,1]
+                    mapped_nodes = x_left + xi_01 * h_elem
+                    
+                    # Evaluate numerical flux at quadrature points
+                    if order == 0:
+                        # P0: constant flux value
+                        numerical_values = np.full_like(xi_01, coeffs[0])
+                    else:
+                        # P1: linear interpolation c0*(1-ξ) + c1*ξ
+                        numerical_values = coeffs[0] * (1 - xi_01) + coeffs[1] * xi_01
+                    
+                    # Evaluate analytical flux solution at quadrature points
+                    analytical_values = flux_funcs[eq_idx](mapped_nodes, time)
+                    if np.isscalar(analytical_values):
+                        analytical_values = np.full_like(mapped_nodes, analytical_values)
+                    
+                    # Integrate (numerical - analytical)^2
+                    error_function = numerical_values - analytical_values
+                    error_squared_values = error_function ** 2
+                    
+                    element_contribution = h_elem * np.dot(
+                        self.quad_matrix[0, :], error_squared_values
+                    )
+                    error_squared += element_contribution
+                
+                domain_errors[eq_idx] = np.sqrt(max(0, error_squared))
+                
+            except Exception as e:
+                warnings.warn(f"Error computing flux L2 error for equation {eq_idx}: {e}")
+                domain_errors[eq_idx] = None
+        
+        return domain_errors
+    
+    def _get_flux_analytical_functions(self, problem: Problem) -> Optional[List[Callable]]:
+        """Extract analytical flux functions from Problem object."""
+        if hasattr(problem, 'flux_solution') and problem.flux_solution is not None:
+            if isinstance(problem.flux_solution, (list, tuple)):
+                return list(problem.flux_solution)
+        return None
+    
     def _compute_domain_trace_error(self,
                                    trace_solution: np.ndarray,
                                    problem: Problem,

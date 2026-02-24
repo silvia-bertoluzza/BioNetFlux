@@ -16,7 +16,7 @@ mu = 1.0      # Chemical diffusion coefficient (from KS_traveling_wave parameter
 
 [physical_parameters.reaction]
 a = 1.0       # Reaction parameter a (from KS_traveling_wave parameters array)
-b = 1.0       # Reaction parameter b (from KS_traveling_wave parameters array)
+b = 0.0       # Reaction parameter b (from KS_traveling_wave parameters array)
 
 [physical_parameters.chemotaxis]
 chi = "constant"        # = "constant"     # Function name, not numeric value
@@ -41,7 +41,7 @@ phi_x = "constant" # Space derivative of traveling wave solution for v
 
 [force_functions]
 u_f = "constant"      # f = u_t - nu (u_xx - chi * (u * phi_x)_x)
-phi_f = "zeros"      # Zero force for v (from KS_traveling_wave)
+phi_f = "s"      # Zero force for v (from KS_traveling_wave)
 
 # Domain-specific overrides for initial conditions
 [domain_initial_conditions]

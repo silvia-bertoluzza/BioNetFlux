@@ -283,6 +283,15 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
         time=current_time
     )
     
+    # Compute flux errors (uses flux data stored during the last time step)
+    flux_errors = error_evaluator.compute_flux_error(
+        flux_data=result.flux_data,
+        problems=setup.problems,
+        discretizations=setup.global_discretization.spatial_discretizations,
+        static_condensations=setup.static_condensations,
+        time=current_time
+    )
+    
     # Print computed errors
     print("\n=== ERROR ANALYSIS RESULTS ===")
     print(f"Time: {current_time:.6f}")
@@ -310,11 +319,22 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
         else:
             print(f"  Equation {eq_idx}: No analytical solution available")
     
+    print("\nFLUX ERRORS (L2 norm):")
+    for eq_idx, global_error in flux_errors['global'].items():
+        if global_error is not None:
+            print(f"  Equation {eq_idx}: {global_error:.6e}")
+            for domain_idx, local_error in flux_errors['local'].items():
+                if eq_idx in local_error and local_error[eq_idx] is not None:
+                    print(f"    Domain {domain_idx}: {local_error[eq_idx]:.6e}")
+        else:
+            print(f"  Equation {eq_idx}: No analytical flux solution available")
+    
     # Check if any errors were computed
     has_trace_errors = any(err is not None for err in trace_errors['global'].values())
     has_bulk_errors = any(err is not None for err in bulk_errors['global'].values())
+    has_flux_errors = any(err is not None for err in flux_errors['global'].values())
     
-    if not has_trace_errors and not has_bulk_errors:
+    if not has_trace_errors and not has_bulk_errors and not has_flux_errors:
         print("\nNo analytical solutions available for error computation")
     else:
         print("\nError analysis completed successfully")

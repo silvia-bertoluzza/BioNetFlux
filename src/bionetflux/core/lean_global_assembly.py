@@ -128,7 +128,7 @@ class GlobalAssembler:
                 raise ValueError(f"Domain {i} forcing term shape {forcing_terms[i].shape} != expected ({expected_rows}, {expected_cols})")
             
             # Compute domain flux jump using static condensation
-            U, F, JF = domain_flux_jump(
+            U, J, F, JF = domain_flux_jump(
                 trace_solutions[i].reshape(-1, 1),
                 forcing_terms[i],
                 None, None,
@@ -238,6 +238,7 @@ class GlobalAssembler:
         
         # Initialize global residual and Jacobian
         bulk_solution = []
+        flux_solution = []
         
         # Assemble domain contributions
         for i in range(self.n_domains):
@@ -248,7 +249,7 @@ class GlobalAssembler:
                 raise ValueError(f"Domain {i} forcing term shape {forcing_terms[i].shape} != expected ({expected_rows}, {expected_cols})")
             
             # Compute domain flux jump using static condensation
-            U, F, JF = domain_flux_jump(
+            U, J, F, JF = domain_flux_jump(
                 trace_solutions[i].reshape(-1, 1),
                 forcing_terms[i],
                 None, None,
@@ -256,8 +257,9 @@ class GlobalAssembler:
             )
             
             bulk_solution.append(U)
+            flux_solution.append(J)
 
-        return bulk_solution
+        return bulk_solution, flux_solution
 
 
     def compute_forcing_terms(self,
