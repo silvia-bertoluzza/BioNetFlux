@@ -56,6 +56,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         alpha = 1/nu
         beta = 1/mu
         
+        h = self.discretization.element_length
         
         # **TODO: need to check that the lambda functions are correctly defined
         # Get lambda function and its derivative
@@ -64,14 +65,14 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         # Get stabilization parameters
         tau = self.discretization.tau if hasattr(self.discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
-        tu = tau[0]    # tau for u
+        tu = tau[0]/h    # tau for u
         to = tau[1]    # tau for omega  
         tv = tau[2]    # tau for v
         tp = tau[3]    # tau for phi
         
         # Cache frequently used values
         dt = self.dt  
-        h = self.discretization.element_length
+       
     
         
         # Initialize sc_matrices storage
