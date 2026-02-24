@@ -22,8 +22,17 @@ class StaticCondensationOOC(StaticCondensationBase):
     - omega: auxiliary variable (equation 2) 
     - v: auxiliary variable (equation 3)
     - phi: primary variable (equation 4)
-    
+
+    Flux polynomial orders:
+        - Equation 0 (u): P0 flux (1 DOF per element)
+        - Equation 1 (ω): P1 flux (2 DOFs per element)
+        - Equation 2 (v): P1 flux (2 DOFs per element)
+        - Equation 3 (φ): P1 flux (2 DOFs per element)
     """
+
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1, 1, 1]  # P0 for u, P1 for ω, v, φ
     
     def build_matrices(self):
         """

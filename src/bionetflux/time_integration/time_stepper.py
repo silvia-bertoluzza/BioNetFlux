@@ -25,6 +25,7 @@ class TimeStepResult:
     residual_history: Optional[List[float]] = None
     jacobian_condition: Optional[float] = None
     newton_step_norms: Optional[List[float]] = None
+    flux_data: Optional[List] = None
     
     def __str__(self) -> str:
         status = "CONVERGED" if self.converged else "FAILED"
@@ -212,7 +213,7 @@ class TimeStepper:
         
         # Step 5: Update bulk data via static condensation
         try:
-            updated_bulk_solutions = self.global_assembler.bulk_by_static_condensation(
+            updated_bulk_solutions, flux_solutions = self.global_assembler.bulk_by_static_condensation(
                 global_solution=newton_result.final_solution,
                 forcing_terms=forcing_terms,
                 static_condensations=self.static_condensations,
@@ -262,7 +263,8 @@ class TimeStepper:
             computation_time=total_time,
             residual_history=newton_result.residual_history,
             jacobian_condition=newton_result.jacobian_condition,
-            newton_step_norms=newton_result.step_norms
+            newton_step_norms=newton_result.step_norms,
+            flux_data=flux_solutions
         )
     
     def _create_failed_result(self, solution, bulk_data, error_msg, comp_time):

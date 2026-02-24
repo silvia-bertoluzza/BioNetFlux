@@ -8,7 +8,7 @@ def domain_flux_jump(
     problem, # dummy placeholder for backwards compatibility
     discretization, # dummy placeholder for backwards compatibility
     static_condensation
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the local contribution to the flux balance equation for a domain.
     
@@ -23,8 +23,10 @@ def domain_flux_jump(
         static_condensation: Static condensation implementation
         
     Returns:
-        tuple: (U, F, JF) where:
-            - U: (2*(2*neq-1)×N matrix of bulk solutions for each element
+        tuple: (U, J, F, JF) where:
+            - U: (2*neq)×N matrix of bulk solutions for each element
+            - J: (total_flux_dofs_per_element)×N matrix of flux coefficients,
+                 or None if the static condensation does not return flux data
             - F: neq*(N+1) vector of flux jumps at mesh points
             - JF: neq*(N+1)×neq*(N+1) Jacobian matrix
     """
@@ -40,6 +42,11 @@ def domain_flux_jump(
     U = np.zeros((coeffs_per_element_sol, N))  # 2*(2*neq - 1) × N matrix of bulk solutions
     F = np.zeros((neq * n_nodes, 1)) # Flexible: neq * (N+1) vector
     JF = np.zeros((neq * n_nodes, neq * n_nodes))
+    
+    # Flux coefficient array — sized using metadata from the SC object.
+    # Will remain None if the SC does not produce flux data.
+    total_flux_dofs = static_condensation.total_flux_dofs_per_element
+    J = np.zeros((total_flux_dofs, N)) if total_flux_dofs > 0 else None
     
     # Set boundary conditions in F
     # F([1; N+1; N+2; 2*(N+1)]) = problem.NeumannData in MATLAB (1-indexed)
@@ -75,6 +82,10 @@ def domain_flux_jump(
             # Store bulk solution for element k
             U[:, k] = local_solution
             
+            # Store flux coefficients for element k (if available)
+            if flux is not None and J is not None:
+                flux_arr = np.atleast_1d(np.asarray(flux)).flatten()
+                J[:len(flux_arr), k] = flux_arr
         
             # Update flux jump vector F
             # Add flux trace contributions to the global residual
@@ -88,7 +99,7 @@ def domain_flux_jump(
         except Exception as e:
             raise RuntimeError(f"Static condensation failed for element {k+1}: {e}")
     
-    return U, F, JF
+    return U, J, F, JF
 
 
 def test_domain_flux_jump(verbose=True):
@@ -123,6 +134,10 @@ def test_domain_flux_jump(verbose=True):
         class MockStaticCondensation:
             def __init__(self, neq=1):
                 self.neq = neq
+
+            @property
+            def total_flux_dofs_per_element(self):
+                return self.neq  # Minimal: 1 DOF per equation
                 
             def static_condensation(self, local_trace, local_source=None):
                 """Mock static condensation that returns predictable results."""
@@ -189,7 +204,7 @@ def test_domain_flux_jump(verbose=True):
             
             # Test domain_flux_jump
             try:
-                U, F, JF = domain_flux_jump(
+                U, J, F, JF = domain_flux_jump(
                     trace_solution, forcing_term, problem, discretization, static_condensation
                 )
                 
@@ -262,7 +277,7 @@ def test_domain_flux_jump(verbose=True):
         # Test with zero trace
         try:
             zero_trace = np.zeros((neq * n_nodes, 1))
-            U0, F0, JF0 = domain_flux_jump(
+            U0, J0, F0, JF0 = domain_flux_jump(
                 zero_trace, forcing_term, problem, discretization, static_condensation
             )
             if verbose:
@@ -275,7 +290,7 @@ def test_domain_flux_jump(verbose=True):
         # Test with zero forcing
         try:
             zero_forcing = np.zeros((2 * neq, n_elements))
-            Uzf, Fzf, JFzf = domain_flux_jump(
+            Uzf, Jzf, Fzf, JFzf = domain_flux_jump(
                 trace_solution, zero_forcing, problem, discretization, static_condensation
             )
             if verbose:

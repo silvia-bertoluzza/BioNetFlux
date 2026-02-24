@@ -24,6 +24,7 @@ class TimeStepResult:
     residual_history: Optional[List[float]] = None
     jacobian_condition: Optional[float] = None
     newton_step_norms: Optional[List[float]] = None
+    flux_data: Optional[List] = None
     
     def __str__(self) -> str:
         status = "CONVERGED" if self.converged else "FAILED"
