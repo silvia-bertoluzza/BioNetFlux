@@ -47,6 +47,7 @@ class Problem:
         self.force: List[Callable] = [lambda s, t: np.zeros_like(s)] * neq
         self.u0: List[Callable] = [lambda s: np.zeros_like(s)] * neq
         self.solution: List[Callable] = [lambda s, t: np.zeros_like(s)] * neq
+        self.flux_solution: List[Optional[Callable]] = [None] * neq
         
         # Boundary conditions
         self.flux_u0: List[Callable] = [lambda t: 0.0] * neq  # Left boundary
@@ -71,6 +72,18 @@ class Problem:
     def set_solution(self, equation_idx: int, solution_func: Callable):
         """Set solution term for specified equation."""
         self.solution[equation_idx] = solution_func
+
+    def set_flux_solution(self, equation_idx: int, flux_func: Callable):
+        """Set analytical flux solution for specified equation.
+        
+        This is used for flux error computation, analogous to ``set_solution``
+        for bulk/trace errors.
+        
+        Args:
+            equation_idx: Index of the equation
+            flux_func: Callable(s, t) returning flux values at positions s
+        """
+        self.flux_solution[equation_idx] = flux_func
 
     def set_initial_condition(self, equation_idx: int, u0_func: Callable):
         """

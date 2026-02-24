@@ -344,6 +344,10 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         problem.set_boundary_flux(0, left_flux=flux_u, right_flux=flux_u)  
         problem.set_boundary_flux(1, left_flux=flux_phi, right_flux=flux_phi)
         
+        # Set analytical flux solutions for error computation
+        problem.set_flux_solution(0, flux_u)
+        problem.set_flux_solution(1, flux_phi)
+        
         # Set 2D coordinates for visualization from geometry
         problem.set_extrema(domain_info.extrema_start, domain_info.extrema_end)
        
