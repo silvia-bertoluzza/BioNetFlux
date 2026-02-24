@@ -54,7 +54,7 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         eQUAD = self.elementary_matrices.get_matrix('QUAD')
         
         # Get stabilization parameters first
-        tu = self.discretization.tau[0]  # tau for u equation
+        tu = self.discretization.tau[0]/h  # tau for u equation
         tp = self.discretization.tau[1]  # tau for phi equation
         
         # Handle M matrix - eM might be diagonal elements

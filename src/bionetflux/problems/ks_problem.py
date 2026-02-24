@@ -281,7 +281,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # Extract discretization parameters
     n_elements = disc_params['n_elements']
     tau_values = disc_params['tau']
-    
+    tau_values = np.array(tau_values)  # Convert to numpy array for easier handling
+    # tau_values[0] = tau_values[0] * n_elements # Better to set this scaling in the static condensation factory, not here in the problem creation step
     # Apply config parameters to all domains based on geometry
     for domain_id in range(geometry.num_domains()):
         domain_info = geometry.get_domain(domain_id)

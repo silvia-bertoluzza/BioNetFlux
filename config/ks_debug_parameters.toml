@@ -8,7 +8,7 @@ problem_type = "ks"
 
 [time_parameters]
 T = 1.0   # Final time (from KS_traveling_wave)
-dt = 0.05 # Time step (from KS_traveling_wave)
+dt = 1.0 # Time step (from KS_traveling_wave)
 
 [physical_parameters.diffusion]
 nu = 1.0      # Cell diffusion coefficient (from KS_traveling_wave parameters array)
@@ -24,7 +24,7 @@ dchi = "zeros"       # Function name for derivative of chi
 
 [discretization]
 n_elements = 5  # From KS_traveling_wave n_elements array
-tau = [1.0, 1.0] # Stabilization parameters for u and v (from set_tau call)
+tau = [2.0, 1.0] # Stabilization parameters for u and v (from set_tau call, unscaled by n_elements)
 
 [initial_conditions]
 u = "s"     # Use traveling wave solution for initial u

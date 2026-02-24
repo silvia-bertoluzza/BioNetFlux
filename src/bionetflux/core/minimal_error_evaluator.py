@@ -273,8 +273,10 @@ class MinimalErrorEvaluator:
                     if np.isscalar(analytical_values):
                         analytical_values = np.full_like(mapped_nodes, analytical_values)
                     
-                    # Integrate (numerical - analytical)^2
-                    error_function = numerical_values - analytical_values
+                    # Integrate (numerical + analytical)^2
+                    # The flux verifies flux + analytical = 0, so we compute (numerical + analytical)^2 for error
+                    
+                    error_function = numerical_values + analytical_values
                     error_squared_values = error_function ** 2
                     
                     element_contribution = h_elem * np.dot(

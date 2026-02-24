@@ -161,7 +161,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # STEP 1: SOLVER SETUP (Enhanced with config file support and error handling)
     # ============================================================================
     
-    geometry = build_arc_sequence_geometry(N=1, start=0.5, length=1.0)
+    geometry = build_arc_sequence_geometry(N=1, start=1.5, length=2.0)
 
     # Try to call quick_setup with error handling for config compatibility    
     try:
@@ -355,25 +355,25 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     # Plot solutions for each equation
     for eq_idx in range(n_equations):
-        print(f"Plotting equation {eq_idx}...")
+         print(f"Plotting equation {eq_idx}...")
         
-        # Plot trace solution
-        plot_trace_solution(
-            trace_solutions=final_traces,
-            problems=setup.problems,
-            discretizations=setup.global_discretization.spatial_discretizations,
-            current_time=current_time,
-            equation_idx=eq_idx
-        )
+         # Plot trace solution
+         plot_trace_solution(
+             trace_solutions=final_traces,
+             problems=setup.problems,
+             discretizations=setup.global_discretization.spatial_discretizations,
+             current_time=current_time,
+             equation_idx=eq_idx
+         )
         
-        # Plot bulk solution  
-        plot_bulk_solution(
-            bulk_solutions=final_bulk_data,
-            problems=setup.problems,
-            discretizations=setup.global_discretization.spatial_discretizations,
-            current_time=current_time,
-            equation_idx=eq_idx
-        )
+         # Plot bulk solution  
+         plot_bulk_solution(
+             bulk_solutions=final_bulk_data,
+             problems=setup.problems,
+             discretizations=setup.global_discretization.spatial_discretizations,
+             current_time=current_time,
+             equation_idx=eq_idx
+         )
     
     print(f"Generated plots for {n_equations} equations")
     plt.show()
