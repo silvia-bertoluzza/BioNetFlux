@@ -1,16 +1,15 @@
 import numpy as np
-import sys
-import os
 from typing import Dict, Tuple
 
 from .problem import Problem
 from .static_condensation_base import StaticCondensationBase
 
-# Add the python_port directory to sys.path to allow imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-python_port_dir = os.path.dirname(os.path.dirname(current_dir))
-if python_port_dir not in sys.path:
-    sys.path.insert(0, python_port_dir)
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# python_port_dir = os.path.dirname(os.path.dirname(current_dir))
+# if python_port_dir not in sys.path:
+#     sys.path.insert(0, python_port_dir)
     
 class StaticCondensationOOC(StaticCondensationBase):
     """

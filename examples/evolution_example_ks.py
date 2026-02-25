@@ -11,8 +11,8 @@ encapsulates all the Newton iteration and bulk data management.
 import sys
 import os
 
-# Add the python_port directory to path for absolute imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 from setup_solver import quick_setup, SolverSetup

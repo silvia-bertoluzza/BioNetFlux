@@ -12,30 +12,27 @@ cd bionetflux
 
 ### 2. Choose Your Environment Setup
 
-#### Option A: Conda (Recommended)
+#### Option A: Editable install (Recommended)
 ```bash
 # Create environment
-conda create -n bionetflux python=3.11
-conda activate bionetflux
-
-# Install dependencies
-pip install -r requirements-dev.txt
-```
-
-#### Option B: venv
-```bash
-# Create environment  
 python -m venv bionetflux-env
 source bionetflux-env/bin/activate  # Windows: bionetflux-env\Scripts\activate
 
-# Install dependencies
-pip install -r requirements-dev.txt
+# Install in editable mode
+pip install -e ".[dev]"
+```
+
+#### Option B: Conda + editable install
+```bash
+conda create -n bionetflux python=3.11
+conda activate bionetflux
+pip install -e ".[dev]"
 ```
 
 #### Option C: Minimal Installation
 ```bash
-# For just running tests
-pip install -r requirements-minimal.txt
+pip install -e .
+pip install pytest
 ```
 
 ### 3. Configure VS Code
@@ -60,8 +57,8 @@ pip install -r requirements-minimal.txt
 # Run test suite
 pytest
 
-# Run a simple example
-python examples/simple_example.py
+# Run an example
+python examples/evolution_example_ks.py
 ```
 
 ## Platform-Specific Notes
@@ -84,10 +81,6 @@ python examples/simple_example.py
 
 ### 1. Basic Import Test
 ```python
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
 from bionetflux.core.problem import Problem
 from bionetflux.geometry.domain_geometry import DomainGeometry
 print("✓ BioNetFlux imports successful")
@@ -110,11 +103,9 @@ pytest -v
 ### Common Issues
 
 **ImportError: No module named 'bionetflux'**
-```python
-# Solution: Add src to Python path
-import sys
-import os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+```bash
+# Solution: install the package in editable mode
+pip install -e .
 ```
 
 **Tests not discovered in VS Code**
@@ -139,11 +130,11 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 ## Environment Files Summary
 
-- `requirements.txt` - Production dependencies with version constraints
+- `pyproject.toml` - Package configuration and dependencies
+- `requirements.txt` - Production dependencies (for pip install -r)
 - `requirements-dev.txt` - Complete development environment
 - `requirements-minimal.txt` - Bare minimum for testing
 - `requirements-core.txt` - Core scientific computing dependencies
-- `.vscode/settings.json.template` - Portable VS Code configuration template
 
 ## Next Steps
 

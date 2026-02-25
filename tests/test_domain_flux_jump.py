@@ -8,8 +8,8 @@ import sys
 import os
 import numpy as np
 
-# Add the python_port directory to sys.path to allow imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.flux_jump import domain_flux_jump, test_domain_flux_jump
 from bionetflux.utils.elementary_matrices import ElementaryMatrices

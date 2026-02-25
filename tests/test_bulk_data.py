@@ -7,9 +7,9 @@ import numpy as np
 import sys
 import os
 
-# Add the python_port directory to path
+# sys.path hack — commented out, use pip install -e . instead
 # sys.path.append(os.path.join(os.path.dirname(__file__), ''))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.bulk_data import BulkData
 

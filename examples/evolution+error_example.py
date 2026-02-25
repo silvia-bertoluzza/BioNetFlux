@@ -16,8 +16,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-# Add the src directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 def modify_toml_parameters(config_file: str, dt: float, n_elements: int):

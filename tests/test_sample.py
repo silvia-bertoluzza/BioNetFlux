@@ -9,9 +9,9 @@ def test_simple():
 def test_import():
     """Test that we can import from src."""
     try:
-        import sys
-        import os
-        sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+        # sys.path hack — commented out, use pip install -e . instead
+        # import sys, os
+        # sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
         from bionetflux.core.problem import Problem
         assert True
     except ImportError:

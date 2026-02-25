@@ -395,6 +395,18 @@ class DomainGeometry:
         """Get all interior (domain-to-domain) connections."""
         return [conn for conn in self.connections if not conn.is_boundary_connection()]
     
+    def get_connection(self, connection_id: int) -> ConnectionInfo:
+        """Get a connection by its index."""
+        if connection_id < 0 or connection_id >= len(self.connections):
+            raise IndexError(f"Connection index {connection_id} out of range (0-{len(self.connections)-1})")
+        return self.connections[connection_id]
+
+    def remove_connection(self, connection_id: int) -> None:
+        """Remove a connection by its index."""
+        if connection_id < 0 or connection_id >= len(self.connections):
+            raise IndexError(f"Connection index {connection_id} out of range (0-{len(self.connections)-1})")
+        self.connections.pop(connection_id)
+
     def get_connections_by_type(self, boundary_type: str) -> List[ConnectionInfo]:
         """
         Get connections by type.

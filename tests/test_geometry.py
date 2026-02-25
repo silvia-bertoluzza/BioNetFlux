@@ -23,8 +23,8 @@ import time
 from typing import Dict, Any
 import pytest
 
-# Add the code directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.geometry import DomainGeometry, DomainInfo
 

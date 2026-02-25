@@ -1,12 +1,8 @@
 # Core dependencies for BioNetFlux
 numpy>=1.24.0
 matplotlib>=3.6.0
-scipy>=1.10.0
-
-# FEniCS dependencies (optional, for advanced features)
-# fenics-dolfinx>=0.7.0  # Uncomment if using FEniCS
-# fenics-ufl>=2023.2.0   # Uncomment if using FEniCS
+sympy>=1.12
 
 # Optional scientific computing dependencies
-# pandas>=1.5.0          # For data analysis
-# h5py>=3.7.0           # For HDF5 file support
+# scipy>=1.10.0         # Not used by core — only if explicitly approved
+# pandas>=1.5.0         # For data analysis (install with: pip install -e ".[extras]")

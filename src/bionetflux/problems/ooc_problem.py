@@ -8,28 +8,25 @@ from the MATLAB reference, with custom grid geometry specified.
 """
 
 import numpy as np
-import sys
-import os
 from typing import Optional
 
-# Handle both relative imports (when used as module) and direct execution
-try:
-    from ..core.problem import Problem
-    from ..core.discretization import Discretization, GlobalDiscretization
-    from ..core.constraints import ConstraintManager
-    from ..geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_grid_geometry
-    from .ooc_config_manager import OoCConfigManager
-except ImportError:
-    # If relative imports fail, add the src directory to path for direct execution
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    src_dir = os.path.join(current_dir, '..', '..')
-    sys.path.insert(0, src_dir)
-    
-    from bionetflux.core.problem import Problem
-    from bionetflux.core.discretization import Discretization, GlobalDiscretization
-    from bionetflux.core.constraints import ConstraintManager
-    from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_grid_geometry
-    from bionetflux.problems.ooc_config_manager import OoCConfigManager
+from bionetflux.core.problem import Problem
+from bionetflux.core.discretization import Discretization, GlobalDiscretization
+from bionetflux.core.constraints import ConstraintManager
+from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_grid_geometry
+from bionetflux.problems.ooc_config_manager import OoCConfigManager
+
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# try:
+#     from ..core.problem import Problem
+#     ...
+# except ImportError:
+#     current_dir = os.path.dirname(os.path.abspath(__file__))
+#     src_dir = os.path.join(current_dir, '..', '..')
+#     sys.path.insert(0, src_dir)
+#     from bionetflux.core.problem import Problem
+#     ...
 
 
 def build_default_geometry():
@@ -325,15 +322,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         # Set stabilization parameters from config
         discretization.set_tau(tau_values)
         discretizations.append(discretization)
-    
-    # Remove the old hardcoded lines (THESE SHOULD BE DELETED)
-    # Set specific initial conditions for some domains (from original implementation)
-    # if len(problems) > 0:
-    #     problems[0].set_initial_condition(2, lambda s, t=0: constant_function(s))
-    # if len(problems) > 3:
-    #     problems[3].set_initial_condition(0, lambda s, t=0: constant_function(s))
 
-    # Apply domain-specific initial condition overrides (REPLACES lines 318-322)
+    # Apply domain-specific initial condition overrides
     equation_names = ['u', 'omega', 'v', 'phi']
     
     print("Applying domain-specific initial conditions...")

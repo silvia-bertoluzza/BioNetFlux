@@ -49,6 +49,12 @@ ENV/
 build/
 .cache/
 
+# Generated outputs in examples
+examples/*.png
+examples/*.csv
+examples/*.txt
+examples/outputs/
+
 # User-specific VS Code settings (if needed)
 .vscode/settings.local.json
 

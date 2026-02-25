@@ -14,7 +14,8 @@ import os
 import pytest
 import numpy as np
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.problem import Problem
 from bionetflux.core.discretization import Discretization, GlobalDiscretization
@@ -174,8 +175,10 @@ class TestComputeFluxError:
         flux_array[1, :] = 3.0  # left
         flux_array[2, :] = 3.0  # right
 
-        self.problem.set_flux_solution(0, lambda s, t: np.full_like(s, 2.0))
-        self.problem.set_flux_solution(1, lambda s, t: np.full_like(s, 3.0))
+        # HDG convention: numerical flux approximates -grad(u), so error = flux + analytical = 0
+        # set_flux_solution provides the analytical gradient, so negate to match
+        self.problem.set_flux_solution(0, lambda s, t: np.full_like(s, -2.0))
+        self.problem.set_flux_solution(1, lambda s, t: np.full_like(s, -3.0))
 
         result = self.evaluator.compute_flux_error(
             flux_data=[flux_array],
@@ -279,7 +282,8 @@ class TestComputeFluxError:
             flux_array[1, k] = 2 * nodes[k] + 1       # left value
             flux_array[2, k] = 2 * nodes[k + 1] + 1   # right value
 
-        self.problem.set_flux_solution(1, lambda s, t: 2 * s + 1)
+        # HDG convention: error = numerical + analytical = 0, so negate
+        self.problem.set_flux_solution(1, lambda s, t: -(2 * s + 1))
 
         result = self.evaluator.compute_flux_error(
             flux_data=[flux_array],
