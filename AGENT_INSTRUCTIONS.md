@@ -54,6 +54,7 @@ User script (examples/)
 - **Never** change the mathematical formulation (weak form, quadrature rules, basis functions, static condensation procedure, Newton iteration structure, constraint enforcement) without explicit approval.
 - **Never** substitute a numerical algorithm with a library call (e.g., replacing the Newton solver with `scipy.optimize`, or using a mesh library for discretization) without asking first.
 - When proposing algorithmic changes, explain the mathematical implications clearly.
+- **Never** refactor for style, structure, or “cleanliness” unless explicitly asked.
 
 ### 3.2 External libraries require approval
 
@@ -61,8 +62,9 @@ Approved libraries (use freely):
 - `numpy` — array operations, linear algebra (`numpy.linalg.solve`, `numpy.linalg.cond`)
 - `matplotlib` — visualization
 - `sympy` — symbolic integration for elementary matrices and function parsing
-- `tomllib` / `tomli` — TOML configuration parsing
+- `toml` / `tomllib` / `tomli` — TOML configuration parsing
 - `pytest` — testing
+- `pandas` - linear regression
 
 **Any other library** must be proposed and justified before use. This includes `scipy` submodules, `numba`, `jax`, `fenics`, `meshio`, or any other scientific computing package. I need to understand and control the methodology—black-box solvers are unacceptable.
 
@@ -84,6 +86,16 @@ Approved libraries (use freely):
 
 - Do not leave commented-out code, unused imports, or unreachable branches.
 - When refactoring, remove the old code after the new code is verified.
+
+### 3.6 Things that always need my approval
+
+- Changes to the weak formulation or variational form
+- Changes to the static condensation procedure
+- Changes to the Newton solver convergence criteria or update strategy
+- Addition of new external library dependencies
+- Changes to the data flow between major components (Problem → Discretization → Solver)
+- Removal or renaming of public APIs
+- Architectural changes (new design patterns, reorganization of modules)
 
 ---
 
@@ -258,15 +270,6 @@ Ask me to validate the mathematical formulation (weak form, static condensation 
 - For **new features**: describe the interface (function signatures, class API) before implementing the body.
 - For **algorithmic changes**: explain the mathematical impact in terms I can evaluate.
 
-### Things that always need my approval
-
-- Changes to the weak formulation or variational form
-- Changes to the static condensation procedure
-- Changes to the Newton solver convergence criteria or update strategy
-- Addition of new external library dependencies
-- Changes to the data flow between major components (Problem → Discretization → Solver)
-- Removal or renaming of public APIs
-- Architectural changes (new design patterns, reorganization of modules)
 
 ### Things you can do autonomously
 
