@@ -15,7 +15,7 @@ from typing import Optional
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry
 from bionetflux.core.problem import Problem
 from bionetflux.core.discretization import Discretization, GlobalDiscretization
-from bionetflux.core.constraints import ConstraintManager
+from bionetflux.core.constraints import ConstraintManager, ConstraintType
 from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_arc_sequence_geometry
 from bionetflux.problems.ks_config_manager import KSConfigManager
 
@@ -413,19 +413,62 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # SECTION 5: CONSTRAINT SETUP
     # ============================================================================
     
-    # constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
-    constraint_manager = ConstraintManager()
+    # Step 1: Set up default constraints from geometry
+    #   - Homogeneous Neumann at all exterior boundaries
+    #   - Trace continuity at all interior connections
+    constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
 
-    left_boundary = geometry.domains[0].domain_start  # Assuming left boundary is at the start of the first domain
-    right_boundary = geometry.domains[-1].domain_start + geometry.domains[-1].domain_length  # Assuming right boundary is at the end of the last domain
+    # Step 2: Override boundary Neumann BCs with non-homogeneous data
+    left_boundary = geometry.domains[0].domain_start
+    right_boundary = geometry.domains[-1].domain_start + geometry.domains[-1].domain_length
+    last_domain = len(problems) - 1
 
-    constraint_manager.add_neumann(0, 0, left_boundary, lambda t: - flux_u(left_boundary, t))  # u equation at start
-    constraint_manager.add_neumann(1, 0, left_boundary, lambda t: - flux_phi(left_boundary, t))  # phi equation at start
+    # Left boundary: replace homogeneous Neumann with exact flux data
+    for eq_idx, flux_func in enumerate([flux_u, flux_phi]):
+        indices = constraint_manager.find_constraints(
+            domain_index=0,
+            equation_index=eq_idx,
+            constraint_type=ConstraintType.NEUMANN,
+            position=left_boundary,
+        )
+        if len(indices) != 1:
+            raise RuntimeError(
+                f"Expected 1 Neumann constraint for eq {eq_idx} at left boundary, "
+                f"found {len(indices)}"
+            )
+        # Capture eq_idx and flux_func in the lambda default arguments
+        pos = left_boundary
+        constraint_manager.replace_constraint(
+            indices[0],
+            constraint_manager.make_neumann(
+                eq_idx, 0, pos,
+                data_function=lambda t, _f=flux_func, _p=pos: -_f(_p, t),
+            ),
+        )
 
-    constraint_manager.add_neumann(0, len(problems)-1, right_boundary, lambda t: flux_u(right_boundary, t))  # u equation at end
-    constraint_manager.add_neumann(1, len(problems)-1, right_boundary, lambda t: flux_phi(right_boundary, t))  # phi equation at end
+    # Right boundary: replace homogeneous Neumann with exact flux data
+    for eq_idx, flux_func in enumerate([flux_u, flux_phi]):
+        indices = constraint_manager.find_constraints(
+            domain_index=last_domain,
+            equation_index=eq_idx,
+            constraint_type=ConstraintType.NEUMANN,
+            position=right_boundary,
+        )
+        if len(indices) != 1:
+            raise RuntimeError(
+                f"Expected 1 Neumann constraint for eq {eq_idx} at right boundary, "
+                f"found {len(indices)}"
+            )
+        pos = right_boundary
+        constraint_manager.replace_constraint(
+            indices[0],
+            constraint_manager.make_neumann(
+                eq_idx, last_domain, pos,
+                data_function=lambda t, _f=flux_func, _p=pos: _f(_p, t),
+            ),
+        )
 
-    # Map constraints to discretizations
+    # Step 3: Map all constraints (including replacements) to discretizations
     constraint_manager.map_to_discretizations(discretizations)
      
     # ============================================================================

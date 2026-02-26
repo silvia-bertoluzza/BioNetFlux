@@ -63,3 +63,9 @@ requirements.txt.conda-backup
 
 !docs/BioNetFlux_Logo.png
 !docs/Barra_D34Health.png
+
+# AGENT instruction files
+AGENT_INSTRUCTIONS.md
+AGENT_RULES_SHORT.md
+PROMPTS.md
+

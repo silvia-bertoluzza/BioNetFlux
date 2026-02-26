@@ -202,7 +202,7 @@ If you use BioNetFlux in your research, please cite:
 ```bibtex
 @software{bionetflux2026,
   author  = {Bertoluzza, Silvia},
-  title   = {BioNetFlux: Multi-Domain Biological Network Flow Simulation Framework},
+  title   = {BioNetFlux: Multi-Arc Biological Network Flow Simulation Framework},
   year    = {2026},
   url     = {https://github.com/silvia-bertoluzza/bionetflux}
 }
