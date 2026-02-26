@@ -413,8 +413,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # SECTION 5: CONSTRAINT SETUP
     # ============================================================================
     
-    constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
-    
+    # constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
+    constraint_manager = ConstraintManager()
 
     left_boundary = geometry.domains[0].domain_start  # Assuming left boundary is at the start of the first domain
     right_boundary = geometry.domains[-1].domain_start + geometry.domains[-1].domain_length  # Assuming right boundary is at the end of the last domain
