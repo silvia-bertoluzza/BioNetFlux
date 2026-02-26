@@ -7,12 +7,12 @@ neq = 4
 problem_type = "ooc"  # Config validation type (NOT the same as StaticCondensation problem_type)
 
 [time_parameters]
-T = 1.0   # Final time
-dt = 0.1  # Time step
+T = 3600.0   # Final time
+dt = 8.0  # Time step
 
 [physical_parameters.viscosity]
-nu = 1.0      # MATLAB: nu = 1.
-mu = 2.0      # MATLAB: mu = 2.
+nu = 900.0      # MATLAB: nu = 1.
+mu = 200.0      # MATLAB: mu = 2.
 epsilon = 1.0 # MATLAB: epsilon = 1.
 sigma = 1.0   # MATLAB: sigma = 1.
 

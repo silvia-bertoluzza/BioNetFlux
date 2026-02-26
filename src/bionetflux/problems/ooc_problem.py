@@ -38,6 +38,66 @@ def build_default_geometry():
     """
     return build_grid_geometry()
 
+def build_T_junction_geometry():
+    """
+    Build the T-junction OoC grid geometry, suitably scaled for replicating the T-junction tests.
+    
+    Returns:
+        DomainGeometry: T-junction grid geometry instance
+    """
+    # TODO: Implement T-junction geometry
+    domain_starts = [-500.0, 0.0]
+    domain_lengths = [1000.0, 500.0]
+
+    geometry = DomainGeometry(name="T_junction")
+
+    geometry.add_domain(
+        name="main_channel",
+        domain_start=domain_starts[0],
+        domain_length=domain_lengths[0],
+        extrema_start=(0.0, -500.0),
+        extrema_end=(0.0, 500.0)
+    )
+
+    geometry.add_domain(
+        name="branch",
+        domain_start=domain_starts[1],
+        domain_length=domain_lengths[1],
+        extrema_start=(0.0, 0.0),
+        extrema_end=(500.0, 0.0)
+    )
+
+    geometry.add_connection(
+        domain1_id=0,
+        domain2_id=1,
+        parameter1=0.0,  # Midpoint of main channel (the parametrization starts at -500 and ends at 500)
+        parameter2=0.0,  # Start of branch
+        connection_type="continuity"
+    )
+
+    geometry.add_connection(
+        domain1_id=0,
+        domain2_id=EXTERIOR_BOUNDARY,
+        parameter1=-500.0,  # Start of main channel
+        boundary_condition="Neumann"
+    )
+
+    geometry.add_connection(
+        domain1_id=0,
+        domain2_id=EXTERIOR_BOUNDARY,
+        parameter1=500.0,  # End of main channel
+        boundary_condition="Neumann"
+    )
+
+    geometry.add_connection(
+        domain1_id=1,
+        domain2_id=EXTERIOR_BOUNDARY,
+        parameter1=0.0,  # Start of branch
+        boundary_condition="Neumann"
+    )
+   
+    return geometry
+
 
 def setup_constraints_from_geometry(geometry: DomainGeometry, problems, neq: int) -> ConstraintManager:
     """
