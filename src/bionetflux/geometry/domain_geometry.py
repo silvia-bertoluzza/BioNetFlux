@@ -1,3 +1,5 @@
+import csv
+import os
 import numpy as np
 from typing import List, Tuple, Optional, Dict, Any
 from dataclasses import dataclass
@@ -1538,6 +1540,273 @@ def build_labyrinth_geometry(n_cols: int = 3, n_rows: int = 8, cell_size: float 
     print(f"  - Connections total: {geometry.num_connections()}")
     print(f"  - Boundary connections: {len(geometry.get_boundary_connections())}")
     print(f"  - Interior connections: {len(geometry.get_interior_connections())}")
+
+    return geometry
+
+
+def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
+    """Build a maze geometry from CSV data files (points.csv, lines.csv).
+
+    The CSV files describe a planar maze made of axis-aligned (horizontal and
+    vertical) segments.  Three kinds of points are recognised via the first
+    letter of the point tag in ``points.csv``:
+
+    * **B** (bifurcation) — the point is a shared extremum of two or more
+      segments.  All pairs of segments meeting there receive an interior
+      connection.
+    * **M** (mid-junction / T-junction) — the point is an extremum of exactly
+      one segment and lies in the interior of exactly one other segment.  An
+      interior connection is added between the two.
+    * **G** (gate / terminal) — the point is an extremum of exactly one
+      segment and sits on the exterior boundary of the network.  An exterior
+      boundary connection is added.
+
+    Args:
+        data_dir: Directory containing ``points.csv`` and ``lines.csv``.
+                  Defaults to ``maze_1_data/`` next to this module.
+
+    Returns:
+        DomainGeometry with one domain per CSV line and all connections.
+
+    Raises:
+        FileNotFoundError: If a required CSV file is missing.
+        ValueError:        If the data is inconsistent (e.g. unknown point
+                           tag, diagonal segment, M-point with no through-
+                           segment).
+    """
+    # ------------------------------------------------------------------
+    # 0.  Locate data directory
+    # ------------------------------------------------------------------
+    if data_dir is None:
+        data_dir = os.path.join(os.path.dirname(__file__), "maze_1_data")
+
+    points_path = os.path.join(data_dir, "points.csv")
+    lines_path = os.path.join(data_dir, "lines.csv")
+
+    for path in (points_path, lines_path):
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"Required CSV file not found: {path}")
+
+    # ------------------------------------------------------------------
+    # 1.  Parse points.csv  →  point_id → (type_letter, x, y)
+    # ------------------------------------------------------------------
+    points: Dict[str, Tuple[str, float, float]] = {}
+    with open(points_path, newline="") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            pid = row["ID"].strip()
+            x = float(row["x"])
+            y = float(row["y"])
+            type_letter = pid[0]  # 'B', 'M', or 'G'
+            if type_letter not in ("B", "M", "G"):
+                raise ValueError(
+                    f"Unknown point type '{type_letter}' in tag '{pid}'. "
+                    "Expected B (bifurcation), M (mid-junction), or G (gate)."
+                )
+            points[pid] = (type_letter, x, y)
+
+    # ------------------------------------------------------------------
+    # 2.  Parse lines.csv  →  ordered list of (line_id, start_pid, end_pid)
+    # ------------------------------------------------------------------
+    lines: List[Tuple[str, str, str]] = []
+    with open(lines_path, newline="") as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            lid = row["LineID"].strip()
+            sp = row["StartPointID"].strip()
+            ep = row["EndPointID"].strip()
+            if sp not in points:
+                raise ValueError(f"Line {lid}: start point '{sp}' not in points.csv")
+            if ep not in points:
+                raise ValueError(f"Line {lid}: end point '{ep}' not in points.csv")
+            lines.append((lid, sp, ep))
+
+    # ------------------------------------------------------------------
+    # 3.  Create geometry and add one domain per line
+    # ------------------------------------------------------------------
+    geometry = DomainGeometry("maze_geometry")
+
+    # line_id_str  →  domain_id (int)
+    line_to_domain: Dict[str, int] = {}
+    # domain_id    →  (start_pid, end_pid)
+    domain_endpoints: Dict[int, Tuple[str, str]] = {}
+
+    for lid, sp, ep in lines:
+        _, x1, y1 = points[sp]
+        _, x2, y2 = points[ep]
+
+        # Validate axis-alignment
+        if abs(x1 - x2) > 1e-12 and abs(y1 - y2) > 1e-12:
+            raise ValueError(
+                f"Line {lid}: ({x1},{y1})→({x2},{y2}) is diagonal. "
+                "Only horizontal and vertical segments are allowed."
+            )
+
+        domain_id = geometry.add_domain(
+            extrema_start=(x1, y1),
+            extrema_end=(x2, y2),
+            name=lid,
+        )
+        line_to_domain[lid] = domain_id
+        domain_endpoints[domain_id] = (sp, ep)
+
+    # ------------------------------------------------------------------
+    # 4.  Build reverse map:  point_id → list of (domain_id, 'start'|'end')
+    #     (tells which domains have this point as an extremum)
+    # ------------------------------------------------------------------
+    point_to_extrema: Dict[str, List[Tuple[int, str]]] = {}
+    for did, (sp, ep) in domain_endpoints.items():
+        point_to_extrema.setdefault(sp, []).append((did, "start"))
+        point_to_extrema.setdefault(ep, []).append((did, "end"))
+
+    # ------------------------------------------------------------------
+    #  Helper: parameter value of a point on a given domain
+    # ------------------------------------------------------------------
+    def _parameter_at_point(domain_id: int, px: float, py: float) -> float:
+        """Return the parameter-space value of point (px, py) on *domain_id*.
+
+        The parameter runs from 0 (domain start) to domain_length (domain end).
+        """
+        dom = geometry.get_domain(domain_id)
+        x1, y1 = dom.extrema_start
+        x2, y2 = dom.extrema_end
+        dx = x2 - x1
+        dy = y2 - y1
+        length = dom.domain_length  # = Euclidean distance
+        if length < 1e-12:
+            return 0.0
+        # fraction along segment
+        if abs(dx) > abs(dy):
+            t = (px - x1) / dx
+        else:
+            t = (py - y1) / dy
+        return t * length
+
+    def _parameter_at_extremum(which: str, domain_id: int) -> float:
+        """Return 0.0 for 'start', domain_length for 'end'."""
+        if which == "start":
+            return 0.0
+        return geometry.get_domain(domain_id).domain_length
+
+    # ------------------------------------------------------------------
+    #  Helper: check whether (px, py) is strictly interior to a segment
+    # ------------------------------------------------------------------
+    def _is_interior_to(domain_id: int, px: float, py: float,
+                        tol: float = 1e-9) -> bool:
+        """True if (px, py) lies strictly between the endpoints of *domain_id*."""
+        dom = geometry.get_domain(domain_id)
+        x1, y1 = dom.extrema_start
+        x2, y2 = dom.extrema_end
+
+        # Must be collinear (axis-aligned segments → check the fixed coordinate)
+        if abs(x2 - x1) < tol:
+            # Vertical segment at x = x1
+            if abs(px - x1) > tol:
+                return False
+            lo, hi = min(y1, y2), max(y1, y2)
+            return (lo + tol < py < hi - tol)
+        else:
+            # Horizontal segment at y = y1
+            if abs(py - y1) > tol:
+                return False
+            lo, hi = min(x1, x2), max(x1, x2)
+            return (lo + tol < px < hi - tol)
+
+    # ------------------------------------------------------------------
+    # 5.  Process each point and add the appropriate connections
+    # ------------------------------------------------------------------
+    n_domains = geometry.num_domains()
+
+    for pid, (ptype, px, py) in points.items():
+        extrema_list = point_to_extrema.get(pid, [])
+
+        # --- G points: exterior boundary ---
+        if ptype == "G":
+            if len(extrema_list) == 0:
+                raise ValueError(
+                    f"G-point {pid} ({px},{py}) is not an extremum of any segment."
+                )
+            # A G-point should be the extremum of exactly one segment.
+            for did, which in extrema_list:
+                param = _parameter_at_extremum(which, did)
+                geometry.add_exterior_boundary(did, param)
+
+        # --- B points: bifurcation (all-pairs connection at shared extremum) ---
+        elif ptype == "B":
+            if len(extrema_list) < 2:
+                raise ValueError(
+                    f"B-point {pid} ({px},{py}) is an extremum of fewer than 2 "
+                    f"segments ({len(extrema_list)}); expected ≥2 for a "
+                    "bifurcation."
+                )
+            # Add pairwise connections between every pair of segments
+            for i in range(len(extrema_list)):
+                did_i, which_i = extrema_list[i]
+                param_i = _parameter_at_extremum(which_i, did_i)
+                for j in range(i + 1, len(extrema_list)):
+                    did_j, which_j = extrema_list[j]
+                    param_j = _parameter_at_extremum(which_j, did_j)
+                    geometry.add_connection(
+                        domain1_id=did_i,
+                        domain2_id=did_j,
+                        parameter1=param_i,
+                        parameter2=param_j,
+                    )
+
+        # --- M points: T-junction (extremum of one, interior of another) ---
+        elif ptype == "M":
+            if len(extrema_list) == 0:
+                raise ValueError(
+                    f"M-point {pid} ({px},{py}) is not an extremum of any "
+                    "segment."
+                )
+            # Find the "through" segment (the one that has this point in its
+            # interior, not at an extremum).
+            through_candidates = []
+            for did in range(n_domains):
+                # Skip segments that have this point as an extremum
+                if any(d == did for d, _ in extrema_list):
+                    continue
+                if _is_interior_to(did, px, py):
+                    through_candidates.append(did)
+
+            if len(through_candidates) == 0:
+                raise ValueError(
+                    f"M-point {pid} ({px},{py}) has no through-segment "
+                    "(no segment contains this point in its interior)."
+                )
+            if len(through_candidates) > 1:
+                raise ValueError(
+                    f"M-point {pid} ({px},{py}) lies in the interior of "
+                    f"multiple segments: {through_candidates}. Expected exactly 1."
+                )
+
+            through_did = through_candidates[0]
+            through_param = _parameter_at_point(through_did, px, py)
+
+            # Connect each extremum-segment to the through-segment
+            for did, which in extrema_list:
+                param = _parameter_at_extremum(which, did)
+                geometry.add_connection(
+                    domain1_id=did,
+                    domain2_id=through_did,
+                    parameter1=param,
+                    parameter2=through_param,
+                )
+
+    # ------------------------------------------------------------------
+    # 6.  Summary
+    # ------------------------------------------------------------------
+    n_boundary = len(geometry.get_boundary_connections())
+    n_interior = len(geometry.get_interior_connections())
+
+    print(f"Maze geometry created from {data_dir}:")
+    print(f"  Points : {len(points)}  (B={sum(1 for t,_,_ in points.values() if t=='B')}, "
+          f"M={sum(1 for t,_,_ in points.values() if t=='M')}, "
+          f"G={sum(1 for t,_,_ in points.values() if t=='G')})")
+    print(f"  Domains: {geometry.num_domains()}")
+    print(f"  Connections: {geometry.num_connections()}  "
+          f"(boundary={n_boundary}, interior={n_interior})")
 
     return geometry
 

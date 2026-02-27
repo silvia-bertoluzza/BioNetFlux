@@ -17,7 +17,7 @@ import os
 from setup_solver import quick_setup, SolverSetup
 from bionetflux.time_integration import TimeStepper
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
-from bionetflux.geometry.domain_geometry import build_grid_geometry
+from bionetflux.geometry.domain_geometry import build_grid_geometry, create_maze_geometry
 import numpy as np
 import time
 from typing import Optional
@@ -46,7 +46,8 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print("Step 1: Setting up solver...")
     
-    geometry = build_grid_geometry(N=2)
+    # geometry = build_grid_geometry(N=2)
+    geometry = create_maze_geometry()
     
     try:
         # Use quick_setup with both geometry and config file support
