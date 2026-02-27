@@ -155,7 +155,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # Time evolution parameters
     current_time = 0.0
     dt = setup.global_discretization.dt
-    T = min(0.5, setup.global_discretization.T)  # Limit runtime for demo
+    T = setup.global_discretization.T # Limit runtime for demo
     max_time_steps = int(T / dt) + 1
     
     # Solution history for analysis
