@@ -11,19 +11,24 @@ T = 3600.0   # Final time
 dt = 8.0  # Time step
 
 [physical_parameters.viscosity]
-nu = 900.0      # MATLAB: nu = 1.
-mu = 200.0      # MATLAB: mu = 2.
-epsilon = 1.0 # MATLAB: epsilon = 1.
-sigma = 1.0   # MATLAB: sigma = 1.
+nu = 900.0      # D_M: diffusivity of immune cells
+mu = 200.0      # D_phi: diffusivity of chemoattractant phi
+epsilon = 200.0 # D_omega: diffusivity of chemoactractant omega
+sigma = 56.0     # D_T: diffusivity of tumor cells
 
 [physical_parameters.reaction]
-a = 0.0       # MATLAB: a = 0.
-c = 0.0       # MATLAB: c = 0.
+a = 1.0e-4       # beta_phi: consumption rate of phi
+c = 1.0e-4       # beta_omega: consumption rate of omega
 
 [physical_parameters.coupling]
-b = 1.0       # MATLAB: b = 1.
-d = 1.0       # MATLAB: d = 1.
-chi = 1.0     # MATLAB: chi = 1.
+b = 0.1       # alpha_phi: production rate of phi
+d = 0.1       # alpha_omega: production rate of omega
+
+# Chemotaxis: chi(x) = k1 / (k2 + x)^2
+[physical_parameters.chemotaxis]
+type = "receptor_saturation"  # Type of chemotaxis function
+k1 = 3.9e-9     # cellular drift velocity
+k2 = 5.0e-6     # receptor dissociation constant
 
 [discretization]
 n_elements = 10
@@ -44,8 +49,8 @@ phi = "zeros"    # Default: zero force
 # Domain-specific overrides for initial conditions
 # Format: "domain_<id>_<equation_name>" = "function_name"
 [domain_initial_conditions]
-domain_0_v = "constant"     # Domain 0, equation v -> constant function  
-domain_3_u = "constant"     # Domain 5, equation u -> constant function
+# domain_0_v = "constant"     # Domain 0, equation v -> constant function  
+# domain_3_u = "constant"     # Domain 5, equation u -> constant function
 
 # Domain-specific overrides for force functions
 # Format: "domain_<id>_<equation_name>" = "function_name"  

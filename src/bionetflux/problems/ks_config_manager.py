@@ -113,11 +113,6 @@ class KSConfigManager(BaseConfigManager):
         self.validator.add_rule('discretization.n_elements', 
                               {'type': int, 'min': 1})
         
-        # Physical parameter validation - chi and dchi should be function names
-        self.validator.add_rule('physical_parameters.chemotaxis.chi', 
-                              {'type': str, 'required': True})  # Function name
-        self.validator.add_rule('physical_parameters.chemotaxis.dchi', 
-                              {'type': str, 'required': True})  # Function name
     
     def load_config(self, config_file: Optional[str] = None) -> Dict[str, Any]:
         """
