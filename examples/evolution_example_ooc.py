@@ -236,8 +236,6 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print(f"\nStep 6: Creating final visualization...")
     
-
-    
     for eq_idx in range(plotter.neq):
         plotter.plot_birdview(
             final_traces,
