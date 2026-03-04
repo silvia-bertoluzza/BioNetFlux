@@ -1544,26 +1544,29 @@ def build_labyrinth_geometry(n_cols: int = 3, n_rows: int = 8, cell_size: float 
     return geometry
 
 
-def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
+def create_maze_geometry(data_dir: Optional[str] = None, length: Optional[float] = None) -> DomainGeometry:
     """Build a maze geometry from CSV data files (points.csv, lines.csv).
 
     The CSV files describe a planar maze made of axis-aligned (horizontal and
     vertical) segments.  Three kinds of points are recognised via the first
     letter of the point tag in ``points.csv``:
 
-    * **B** (bifurcation) — the point is a shared extremum of two or more
+    * **J** (junction) — the point is a shared extremum of two or more
       segments.  All pairs of segments meeting there receive an interior
       connection.
-    * **M** (mid-junction / T-junction) — the point is an extremum of exactly
+    * **T** (T-junction) — the point is an extremum of exactly
       one segment and lies in the interior of exactly one other segment.  An
       interior connection is added between the two.
-    * **G** (gate / terminal) — the point is an extremum of exactly one
+    * **B** (boundary) — the point is an extremum of exactly one
       segment and sits on the exterior boundary of the network.  An exterior
       boundary connection is added.
 
     Args:
         data_dir: Directory containing ``points.csv`` and ``lines.csv``.
                   Defaults to ``maze_1_data/`` next to this module.
+        length: Optional scaling factor for all coordinates. If provided, all
+                x and y coordinates from the CSV files are multiplied by this
+                value before creating the geometry. Default None means no scaling.
 
     Returns:
         DomainGeometry with one domain per CSV line and all connections.
@@ -1571,7 +1574,7 @@ def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
     Raises:
         FileNotFoundError: If a required CSV file is missing.
         ValueError:        If the data is inconsistent (e.g. unknown point
-                           tag, diagonal segment, M-point with no through-
+                           tag, diagonal segment, T-point with no through-
                            segment).
     """
     # ------------------------------------------------------------------
@@ -1597,11 +1600,17 @@ def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
             pid = row["ID"].strip()
             x = float(row["x"])
             y = float(row["y"])
-            type_letter = pid[0]  # 'B', 'M', or 'G'
-            if type_letter not in ("B", "M", "G"):
+            
+            # Apply scaling if length parameter provided
+            if length is not None:
+                x *= length
+                y *= length
+            
+            type_letter = pid[0]  # 'J', 'T', or 'B'
+            if type_letter not in ("J", "T", "B"):
                 raise ValueError(
                     f"Unknown point type '{type_letter}' in tag '{pid}'. "
-                    "Expected B (bifurcation), M (mid-junction), or G (gate)."
+                    "Expected J (junction), T (T-junction), or B (boundary)."
                 )
             points[pid] = (type_letter, x, y)
 
@@ -1720,24 +1729,24 @@ def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
     for pid, (ptype, px, py) in points.items():
         extrema_list = point_to_extrema.get(pid, [])
 
-        # --- G points: exterior boundary ---
-        if ptype == "G":
+        # --- B points: exterior boundary ---
+        if ptype == "B":
             if len(extrema_list) == 0:
                 raise ValueError(
-                    f"G-point {pid} ({px},{py}) is not an extremum of any segment."
+                    f"B-point {pid} ({px},{py}) is not an extremum of any segment."
                 )
-            # A G-point should be the extremum of exactly one segment.
+            # A B-point should be the extremum of exactly one segment.
             for did, which in extrema_list:
                 param = _parameter_at_extremum(which, did)
                 geometry.add_exterior_boundary(did, param)
 
-        # --- B points: bifurcation (all-pairs connection at shared extremum) ---
-        elif ptype == "B":
+        # --- J points: junction (all-pairs connection at shared extremum) ---
+        elif ptype == "J":
             if len(extrema_list) < 2:
                 raise ValueError(
-                    f"B-point {pid} ({px},{py}) is an extremum of fewer than 2 "
+                    f"J-point {pid} ({px},{py}) is an extremum of fewer than 2 "
                     f"segments ({len(extrema_list)}); expected ≥2 for a "
-                    "bifurcation."
+                    "junction."
                 )
             # Add pairwise connections between every pair of segments
             for i in range(len(extrema_list)):
@@ -1753,11 +1762,11 @@ def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
                         parameter2=param_j,
                     )
 
-        # --- M points: T-junction (extremum of one, interior of another) ---
-        elif ptype == "M":
+        # --- T points: T-junction (extremum of one, interior of another) ---
+        elif ptype == "T":
             if len(extrema_list) == 0:
                 raise ValueError(
-                    f"M-point {pid} ({px},{py}) is not an extremum of any "
+                    f"T-point {pid} ({px},{py}) is not an extremum of any "
                     "segment."
                 )
             # Find the "through" segment (the one that has this point in its
@@ -1772,12 +1781,12 @@ def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
 
             if len(through_candidates) == 0:
                 raise ValueError(
-                    f"M-point {pid} ({px},{py}) has no through-segment "
+                    f"T-point {pid} ({px},{py}) has no through-segment "
                     "(no segment contains this point in its interior)."
                 )
             if len(through_candidates) > 1:
                 raise ValueError(
-                    f"M-point {pid} ({px},{py}) lies in the interior of "
+                    f"T-point {pid} ({px},{py}) lies in the interior of "
                     f"multiple segments: {through_candidates}. Expected exactly 1."
                 )
 
@@ -1800,10 +1809,11 @@ def create_maze_geometry(data_dir: Optional[str] = None) -> DomainGeometry:
     n_boundary = len(geometry.get_boundary_connections())
     n_interior = len(geometry.get_interior_connections())
 
-    print(f"Maze geometry created from {data_dir}:")
-    print(f"  Points : {len(points)}  (B={sum(1 for t,_,_ in points.values() if t=='B')}, "
-          f"M={sum(1 for t,_,_ in points.values() if t=='M')}, "
-          f"G={sum(1 for t,_,_ in points.values() if t=='G')})")
+    scale_msg = f" (scaled by {length})" if length is not None else ""
+    print(f"Maze geometry created from {data_dir}{scale_msg}:")
+    print(f"  Points : {len(points)}  (J={sum(1 for t,_,_ in points.values() if t=='J')}, "
+          f"T={sum(1 for t,_,_ in points.values() if t=='T')}, "
+          f"B={sum(1 for t,_,_ in points.values() if t=='B')})")
     print(f"  Domains: {geometry.num_domains()}")
     print(f"  Connections: {geometry.num_connections()}  "
           f"(boundary={n_boundary}, interior={n_interior})")

@@ -295,3 +295,100 @@ class TestMinimalMaze:
     def test_tiny_maze_validates(self, tiny_maze_dir):
         geom = create_maze_geometry(tiny_maze_dir)
         assert geom.validate_geometry(verbose=False)
+
+
+class TestMazeGeometryScaling:
+    """Test the optional length parameter for coordinate scaling."""
+
+    @pytest.fixture(scope="class")
+    def tiny_maze_dir(self, tmp_path_factory):
+        """Create a minimal maze for testing scaling."""
+        maze_dir = tmp_path_factory.mktemp("scaling_maze")
+        
+        # Create points.csv with simple coordinates
+        # Use B points (boundaries) to avoid junction validation issues
+        points_csv = maze_dir / "points.csv"
+        points_csv.write_text(
+            "ID,x,y\n"
+            "B1,1.0,2.0\n"
+            "B2,3.0,2.0\n"
+        )
+        
+        # Create lines.csv with one horizontal segment from B1 to B2
+        lines_csv = maze_dir / "lines.csv"
+        lines_csv.write_text(
+            "LineID,StartPointID,EndPointID\n"
+            "L1,B1,B2\n"
+        )
+        
+        return str(maze_dir)
+
+    def test_no_scaling_preserves_original(self, tiny_maze_dir):
+        """Test that length=None gives same result as no length parameter."""
+        geom1 = create_maze_geometry(tiny_maze_dir)
+        geom2 = create_maze_geometry(tiny_maze_dir, length=None)
+        
+        # Should have same domain count
+        assert geom1.num_domains() == geom2.num_domains() == 1
+        
+        # Should have same domain coordinates
+        dom1 = geom1.get_domain(0)
+        dom2 = geom2.get_domain(0)
+        assert dom1.extrema_start == dom2.extrema_start == (1.0, 2.0)
+        assert dom1.extrema_end == dom2.extrema_end == (3.0, 2.0)
+        assert abs(dom1.domain_length - dom2.domain_length) < 1e-12
+
+    def test_scaling_factor_affects_coordinates(self, tiny_maze_dir):
+        """Test that length parameter scales all coordinates."""
+        scale_factor = 2.5
+        geom = create_maze_geometry(tiny_maze_dir, length=scale_factor)
+        
+        # Should still have same topology
+        assert geom.num_domains() == 1
+        
+        # Coordinates should be scaled
+        dom = geom.get_domain(0)
+        expected_start = (1.0 * scale_factor, 2.0 * scale_factor)  # (2.5, 5.0)
+        expected_end = (3.0 * scale_factor, 2.0 * scale_factor)    # (7.5, 5.0)
+        
+        assert abs(dom.extrema_start[0] - expected_start[0]) < 1e-12
+        assert abs(dom.extrema_start[1] - expected_start[1]) < 1e-12
+        assert abs(dom.extrema_end[0] - expected_end[0]) < 1e-12
+        assert abs(dom.extrema_end[1] - expected_end[1]) < 1e-12
+        
+        # Length should also be scaled
+        expected_length = 2.0 * scale_factor  # original length 2.0, scaled to 5.0
+        assert abs(dom.domain_length - expected_length) < 1e-12
+
+    def test_scaling_preserves_topology(self, tiny_maze_dir):
+        """Test that scaling preserves connections and topology."""
+        geom_original = create_maze_geometry(tiny_maze_dir)
+        geom_scaled = create_maze_geometry(tiny_maze_dir, length=0.5)
+        
+        # Should have same number of connections
+        assert geom_original.num_connections() == geom_scaled.num_connections()
+        assert len(geom_original.get_boundary_connections()) == len(geom_scaled.get_boundary_connections())
+        assert len(geom_original.get_interior_connections()) == len(geom_scaled.get_interior_connections())
+        
+        # Geometry validation should pass for both
+        assert geom_original.validate_geometry(verbose=False)
+        assert geom_scaled.validate_geometry(verbose=False)
+
+    def test_scaling_with_full_maze(self):
+        """Test scaling on the full maze_1_data."""
+        geom_original = create_maze_geometry(_MAZE_1_DIR)
+        geom_scaled = create_maze_geometry(_MAZE_1_DIR, length=10.0)
+        
+        # Should preserve topology
+        assert geom_original.num_domains() == geom_scaled.num_domains()
+        assert geom_original.num_connections() == geom_scaled.num_connections()
+        
+        # All lengths should be scaled by factor of 10
+        for i in range(geom_original.num_domains()):
+            original_length = geom_original.get_domain(i).domain_length
+            scaled_length = geom_scaled.get_domain(i).domain_length
+            assert abs(scaled_length - 10.0 * original_length) < 1e-10
+        
+        # Both should validate
+        assert geom_original.validate_geometry(verbose=False)
+        assert geom_scaled.validate_geometry(verbose=False)
