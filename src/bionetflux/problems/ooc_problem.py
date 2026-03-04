@@ -475,6 +475,23 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     
     constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
     
+    # Apply TOML-based boundary condition overrides (if any)
+    boundary_overrides = config.get('boundary_conditions', {})
+    if boundary_overrides:
+        boundary_point_map = geometry.get_global_metadata().get('boundary_point_map', {})
+        if not boundary_point_map:
+            print("  ⚠️  Warning: boundary_conditions specified but no boundary_point_map "
+                  "in geometry metadata (only available for maze geometries).")
+        else:
+            from bionetflux.core.boundary_override import apply_boundary_overrides
+            apply_boundary_overrides(
+                constraint_manager,
+                boundary_overrides,
+                boundary_point_map,
+                equation_names,
+                function_resolver=config_manager.function_resolver,
+            )
+    
     # Map constraints to discretizations
     constraint_manager.map_to_discretizations(discretizations)
     

@@ -343,6 +343,12 @@ class GlobalAssembler:
                 elif constraint.type.value == "neumann":
                     # Constraint: flux - g = 0
                     jacobian[multiplier_global_idx, multiplier_global_idx] = 1.0
+                elif constraint.type.value == "robin":
+                    # Constraint: alpha * u + beta * flux - g = 0
+                    alpha = constraint.parameters[0]
+                    beta = constraint.parameters[1]
+                    jacobian[multiplier_global_idx, trace_idx] = alpha
+                    jacobian[multiplier_global_idx, multiplier_global_idx] = beta
                 
                 # Add coupling terms
                 jacobian[trace_idx, multiplier_global_idx] = 1.0

@@ -62,3 +62,14 @@ domain_10_u = "constant"     # Domain 5, equation u -> constant function
 [domain_force_functions]
 # No domain-specific forces by default
 # domain_1_omega = "sin_2pi"  # Example: Domain 1, equation omega -> sin_2pi function
+
+# Boundary condition overrides (per B-point, per equation)
+# Keys: "<point_name>_<equation_name>"
+# Values: { type = "dirichlet|neumann|robin", data = "function_name", ... }
+# Default (when omitted): homogeneous Neumann on every boundary for every equation
+#
+# [boundary_conditions]
+# B1_u   = { type = "dirichlet", data = "zeros" }
+# B2_phi = { type = "neumann",   data = "sin_t" }
+# B3_v   = { type = "robin", alpha = 1.0, beta = 0.5, data = "zeros" }
+

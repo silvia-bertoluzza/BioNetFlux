@@ -1725,6 +1725,7 @@ def create_maze_geometry(data_dir: Optional[str] = None, length: Optional[float]
     # 5.  Process each point and add the appropriate connections
     # ------------------------------------------------------------------
     n_domains = geometry.num_domains()
+    boundary_point_map = {}  # {point_name: (domain_id, parameter)}
 
     for pid, (ptype, px, py) in points.items():
         extrema_list = point_to_extrema.get(pid, [])
@@ -1739,6 +1740,7 @@ def create_maze_geometry(data_dir: Optional[str] = None, length: Optional[float]
             for did, which in extrema_list:
                 param = _parameter_at_extremum(which, did)
                 geometry.add_exterior_boundary(did, param)
+                boundary_point_map[pid] = (did, param)
 
         # --- J points: junction (all-pairs connection at shared extremum) ---
         elif ptype == "J":
@@ -1804,7 +1806,12 @@ def create_maze_geometry(data_dir: Optional[str] = None, length: Optional[float]
                 )
 
     # ------------------------------------------------------------------
-    # 6.  Summary
+    # 6.  Store boundary point map in geometry metadata
+    # ------------------------------------------------------------------
+    geometry.set_global_metadata(boundary_point_map=boundary_point_map)
+
+    # ------------------------------------------------------------------
+    # 7.  Summary
     # ------------------------------------------------------------------
     n_boundary = len(geometry.get_boundary_connections())
     n_interior = len(geometry.get_interior_connections())

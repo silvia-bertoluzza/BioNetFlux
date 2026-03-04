@@ -73,6 +73,11 @@ class OoCConfigManager(BaseConfigManager):
                 'phi': 'zeros',    # Default: zero force
             },
             
+            # Boundary condition overrides (per-point, per-equation)
+            # Keys: "<point_name>_<equation_name>"
+            # Values: { type = "dirichlet|neumann|robin", data = "func_name", ... }
+            'boundary_conditions': {},
+
             # New sections for domain-specific overrides (as strings, not resolved)
             'domain_initial_conditions': {},
             'domain_force_functions': {}
