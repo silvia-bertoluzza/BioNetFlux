@@ -176,6 +176,27 @@ class FunctionResolver:
             resolved[key] = self.resolve_function(func_spec)
         return resolved
 
+    def resolve_boundary_function(self, func_spec: Union[str, Callable], position: float) -> Callable:
+        """Resolve function specification and pin the spatial coordinate.
+
+        ``resolve_function`` returns ``f(s, t)``.
+        Boundary condition data depends only on time, with the spatial
+        coordinate fixed at the constraint position.  This method wraps
+        the resolved function so the result has signature ``g(t)``:
+
+            g(t) = f(position, t)
+
+        Args:
+            func_spec: Function name (string) or direct callable with
+                signature ``f(s, t)``.
+            position: Parametric coordinate at the boundary point.
+
+        Returns:
+            Callable ``g(t)`` suitable for ``Constraint.data_function``.
+        """
+        f = self.resolve_function(func_spec)
+        return lambda t, _f=f, _p=position: _f(_p, t)
+
 
 class ParameterValidator:
     """Generic parameter validation with type checking and range validation."""

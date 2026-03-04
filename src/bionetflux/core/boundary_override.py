@@ -138,11 +138,13 @@ def apply_boundary_overrides(
             )
         bc_type = bc_type.lower()
 
-        # Resolve the optional data function
+        # Resolve the optional data function.
+        # resolve_boundary_function returns g(t) = f(position, t),
+        # matching the Constraint.get_data(time) calling convention.
         data_func: Optional[Callable] = None
         data_name = spec.get("data")
         if data_name is not None and function_resolver is not None:
-            data_func = function_resolver.resolve_function(data_name)
+            data_func = function_resolver.resolve_boundary_function(data_name, position)
 
         # ------------------------------------------------------------------
         # 6. Create the replacement constraint

@@ -50,8 +50,8 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # geometry = build_grid_geometry(N=2)
     _geom_dir = os.path.dirname(_geom_module.__file__)
     geometry = create_maze_geometry(
-        data_dir=os.path.join(_geom_dir, "maze_2_data"),
-        length=500.0,
+        data_dir=os.path.join(_geom_dir, "maze_3_data"),
+        length=50.0,
     )   
 
 

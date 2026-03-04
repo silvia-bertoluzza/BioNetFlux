@@ -79,6 +79,11 @@ class _FakeFunctionResolver:
             return lambda s, t=0: np.sin(t) * np.ones_like(s)
         raise ValueError(f"Unknown function '{name}'")
 
+    def resolve_boundary_function(self, name: str, position: float):
+        """Resolve and pin spatial coordinate, returning g(t)."""
+        f = self.resolve_function(name)
+        return lambda t, _f=f, _p=position: _f(_p, t)
+
 
 # ===========================================================================
 #  Happy-path tests
@@ -109,8 +114,9 @@ class TestApplyBoundaryOverrides:
         c = cm.constraints[3]
         assert c.type == ConstraintType.NEUMANN
         assert c.data_function is not None
-        # Evaluate the data function at t=pi/2 → sin(pi/2) = 1.0
-        val = c.data_function(np.array([0.0]), np.pi / 2)
+        # data_function is now g(t) with s pinned to position 3.0
+        # sin_t returns sin(t)*ones_like(s), so at t=pi/2 → 1.0
+        val = c.data_function(np.pi / 2)
         np.testing.assert_allclose(val, 1.0, atol=1e-12)
 
     def test_robin_override(self):
