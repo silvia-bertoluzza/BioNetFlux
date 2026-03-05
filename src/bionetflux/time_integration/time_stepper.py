@@ -369,7 +369,7 @@ class AdaptiveTimeStepper(TimeStepper):
     """
     
     def __init__(self, setup, newton_solver=None, verbose=True,
-                 dt_min=1e-6, dt_max=1.0, safety_factor=0.8):
+                 dt_min=None, dt_max=None, safety_factor=0.8):
         """
         Initialize adaptive time stepper.
         
@@ -377,13 +377,15 @@ class AdaptiveTimeStepper(TimeStepper):
             setup: SolverSetup instance
             newton_solver: Newton solver (created if None)
             verbose: Print progress information
-            dt_min: Minimum time step
-            dt_max: Maximum time step  
+            dt_min: Minimum time step (default: dt_config * 1e-4)
+            dt_max: Maximum time step  (default: dt_config, i.e. the
+                    value from the configuration file)
             safety_factor: Factor for time step adjustment
         """
         super().__init__(setup, newton_solver, verbose)
-        self.dt_min = dt_min
-        self.dt_max = dt_max
+        dt_config = setup.global_discretization.dt
+        self.dt_min = dt_min if dt_min is not None else dt_config * 1e-4
+        self.dt_max = dt_max if dt_max is not None else dt_config
         self.safety_factor = safety_factor
     
     def advance_time_step_adaptive(self, 
@@ -410,6 +412,13 @@ class AdaptiveTimeStepper(TimeStepper):
             print(f"  AdaptiveTimeStepper: trying dt={dt_current:.6f}")
         
         for retry in range(max_retries):
+            # Update dt in the single source of truth first, then let
+            # every StaticCondensation object re-read it and rebuild
+            # its dt-dependent matrices.
+            self.setup.global_discretization.dt = dt_current
+            for sc in self.static_condensations:
+                sc.update_dt()
+            
             # Try time step with current dt
             result = self.advance_time_step(
                 current_solution, current_bulk_data, current_time, dt_current

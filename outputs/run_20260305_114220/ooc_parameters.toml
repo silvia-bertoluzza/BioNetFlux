@@ -8,7 +8,7 @@ problem_type = "ooc"  # Config validation type (NOT the same as StaticCondensati
 
 [time_parameters]
 T = 3600.0   # Final time
-dt = 8.0  # Time step
+dt = 4.0  # Time step
 
 [physical_parameters.viscosity]
 nu = 200.0      # D_M: diffusivity of immune cells
@@ -21,7 +21,7 @@ a = 1.0e-4       # beta_phi: consumption rate of phi
 c = 1.0e-4       # beta_omega: consumption rate of omega
 
 [physical_parameters.coupling]
-b = 0.5       # alpha_phi: production rate of phi
+b = 0.1       # alpha_phi: production rate of phi
 d = 0.1       # alpha_omega: production rate of omega
 
 # Chemotaxis: chi(x) = k1 / (k2 + x)^2

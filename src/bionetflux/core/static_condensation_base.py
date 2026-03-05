@@ -28,6 +28,7 @@ class StaticCondensationBase(ABC):
             ipb: Index of the problem/domain in case of multiple problems/domains
         """
         self.problem = problem
+        self._global_disc = global_disc
         self.discretization = global_disc.spatial_discretizations[ipb]
         self.elementary_matrices = elementary_matrices
         self.sc_matrices = {}
@@ -111,6 +112,30 @@ class StaticCondensationBase(ABC):
                 raise ValueError(
                     f"flux_orders[{i}] = {order}, expected 0 (P0) or 1 (P1)."
                 )
+
+    def update_dt(self) -> None:
+        """Re-read dt from the GlobalDiscretization and rebuild matrices.
+
+        The single source of truth for the time step size is
+        ``GlobalDiscretization.dt``.  The caller must update that value
+        **before** invoking this method.
+
+        Typical usage inside :class:`AdaptiveTimeStepper`::
+
+            self.setup.global_discretization.dt = dt_current
+            for sc in self.static_condensations:
+                sc.update_dt()
+
+        This guarantees that every StaticCondensation object (across all
+        sub-domains) always carries the same dt value.
+        """
+        new_dt = self._global_disc.dt
+        if new_dt is None or new_dt <= 0.0:
+            raise ValueError(
+                f"GlobalDiscretization.dt must be positive, got {new_dt}"
+            )
+        self.dt = new_dt
+        self.build_matrices()
 
     def get_matrices(self) -> Dict[str, np.ndarray]:
         """Get all pre-computed matrices."""

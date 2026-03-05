@@ -21,7 +21,7 @@ a = 1.0e-4       # beta_phi: consumption rate of phi
 c = 1.0e-4       # beta_omega: consumption rate of omega
 
 [physical_parameters.coupling]
-b = 0.5       # alpha_phi: production rate of phi
+b = 0.1       # alpha_phi: production rate of phi
 d = 0.1       # alpha_omega: production rate of omega
 
 # Chemotaxis: chi(x) = k1 / (k2 + x)^2
