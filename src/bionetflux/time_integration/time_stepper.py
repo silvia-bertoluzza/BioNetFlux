@@ -73,7 +73,7 @@ class TimeStepper:
             verbose: Whether to print progress information
         """
         self.setup = setup
-        self.newton_solver = newton_solver or NewtonSolver(verbose=verbose)
+        self.newton_solver = newton_solver or NewtonSolver(tolerance=1.e-7,verbose=False)
         self.verbose = verbose
         
         # Cache frequently used components
@@ -426,12 +426,12 @@ class AdaptiveTimeStepper(TimeStepper):
             
             if result.converged:
                 # Success! Suggest next time step based on Newton performance
-                if result.iterations <= 3:
+                if result.iterations <= 8:
                     # Converged quickly - can increase dt
                     dt_next = min(dt_current * 1.2, self.dt_max)
                     if self.verbose and dt_next > dt_current:
                         print(f"    → Increasing dt: {dt_current:.6f} → {dt_next:.6f}")
-                elif result.iterations <= 8:
+                elif result.iterations <= 14:
                     # Reasonable convergence - keep dt
                     dt_next = dt_current
                 else:

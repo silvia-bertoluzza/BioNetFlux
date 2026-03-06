@@ -7,8 +7,8 @@ neq = 4
 problem_type = "ooc"  # Config validation type (NOT the same as StaticCondensation problem_type)
 
 [time_parameters]
-T = 3600.0   # Final time
-dt = 8.0  # Time step
+T = 1800.0   # Final time
+dt = 32.0  # Time step
 
 [physical_parameters.viscosity]
 nu = 200.0      # D_M: diffusivity of immune cells
@@ -21,7 +21,7 @@ a = 1.0e-4       # beta_phi: consumption rate of phi
 c = 1.0e-4       # beta_omega: consumption rate of omega
 
 [physical_parameters.coupling]
-b = 0.5       # alpha_phi: production rate of phi
+b = 0.2       # alpha_phi: production rate of phi
 d = 0.1       # alpha_omega: production rate of omega
 
 # Chemotaxis: chi(x) = k1 / (k2 + x)^2
@@ -54,7 +54,7 @@ phi = "zeros"    # Default: zero force
 # Domain-specific overrides for initial conditions
 # Format: "domain_<id>_<equation_name>" = "function_name"
 [domain_initial_conditions]
-domain_17_v = "10.0 + 0.0*s"     # Domain 0, equation v -> constant function  
+domain_17_v = "5.0 + 0.0*s"     # Domain 0, equation v -> constant function  
 domain_28_u = "constant"     # Domain 5, equation u -> constant function
 
 # Domain-specific overrides for force functions

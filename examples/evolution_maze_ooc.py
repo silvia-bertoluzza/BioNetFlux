@@ -658,7 +658,9 @@ def run_evolution_with_adaptive_time_stepper(
     current_time = 0.0
     dt = setup.global_discretization.dt  # initial dt from config
     T = setup.global_discretization.T
-    max_time_steps = 10 * int(T / dt) + 1  # generous upper bound
+    # Safety cap: independent of dt so adaptive shrinking cannot exhaust it.
+    # With dt_min from the config this allows T/dt_min steps (far more than needed).
+    max_time_steps = int(T / time_stepper.dt_min) + 100
 
     solution_history = [current_solution.copy()]
     time_history = [current_time]
