@@ -54,7 +54,7 @@ phi = "zeros"    # Default: zero force
 # Domain-specific overrides for initial conditions
 # Format: "domain_<id>_<equation_name>" = "function_name"
 [domain_initial_conditions]
-domain_17_v = "5.0 + 0.0*s"     # Domain 0, equation v -> constant function  
+domain_17_v = "2.5 + 0.0*s"     # Domain 0, equation v -> constant function  
 domain_28_u = "constant"     # Domain 5, equation u -> constant function
 
 # Domain-specific overrides for force functions

@@ -466,19 +466,36 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # STEP 6: FINAL VISUALIZATION
     # ============================================================================
     
-    print(f"\nStep 6: Creating final visualization...")
-    
+    print(f"\nStep 6: Creating visualizations (3 intermediate + final)...")
+
+    # --- Intermediate birdview snapshots at T/4, T/2, 3T/4 ---
+    snapshot_fractions = [0.25, 0.50, 0.75]
+    t_arr_hist = np.array(time_history)
+
+    for frac in snapshot_fractions:
+        t_target = frac * T
+        idx = int(np.argmin(np.abs(t_arr_hist - t_target)))
+        t_snap = time_history[idx]
+        snap_traces, _ = setup.extract_domain_solutions(solution_history[idx])
+        label = f"{frac:.0%}".replace("%", "pct")
+        for eq_idx in range(plotter.neq):
+            plotter.plot_birdview(
+                snap_traces,
+                equation_idx=eq_idx,
+                time=t_snap,
+                save_filename=f"birdview_eq{eq_idx}_t{label}.png",
+            )
+        print(f"  ✓ Snapshot at t = {t_snap:.2f} (target {t_target:.2f})")
+
+    # --- Final birdview ---
     for eq_idx in range(plotter.neq):
         plotter.plot_birdview(
             final_traces,
             equation_idx=eq_idx,
             time=current_time,
-            save_filename=f"final_birdview_eq{eq_idx}.png"
+            save_filename=f"final_birdview_eq{eq_idx}.png",
         )
-    
-    # Evolution comparison
- 
-    print("✓ Final visualization completed")
+    print(f"  ✓ Final snapshot at t = {current_time:.2f}")
     
     # ============================================================================
     # STEP 7: MASS EVOLUTION PLOT
@@ -758,8 +775,29 @@ def run_evolution_with_adaptive_time_stepper(
     # STEP 6: FINAL VISUALIZATION
     # ====================================================================
 
-    print(f"\nStep 6: Creating final visualization...")
+    print(f"\nStep 6: Creating visualizations (3 intermediate + final)...")
 
+    # --- Intermediate birdview snapshots at T/4, T/2, 3T/4 ---
+    snapshot_fractions = [0.25, 0.50, 0.75]
+    t_arr_hist = np.array(time_history)
+
+    for frac in snapshot_fractions:
+        t_target = frac * T
+        # Find the index of the closest saved time point
+        idx = int(np.argmin(np.abs(t_arr_hist - t_target)))
+        t_snap = time_history[idx]
+        snap_traces, _ = setup.extract_domain_solutions(solution_history[idx])
+        label = f"{frac:.0%}".replace("%", "pct")  # e.g. "25pct"
+        for eq_idx in range(plotter.neq):
+            plotter.plot_birdview(
+                snap_traces,
+                equation_idx=eq_idx,
+                time=t_snap,
+                save_filename=f"birdview_eq{eq_idx}_t{label}.png",
+            )
+        print(f"  ✓ Snapshot at t = {t_snap:.2f} (target {t_target:.2f})")
+
+    # --- Final birdview ---
     for eq_idx in range(plotter.neq):
         plotter.plot_birdview(
             final_traces,
@@ -767,6 +805,7 @@ def run_evolution_with_adaptive_time_stepper(
             time=current_time,
             save_filename=f"final_birdview_eq{eq_idx}.png",
         )
+    print(f"  ✓ Final snapshot at t = {current_time:.2f}")
 
     # ====================================================================
     # STEP 7: MASS EVOLUTION PLOT
