@@ -12,7 +12,7 @@ dt = 16.0  # Time step
 
 [physical_parameters.viscosity]
 nu = 200.0      # D_M: diffusivity of immune cells
-mu = 900.0      # D_phi: diffusivity of chemoattractant phi
+mu = 50.0      # D_phi: diffusivity of chemoattractant phi
 epsilon = 900.0 # D_omega: diffusivity of chemoactractant omega
 sigma = 0.1e-8     # D_T: diffusivity of tumor cells (56.0)
 
@@ -55,8 +55,8 @@ phi = "zeros"    # Default: zero force
 # Domain-specific overrides for initial conditions
 # Format: "domain_<id>_<equation_name>" = "function_name"
 [domain_initial_conditions]
-domain_17_v = "2.5 + 0.0*s"     # Domain 0, equation v -> constant function  
-domain_28_u = "constant"     # Domain 5, equation u -> constant function
+domain_32_v = "2.5 + 0.0*s"     # Domain 0, equation v -> constant function  
+domain_29_u = "constant"     # Domain 5, equation u -> constant function
 
 # Domain-specific overrides for force functions
 # Format: "domain_<id>_<equation_name>" = "function_name"  
