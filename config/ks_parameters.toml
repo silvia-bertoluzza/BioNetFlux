@@ -8,7 +8,8 @@ T = 0.5
 dt = 0.05
 
 [discretization]
-n_elements = 2
+n_elements = 2     # Used when h is absent; ignored when h is provided
+# h = 0.5          # Target mesh size — n_elements computed per domain (even, >= 4)
 tau = [ 1.0, 1.0,]
 
 [initial_conditions]
