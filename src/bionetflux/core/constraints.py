@@ -187,6 +187,227 @@ class ConstraintManager:
         )
         return self.add_constraint(constraint)
     
+    # =========================================================================
+    # Query and override methods
+    # =========================================================================
+    
+    def find_constraints(self,
+                         domain_index: Optional[int] = None,
+                         equation_index: Optional[int] = None,
+                         constraint_type: Optional[ConstraintType] = None,
+                         position: Optional[float] = None,
+                         tol: float = 1e-10) -> List[int]:
+        """Find constraints matching the given filters.
+
+        All filter parameters are optional. When multiple filters are given
+        they are combined with AND logic: a constraint must satisfy every
+        specified filter to be included in the result.
+
+        Args:
+            domain_index: If given, keep only constraints whose domains list
+                contains this domain index.
+            equation_index: If given, keep only constraints for this equation.
+            constraint_type: If given, keep only constraints of this type.
+            position: If given, keep only constraints that have at least one
+                position entry within *tol* of this value.
+            tol: Absolute tolerance for the position comparison.
+
+        Returns:
+            List of matching constraint indices (may be empty).
+        """
+        matches = []
+        for i, c in enumerate(self.constraints):
+            if domain_index is not None and domain_index not in c.domains:
+                continue
+            if equation_index is not None and c.equation_index != equation_index:
+                continue
+            if constraint_type is not None and c.type != constraint_type:
+                continue
+            if position is not None:
+                if not any(abs(p - position) <= tol for p in c.positions):
+                    continue
+            matches.append(i)
+        return matches
+    
+    def replace_constraint(self, index: int, new_constraint: Constraint) -> None:
+        """Replace an existing constraint in-place.
+
+        The new constraint occupies the same position in the list so that
+        all other constraint indices (and therefore multiplier offsets)
+        remain unchanged.
+
+        Important:
+            The node mapping for this constraint is cleared.  The caller
+            must call ``map_to_discretizations`` after all replacements
+            are done.
+
+        Args:
+            index: Index of the constraint to replace.
+            new_constraint: The replacement Constraint object.
+
+        Raises:
+            IndexError: If *index* is out of range.
+            ValueError: If the replacement would change the number of
+                Lagrange multipliers (boundary ↔ junction swap), which
+                would silently corrupt the global system.
+        """
+        if index < 0 or index >= len(self.constraints):
+            raise IndexError(
+                f"Constraint index {index} out of range "
+                f"(0–{len(self.constraints) - 1})"
+            )
+        old = self.constraints[index]
+        if new_constraint.n_multipliers != old.n_multipliers:
+            raise ValueError(
+                f"Cannot replace a {old.type.value} constraint "
+                f"({old.n_multipliers} multiplier(s)) with a "
+                f"{new_constraint.type.value} constraint "
+                f"({new_constraint.n_multipliers} multiplier(s)): "
+                f"this would change the global multiplier count"
+            )
+        self.constraints[index] = new_constraint
+        self._node_mappings[index] = []  # must re-map
+    
+    # =========================================================================
+    # Factory methods (create Constraint objects without appending)
+    # =========================================================================
+    
+    def make_dirichlet(self,
+                       equation_index: int,
+                       domain_index: int,
+                       position: float,
+                       data_function: Optional[Callable] = None) -> Constraint:
+        """Create a Dirichlet constraint without adding it to the manager.
+
+        Args:
+            equation_index: Which equation this BC applies to.
+            domain_index: Domain index.
+            position: Position coordinate in the domain.
+            data_function: Function f(t) providing the Dirichlet data.
+
+        Returns:
+            A Constraint object (not yet added to the manager).
+        """
+        return Constraint(
+            ConstraintType.DIRICHLET,
+            equation_index,
+            [domain_index],
+            [position],
+            data_function=data_function,
+        )
+    
+    def make_neumann(self,
+                     equation_index: int,
+                     domain_index: int,
+                     position: float,
+                     data_function: Optional[Callable] = None) -> Constraint:
+        """Create a Neumann constraint without adding it to the manager.
+
+        Args:
+            equation_index: Which equation this BC applies to.
+            domain_index: Domain index.
+            position: Position coordinate in the domain.
+            data_function: Function f(t) providing the Neumann data.
+
+        Returns:
+            A Constraint object (not yet added to the manager).
+        """
+        return Constraint(
+            ConstraintType.NEUMANN,
+            equation_index,
+            [domain_index],
+            [position],
+            data_function=data_function,
+        )
+    
+    def make_robin(self,
+                   equation_index: int,
+                   domain_index: int,
+                   position: float,
+                   alpha: float,
+                   beta: float,
+                   data_function: Optional[Callable] = None) -> Constraint:
+        """Create a Robin constraint without adding it to the manager.
+
+        Robin condition: alpha * u + beta * du/dn = data.
+
+        Args:
+            equation_index: Which equation this BC applies to.
+            domain_index: Domain index.
+            position: Position coordinate in the domain.
+            alpha: Coefficient for the trace value.
+            beta: Coefficient for the flux.
+            data_function: Function f(t) providing the Robin data.
+
+        Returns:
+            A Constraint object (not yet added to the manager).
+        """
+        return Constraint(
+            ConstraintType.ROBIN,
+            equation_index,
+            [domain_index],
+            [position],
+            parameters=np.array([alpha, beta]),
+            data_function=data_function,
+        )
+    
+    def make_trace_continuity(self,
+                              equation_index: int,
+                              domain1_index: int,
+                              domain2_index: int,
+                              position1: float,
+                              position2: float) -> Constraint:
+        """Create a trace-continuity constraint without adding it to the manager.
+
+        Trace continuity: u1 = u2.
+
+        Args:
+            equation_index: Which equation this condition applies to.
+            domain1_index: First domain index.
+            domain2_index: Second domain index.
+            position1: Position in the first domain.
+            position2: Position in the second domain.
+
+        Returns:
+            A Constraint object (not yet added to the manager).
+        """
+        return Constraint(
+            ConstraintType.TRACE_CONTINUITY,
+            equation_index,
+            [domain1_index, domain2_index],
+            [position1, position2],
+        )
+    
+    def make_kedem_katchalsky(self,
+                              equation_index: int,
+                              domain1_index: int,
+                              domain2_index: int,
+                              position1: float,
+                              position2: float,
+                              permeability: float) -> Constraint:
+        """Create a Kedem-Katchalsky constraint without adding it to the manager.
+
+        KK condition: flux = -P * (u1 - u2).
+
+        Args:
+            equation_index: Which equation this condition applies to.
+            domain1_index: First domain index.
+            domain2_index: Second domain index.
+            position1: Position in the first domain.
+            position2: Position in the second domain.
+            permeability: Membrane permeability coefficient.
+
+        Returns:
+            A Constraint object (not yet added to the manager).
+        """
+        return Constraint(
+            ConstraintType.KEDEM_KATCHALSKY,
+            equation_index,
+            [domain1_index, domain2_index],
+            [position1, position2],
+            parameters=np.array([permeability]),
+        )
+    
     def map_to_discretizations(self, discretizations: List) -> None:
         """
         Map constraint positions to discretization nodes.

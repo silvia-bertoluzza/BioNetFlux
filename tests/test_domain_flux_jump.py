@@ -8,8 +8,8 @@ import sys
 import os
 import numpy as np
 
-# Add the python_port directory to sys.path to allow imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.flux_jump import domain_flux_jump, test_domain_flux_jump
 from bionetflux.utils.elementary_matrices import ElementaryMatrices
@@ -134,7 +134,7 @@ def test_with_elementary_matrices():
         print(f"  Forcing range: [{np.min(forcing_term):.4f}, {np.max(forcing_term):.4f}]")
         
         try:
-            U, F, JF = domain_flux_jump(
+            U, J, F, JF = domain_flux_jump(
                 trace_solution, forcing_term, problem, discretization, static_condensation
             )
             
@@ -196,6 +196,10 @@ def test_consistency_checks():
             self.nodes = np.linspace(0, 1, n_nodes)
     
     class ConsistentStaticCondensation:
+        @property
+        def total_flux_dofs_per_element(self):
+            return 1  # Single scalar flux for neq=1
+
         def static_condensation(self, local_trace, local_source=None):
             local_trace_flat = local_trace.flatten()
             
@@ -223,9 +227,9 @@ def test_consistency_checks():
     alpha = 0.3
     
     # Test superposition: f(a*x1 + b*x2) should equal a*f(x1) + b*f(x2) for linear parts
-    U1, F1, JF1 = domain_flux_jump(trace1, forcing, problem, discretization, static_condensation)
-    U2, F2, JF2 = domain_flux_jump(trace2, forcing, problem, discretization, static_condensation)
-    U12, F12, JF12 = domain_flux_jump(alpha * trace1 + (1-alpha) * trace2, forcing, problem, discretization, static_condensation)
+    U1, J1, F1, JF1 = domain_flux_jump(trace1, forcing, problem, discretization, static_condensation)
+    U2, J2, F2, JF2 = domain_flux_jump(trace2, forcing, problem, discretization, static_condensation)
+    U12, J12, F12, JF12 = domain_flux_jump(alpha * trace1 + (1-alpha) * trace2, forcing, problem, discretization, static_condensation)
     
     U_expected = alpha * U1 + (1-alpha) * U2
     F_expected = alpha * F1 + (1-alpha) * F2
@@ -246,7 +250,7 @@ def test_consistency_checks():
     zero_trace = np.zeros((neq * n_nodes, 1))
     zero_forcing = np.zeros((2 * neq, n_elements))
     
-    U_zero, F_zero, JF_zero = domain_flux_jump(zero_trace, zero_forcing, problem, discretization, static_condensation)
+    U_zero, J_zero, F_zero, JF_zero = domain_flux_jump(zero_trace, zero_forcing, problem, discretization, static_condensation)
     
     if np.allclose(U_zero, 0, atol=1e-14):
         print("  ✓ Zero trace produces zero U")

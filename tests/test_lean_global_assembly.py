@@ -13,8 +13,8 @@ import sys
 import os
 import pytest
 
-# Add the python_port directory to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.lean_global_assembly import GlobalAssembler
 from bionetflux.core.lean_bulk_data_manager import BulkDataManager
@@ -61,7 +61,11 @@ class MockStaticCondensation:  # FIXED: Removed extra indentation
     def __init__(self, neq=1):  # FIXED: Proper indentation
         self.neq = neq
         self.elementary_matrices = ElementaryMatrices(orthonormal_basis=False)
-    
+
+    @property
+    def total_flux_dofs_per_element(self):
+        return self.neq  # Minimal: 1 DOF per equation
+
     def build_matrices(self):  # FIXED: Proper indentation
         """Return mock matrices."""
         return {
@@ -125,6 +129,10 @@ class OldMockStaticCondensation:
     def __init__(self, domain_idx=0):
         self.domain_idx = domain_idx
         self.elementary_matrices = ElementaryMatrices(orthonormal_basis=False)
+
+    @property
+    def total_flux_dofs_per_element(self):
+        return 1  # Minimal: 1 DOF
     
     def build_matrices(self):
         """Return mock matrices."""

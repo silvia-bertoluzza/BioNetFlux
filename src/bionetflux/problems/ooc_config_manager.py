@@ -46,6 +46,11 @@ class OoCConfigManager(BaseConfigManager):
                     'b': 1.0,       # MATLAB: b = 1.
                     'd': 1.0,       # MATLAB: d = 1.
                     'chi': 1.0      # MATLAB: chi = 1.
+                },
+                'chemotaxis': {
+                    'type': 'constant',
+                    'k1': 1.0,   # value of chi when type is 'constant'
+                    'k2': 0.0    # not used for 'constant', but could be used for other types (e.g., linear: chi = k1 * s + k2)
                 }
             },
             
@@ -68,6 +73,11 @@ class OoCConfigManager(BaseConfigManager):
                 'phi': 'zeros',    # Default: zero force
             },
             
+            # Boundary condition overrides (per-point, per-equation)
+            # Keys: "<point_name>_<equation_name>"
+            # Values: { type = "dirichlet|neumann|robin", data = "func_name", ... }
+            'boundary_conditions': {},
+
             # New sections for domain-specific overrides (as strings, not resolved)
             'domain_initial_conditions': {},
             'domain_force_functions': {}
@@ -152,29 +162,7 @@ class OoCConfigManager(BaseConfigManager):
         
         return config
     
-    def _resolve_functions(self, config: Dict[str, Any]) -> Dict[str, Any]:
-        """Resolve function specifications to callables in configuration."""
-        resolved_config = config.copy()
-        
-        # Resolve functions in standard sections
-        for section in ['initial_conditions', 'force_functions']:
-            if section in resolved_config:
-                section_dict = resolved_config[section].copy()
-                resolved_section = {}
-                
-                # Resolve top-level function specifications
-                for key, func_spec in section_dict.items():
-                    resolved_section[key] = self.function_resolver.resolve_function(func_spec)
-                
-                resolved_config[section] = resolved_section
-        
-        # NEW: Handle domain-specific sections (keep as strings for later resolution)
-        for section in ['domain_initial_conditions', 'domain_force_functions']:
-            if section in resolved_config:
-                # Keep domain-specific sections as strings - don't resolve them here
-                # They will be resolved later in the problem module when applied
-                print(f"Found {section} with {len(resolved_config[section])} entries")
-                for key, value in resolved_config[section].items():
-                    print(f"  {key} = {value}")
-        
-        return resolved_config
+    # Note: _resolve_functions is inherited from BaseConfigManager.
+    # It resolves 'initial_conditions' and 'force_functions' to callables.
+    # Domain-specific sections (domain_initial_conditions, domain_force_functions)
+    # are kept as strings and resolved later in ooc_problem.py.

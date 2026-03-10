@@ -10,30 +10,26 @@ This template follows the same user-friendly philosophy as ooc_problem.py:
 """
 
 import numpy as np
-import sys
-import os
 from typing import Optional
 
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry
+from bionetflux.core.problem import Problem
+from bionetflux.core.discretization import Discretization, GlobalDiscretization
+from bionetflux.core.constraints import ConstraintManager, ConstraintType
+from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_arc_sequence_geometry
+from bionetflux.problems.ks_config_manager import KSConfigManager
 
-# Handle both relative imports (when used as module) and direct execution
-try:
-    from ..core.problem import Problem
-    from ..core.discretization import Discretization, GlobalDiscretization
-    from ..core.constraints import ConstraintManager
-    from ..geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_arc_sequence_geometry
-    from .ks_config_manager import KSConfigManager
-except ImportError:
-    # If relative imports fail, add the src directory to path for direct execution
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    src_dir = os.path.join(current_dir, '..', '..')
-    sys.path.insert(0, src_dir)
-    
-    from bionetflux.core.problem import Problem
-    from bionetflux.core.discretization import Discretization, GlobalDiscretization
-    from bionetflux.core.constraints import ConstraintManager
-    from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_arc_sequence_geometry
-    from bionetflux.problems.ks_config_manager import KSConfigManager
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# try:
+#     from ..core.problem import Problem
+#     ...
+# except ImportError:
+#     current_dir = os.path.dirname(os.path.abspath(__file__))
+#     src_dir = os.path.join(current_dir, '..', '..')
+#     sys.path.insert(0, src_dir)
+#     from bionetflux.core.problem import Problem
+#     ...
 
 
 def build_default_ks_geometry():
@@ -166,6 +162,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     domain_force_functions = config.get('domain_force_functions', {})
     domain_exact_solutions = config.get('domain_exact_solutions', {})
     
+
     print(f"Domain-specific initial conditions found: {len(domain_initial_conditions)}")
     for key, value in domain_initial_conditions.items():
         print(f"  {key} = {value}")
@@ -193,14 +190,24 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     chi_func_name = chemotaxis['chi']    # Should be "constant" 
     dchi_func_name = chemotaxis['dchi']  # Should be "zeros"
     
+    f_u_func_name = force_functions['u_f']  # Should be "cos(t) + 1.0e-11 * s"
+    f_phi_func_name = force_functions['phi_f']  # Should be "-(s + sin(t))"
+    force_func_u = config_manager.function_resolver.resolve_function(f_u_func_name)
+    force_func_phi = config_manager.function_resolver.resolve_function(f_phi_func_name)
+    
     # Resolve the function names to actual callables
     chi_func = config_manager.function_resolver.resolve_function(chi_func_name)
     dchi_func = config_manager.function_resolver.resolve_function(dchi_func_name)
     
     u = exact_solutions['u']
+    u_func = config_manager.function_resolver.resolve_function(u)
+    phi = exact_solutions['phi']
+    phi_func = config_manager.function_resolver.resolve_function(phi)
 
-    u_x = exact_solution_derivatives['u']
-    phi_x = exact_solution_derivatives['phi']
+    u_x = exact_solution_derivatives['u_x']
+    phi_x = exact_solution_derivatives['phi_x']
+    u_x_func = config_manager.function_resolver.resolve_function(u_x)
+    phi_x_func = config_manager.function_resolver.resolve_function(phi_x)
     
     
     
@@ -209,8 +216,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     a = reaction['a']
     b = reaction['b']
     
-    flux_u = lambda s, t: nu * u_x(s, t) + chi(s) * u(s, t) * phi_x(s, t)
-    flux_phi = lambda s, t: - mu * phi_x(s, t)  
+    flux_u = lambda s, t: nu * u_x_func(s, t) - nu * chi_func(s) * u_func(s, t) * phi_x_func(s, t) 
+    flux_phi = lambda s, t: mu * phi_x_func(s, t)  
     
     # Combine into parameter array (matches KS_traveling_wave order: [mu, nu, a, b])
     parameters = np.array([mu, nu, a, b])
@@ -268,9 +275,18 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     discretizations = []
     
     # Extract discretization parameters
-    n_elements = disc_params['n_elements']
+    h = disc_params.get('h', None)
+    n_elements_fixed = disc_params['n_elements']  # fallback when h is absent
     tau_values = disc_params['tau']
-    
+    tau_values = np.array(tau_values)  # Convert to numpy array for easier handling
+    # tau_values[0] = tau_values[0] * n_elements # Better to set this scaling in the static condensation factory, not here in the problem creation step
+
+    if h is not None:
+        from bionetflux.core.discretization import compute_n_elements_from_h
+        print(f"  Using target mesh size h = {h} (n_elements computed per domain)")
+    else:
+        print(f"  Using uniform n_elements = {n_elements_fixed} for all domains")
+
     # Apply config parameters to all domains based on geometry
     for domain_id in range(geometry.num_domains()):
         domain_info = geometry.get_domain(domain_id)
@@ -281,8 +297,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         function_checks = [
             ('initial_conditions["u"]', initial_conditions.get('u')),
             ('initial_conditions["phi"]', initial_conditions.get('phi')),
-            ('force_functions["u"]', force_functions.get('u')),
-            ('force_functions["phi"]', force_functions.get('phi')),
+            ('force_functions["u_f"]', force_func_u),
+            ('force_functions["phi"]', force_func_phi),
             ('chi_func', chi_func),      # Use resolved functions
             ('dchi_func', dchi_func)     # Use resolved functions
         ]
@@ -319,13 +335,23 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         problem.set_initial_condition(1, initial_conditions.get('phi'))  # Chemical concentration
         
         # Set DEFAULT force functions from config (already resolved to callables)
-        problem.set_force(0, force_functions['u'])
-        problem.set_force(1, force_functions['phi'])
+        problem.set_force(0, force_func_u)
+        problem.set_force(1, force_func_phi)
         
         # Set chemotaxis for Keller-Segel
         problem.set_chemotaxis(chi_func, dchi_func)  # Use resolved functions
-        # problem.set_boundary_flux(0, left_flux=u_x, right_flux=u_x)  
-        # problem.set_boundary_flux(1, left_flux=phi_x, right_flux=phi_x)
+        
+        # Set flux functions for Keller-Segel (using the resolved chi function)
+        
+        problem.set_solution(0, u_func)  # Exact solution for u (if provided
+        problem.set_solution(1, phi_func)  # Exact solution for phi (if provided)
+
+        problem.set_boundary_flux(0, left_flux=flux_u, right_flux=flux_u)  
+        problem.set_boundary_flux(1, left_flux=flux_phi, right_flux=flux_phi)
+        
+        # Set analytical flux solutions for error computation
+        problem.set_flux_solution(0, flux_u)
+        problem.set_flux_solution(1, flux_phi)
         
         # Set 2D coordinates for visualization from geometry
         problem.set_extrema(domain_info.extrema_start, domain_info.extrema_end)
@@ -334,14 +360,18 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         
         problems.append(problem)
         
-        
-        
         # Create discretization for this domain with config parameters
+        if h is not None:
+            n_elements = compute_n_elements_from_h(domain_info.domain_length, h)
+        else:
+            n_elements = n_elements_fixed
+
         discretization = Discretization(
             domain_start=domain_info.domain_start,
             domain_length=domain_info.domain_length,
-            n_elements=n_elements  # From config
+            n_elements=n_elements,
         )
+        print(f"    n_elements = {n_elements}, h_eff = {domain_info.domain_length / n_elements:.4f}")
 
         # Set stabilization parameters from config
         discretization.set_tau(tau_values)
@@ -397,11 +427,81 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # SECTION 5: CONSTRAINT SETUP
     # ============================================================================
     
+    # Step 1: Set up default constraints from geometry
+    #   - Homogeneous Neumann at all exterior boundaries
+    #   - Trace continuity at all interior connections
     constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
-    
-    # Map constraints to discretizations
+
+    # Step 1b: Apply TOML-based boundary condition overrides (if any)
+    boundary_overrides = config.get('boundary_conditions', {})
+    if boundary_overrides:
+        boundary_point_map = geometry.get_global_metadata().get('boundary_point_map', {})
+        if not boundary_point_map:
+            print("  ⚠️  Warning: boundary_conditions specified but no boundary_point_map "
+                  "in geometry metadata (only available for maze geometries).")
+        else:
+            from bionetflux.core.boundary_override import apply_boundary_overrides
+            apply_boundary_overrides(
+                constraint_manager,
+                boundary_overrides,
+                boundary_point_map,
+                equation_names,
+                function_resolver=config_manager.function_resolver,
+            )
+
+    # Step 2: Override boundary Neumann BCs with non-homogeneous data
+    left_boundary = geometry.domains[0].domain_start
+    right_boundary = geometry.domains[-1].domain_start + geometry.domains[-1].domain_length
+    last_domain = len(problems) - 1
+
+    # Left boundary: replace homogeneous Neumann with exact flux data
+    for eq_idx, flux_func in enumerate([flux_u, flux_phi]):
+        indices = constraint_manager.find_constraints(
+            domain_index=0,
+            equation_index=eq_idx,
+            constraint_type=ConstraintType.NEUMANN,
+            position=left_boundary,
+        )
+        if len(indices) != 1:
+            raise RuntimeError(
+                f"Expected 1 Neumann constraint for eq {eq_idx} at left boundary, "
+                f"found {len(indices)}"
+            )
+        # Capture eq_idx and flux_func in the lambda default arguments
+        pos = left_boundary
+        constraint_manager.replace_constraint(
+            indices[0],
+            constraint_manager.make_neumann(
+                eq_idx, 0, pos,
+                data_function=lambda t, _f=flux_func, _p=pos: -_f(_p, t),
+            ),
+        )
+
+    # Right boundary: replace homogeneous Neumann with exact flux data
+    for eq_idx, flux_func in enumerate([flux_u, flux_phi]):
+        indices = constraint_manager.find_constraints(
+            domain_index=last_domain,
+            equation_index=eq_idx,
+            constraint_type=ConstraintType.NEUMANN,
+            position=right_boundary,
+        )
+        if len(indices) != 1:
+            raise RuntimeError(
+                f"Expected 1 Neumann constraint for eq {eq_idx} at right boundary, "
+                f"found {len(indices)}"
+            )
+        pos = right_boundary
+        constraint_manager.replace_constraint(
+            indices[0],
+            constraint_manager.make_neumann(
+                eq_idx, last_domain, pos,
+                data_function=lambda t, _f=flux_func, _p=pos: _f(_p, t),
+            ),
+        )
+
+    # Step 3: Map all constraints (including replacements) to discretizations
     constraint_manager.map_to_discretizations(discretizations)
-    
+     
     # ============================================================================
     # SECTION 6: GLOBAL DISCRETIZATION AND FINALIZATION
     # ============================================================================

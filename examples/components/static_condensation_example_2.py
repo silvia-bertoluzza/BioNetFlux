@@ -4,7 +4,8 @@ import numpy as np
 from typing import Callable, List, Optional, Union
 
 # Add the path to folder B
-sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.append(os.path.join(os.path.dirname(__file__), '../..', 'src'))
 
 
 from bionetflux.core.problem import Problem

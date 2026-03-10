@@ -71,6 +71,11 @@ class KSConfigManager(BaseConfigManager):
                 'phi': 'zeros'       # Default: zero derivative
             },
             
+            # Boundary condition overrides (per-point, per-equation)
+            # Keys: "<point_name>_<equation_name>"
+            # Values: { type = "dirichlet|neumann|robin", data = "func_name", ... }
+            'boundary_conditions': {},
+
             # Domain-specific overrides (as strings, not resolved)
             'domain_initial_conditions': {},
             'domain_force_functions': {}
@@ -113,11 +118,6 @@ class KSConfigManager(BaseConfigManager):
         self.validator.add_rule('discretization.n_elements', 
                               {'type': int, 'min': 1})
         
-        # Physical parameter validation - chi and dchi should be function names
-        self.validator.add_rule('physical_parameters.chemotaxis.chi', 
-                              {'type': str, 'required': True})  # Function name
-        self.validator.add_rule('physical_parameters.chemotaxis.dchi', 
-                              {'type': str, 'required': True})  # Function name
     
     def load_config(self, config_file: Optional[str] = None) -> Dict[str, Any]:
         """

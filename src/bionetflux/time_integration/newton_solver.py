@@ -237,6 +237,7 @@ class NewtonSolver:
                     static_condensations=static_condensations,
                     time=current_time  # Updated variable name
                 )
+
             except Exception as e:
                 if self.verbose:
                     print(f"    Iteration {iteration}: Assembly failed ({e})")

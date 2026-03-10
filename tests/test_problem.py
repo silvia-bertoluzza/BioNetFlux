@@ -23,8 +23,8 @@ import time
 import pytest
 from typing import Dict, Any
 
-# Add the current directory to path for imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.problem import Problem
 

@@ -6,7 +6,7 @@ This document provides quick reference commands for running the evolution exampl
 
 Make sure you're in the BioNetFlux root directory:
 ```bash
-cd /Users/bertoluzza/GIT/BioNetFlux
+cd BioNetFlux
 ```
 
 ## Available Evolution Examples

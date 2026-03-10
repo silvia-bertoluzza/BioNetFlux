@@ -8,28 +8,25 @@ from the MATLAB reference, with custom grid geometry specified.
 """
 
 import numpy as np
-import sys
-import os
 from typing import Optional
 
-# Handle both relative imports (when used as module) and direct execution
-try:
-    from ..core.problem import Problem
-    from ..core.discretization import Discretization, GlobalDiscretization
-    from ..core.constraints import ConstraintManager
-    from ..geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_grid_geometry
-    from .ooc_config_manager import OoCConfigManager
-except ImportError:
-    # If relative imports fail, add the src directory to path for direct execution
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    src_dir = os.path.join(current_dir, '..', '..')
-    sys.path.insert(0, src_dir)
-    
-    from bionetflux.core.problem import Problem
-    from bionetflux.core.discretization import Discretization, GlobalDiscretization
-    from bionetflux.core.constraints import ConstraintManager
-    from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_grid_geometry
-    from bionetflux.problems.ooc_config_manager import OoCConfigManager
+from bionetflux.core.problem import Problem
+from bionetflux.core.discretization import Discretization, GlobalDiscretization
+from bionetflux.core.constraints import ConstraintManager
+from bionetflux.geometry.domain_geometry import DomainGeometry, EXTERIOR_BOUNDARY, build_grid_geometry
+from bionetflux.problems.ooc_config_manager import OoCConfigManager
+
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# try:
+#     from ..core.problem import Problem
+#     ...
+# except ImportError:
+#     current_dir = os.path.dirname(os.path.abspath(__file__))
+#     src_dir = os.path.join(current_dir, '..', '..')
+#     sys.path.insert(0, src_dir)
+#     from bionetflux.core.problem import Problem
+#     ...
 
 
 def build_default_geometry():
@@ -40,6 +37,66 @@ def build_default_geometry():
         DomainGeometry: Default grid geometry instance
     """
     return build_grid_geometry()
+
+def build_T_junction_geometry():
+    """
+    Build the T-junction OoC grid geometry, suitably scaled for replicating the T-junction tests.
+    
+    Returns:
+        DomainGeometry: T-junction grid geometry instance
+    """
+    # TODO: Implement T-junction geometry
+    domain_starts = [-500.0, 0.0]
+    domain_lengths = [1000.0, 500.0]
+
+    geometry = DomainGeometry(name="T_junction")
+
+    geometry.add_domain(
+        name="main_channel",
+        domain_start=domain_starts[0],
+        domain_length=domain_lengths[0],
+        extrema_start=(0.0, -500.0),
+        extrema_end=(0.0, 500.0)
+    )
+
+    geometry.add_domain(
+        name="branch",
+        domain_start=domain_starts[1],
+        domain_length=domain_lengths[1],
+        extrema_start=(0.0, 0.0),
+        extrema_end=(500.0, 0.0)
+    )
+
+    geometry.add_connection(
+        domain1_id=0,
+        domain2_id=1,
+        parameter1=0.0,  # Midpoint of main channel (the parametrization starts at -500 and ends at 500)
+        parameter2=0.0,  # Start of branch
+        connection_type="continuity"
+    )
+
+    geometry.add_connection(
+        domain1_id=0,
+        domain2_id=EXTERIOR_BOUNDARY,
+        parameter1=-500.0,  # Start of main channel
+        boundary_condition="Neumann"
+    )
+
+    geometry.add_connection(
+        domain1_id=0,
+        domain2_id=EXTERIOR_BOUNDARY,
+        parameter1=500.0,  # End of main channel
+        boundary_condition="Neumann"
+    )
+
+    geometry.add_connection(
+        domain1_id=1,
+        domain2_id=EXTERIOR_BOUNDARY,
+        parameter1=0.0,  # Start of branch
+        boundary_condition="Neumann"
+    )
+   
+    return geometry
 
 
 def setup_constraints_from_geometry(geometry: DomainGeometry, problems, neq: int) -> ConstraintManager:
@@ -144,7 +201,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # SECTION 1: CONFIGURATION LOADING (NEW TOML-BASED APPROACH)
     # ============================================================================
     
-    print("Loading configuration...")
+    print("Loading Organ-on-Chip configuration...")
     
     # Load configuration using OoC config manager (includes type validation)
     config_manager = OoCConfigManager()
@@ -195,6 +252,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     viscosity = phys_params['viscosity']
     reaction = phys_params['reaction'] 
     coupling = phys_params['coupling']
+    chemotaxis_params = phys_params['chemotaxis']
+    tumor_suppression_params = phys_params['tumor_suppression']
     
     nu = viscosity['nu']
     mu = viscosity['mu']
@@ -206,17 +265,24 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     
     b = coupling['b']
     d = coupling['d']
-    chi = coupling['chi']
+    
+    # Chemotaxis parameters
+    k1 = chemotaxis_params['k1']
+    k2 = chemotaxis_params['k2']
+    
+    m1 = tumor_suppression_params['m1']
+    m2 = tumor_suppression_params['m2']
     
     # Combine into parameter array (matches MATLAB order)
-    parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, chi])
+    parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, 1.0])
     
     print(f"✓ Configuration loaded:")
     print(f"  Problem: {problem_name} ({neq} equations)")
     print(f"  Time: T={T}, dt={dt}")
     print(f"  Viscosity: nu={nu}, mu={mu}, epsilon={epsilon}, sigma={sigma}")
     print(f"  Reactions: a={a}, c={c}")
-    print(f"  Coupling: b={b}, d={d}, chi={chi}")
+    print(f"  Coupling: b={b}, d={d}")
+    print(f"  Chemotaxis: type={chemotaxis_params['type']}, k1={k1}, k2={k2}")
     
     # ============================================================================
     # SECTION 2: MATHEMATICAL FUNCTIONS (From configuration or defaults)
@@ -224,21 +290,17 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     
     print("Setting up mathematical functions...")
 
-    def constant_function(x):
-        """Constant function returning ones, matching MATLAB constant_function"""
-        return np.ones_like(x)
+    # Chemotaxis sensitivity function: chi(x) = k1 / (k2 + x)^2
+    # and its derivative: dchi(x) = -2 * k1 / (k2 + x)^3
+    # Constructed from TOML parameters k1, k2
+    chi_func = lambda x: k1 / (k2 + x)**2
+    dchi_func = lambda x: -2.0 * k1 / (k2 + x)**3
     
-    # Nonlinear coupling function (MATLAB: lambda = @(x) constant_function(x))
-    def lambda_func(x):
-        """Nonlinear coupling function lambda(x) - matches MATLAB constant_function"""
-        return np.ones_like(x)  # Constant function
-    
-    def dlambda_func(x):
-        """Derivative of lambda function"""
-        return np.zeros_like(x)  # Derivative of constant is zero
+    lambda_func = lambda omega: m1 / (m2 + omega)  # Tumor suppression function 
+    dlambda_func = lambda omega: -m1 / (m2 + omega)**2  # Derivative of tumor suppression function
 
     print("✓ Mathematical functions configured:")
-    print("  - Nonlinear coupling: lambda_func (constant), dlambda_func")
+    print(f"  - Chemotaxis: chi(x) = k1/(k2+x)^2 with k1={k1}, k2={k2}")
     print("  - Initial conditions: loaded from config")
     print("  - Force functions: loaded from config")
     
@@ -273,13 +335,50 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     
     print("Creating problem instances from geometry with config parameters...")
     
+    # Validate function callability before creating problems
+    print("  Validating function callability...")
+    function_checks = [
+        ('initial_conditions["u"]', initial_conditions.get('u')),
+        ('initial_conditions["omega"]', initial_conditions.get('omega')),
+        ('initial_conditions["v"]', initial_conditions.get('v')),
+        ('initial_conditions["phi"]', initial_conditions.get('phi')),
+        ('force_functions["u"]', force_functions.get('u')),
+        ('force_functions["omega"]', force_functions.get('omega')),
+        ('force_functions["v"]', force_functions.get('v')),
+        ('force_functions["phi"]', force_functions.get('phi')),
+        ('chi_func', chi_func),
+        ('dchi_func', dchi_func),
+    ]
+    
+    validation_errors = []
+    for func_name, func in function_checks:
+        if func is None:
+            validation_errors.append(f"{func_name} is None")
+        elif not callable(func):
+            validation_errors.append(f"{func_name} is not callable (type: {type(func).__name__})")
+        else:
+            print(f"    ✓ {func_name} is callable")
+    
+    if validation_errors:
+        error_msg = "Function validation failed:\n" + "\n".join(f"    - {err}" for err in validation_errors)
+        raise ValueError(error_msg)
+    
+    print("  ✓ All required functions are callable")
+    
     problems = []
     discretizations = []
     
     # Extract discretization parameters
-    n_elements = disc_params['n_elements']
+    h = disc_params.get('h', None)
+    n_elements_fixed = disc_params['n_elements']  # fallback when h is absent
     tau_values = disc_params['tau']
-    
+
+    if h is not None:
+        from bionetflux.core.discretization import compute_n_elements_from_h
+        print(f"  Using target mesh size h = {h} (n_elements computed per domain)")
+    else:
+        print(f"  Using uniform n_elements = {n_elements_fixed} for all domains")
+
     # Apply config parameters to all domains based on geometry
     for domain_id in range(geometry.num_domains()):
         domain_info = geometry.get_domain(domain_id)
@@ -307,8 +406,13 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         problem.set_force(2, force_functions['v'])
         problem.set_force(3, force_functions['phi'])
         
-        # Set uniform nonlinear coupling for all domains (matches MATLAB lambda)
-        problem.set_chemotaxis(lambda_func, dlambda_func)
+        # Set chemotaxis sensitivity from config parameters
+        problem.set_chemotaxis(chi_func, dchi_func)
+        
+        # Set tumor suppression function from config parameters
+        problem.set_function('lambda_function', lambda_func)  
+        problem.set_function('dlambda_function', dlambda_func)
+        
         
         # Set 2D coordinates for visualization from geometry
         problem.set_extrema(domain_info.extrema_start, domain_info.extrema_end)
@@ -316,24 +420,23 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         problems.append(problem)
         
         # Create discretization for this domain with config parameters
+        if h is not None:
+            n_elements = compute_n_elements_from_h(domain_info.domain_length, h)
+        else:
+            n_elements = n_elements_fixed
+
         discretization = Discretization(
             domain_start=domain_info.domain_start,
             domain_length=domain_info.domain_length,
-            n_elements=n_elements  # From config
+            n_elements=n_elements,
         )
+        print(f"    n_elements = {n_elements}, h_eff = {domain_info.domain_length / n_elements:.4f}")
 
         # Set stabilization parameters from config
         discretization.set_tau(tau_values)
         discretizations.append(discretization)
-    
-    # Remove the old hardcoded lines (THESE SHOULD BE DELETED)
-    # Set specific initial conditions for some domains (from original implementation)
-    # if len(problems) > 0:
-    #     problems[0].set_initial_condition(2, lambda s, t=0: constant_function(s))
-    # if len(problems) > 3:
-    #     problems[3].set_initial_condition(0, lambda s, t=0: constant_function(s))
 
-    # Apply domain-specific initial condition overrides (REPLACES lines 318-322)
+    # Apply domain-specific initial condition overrides
     equation_names = ['u', 'omega', 'v', 'phi']
     
     print("Applying domain-specific initial conditions...")
@@ -384,6 +487,23 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # ============================================================================
     
     constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
+    
+    # Apply TOML-based boundary condition overrides (if any)
+    boundary_overrides = config.get('boundary_conditions', {})
+    if boundary_overrides:
+        boundary_point_map = geometry.get_global_metadata().get('boundary_point_map', {})
+        if not boundary_point_map:
+            print("  ⚠️  Warning: boundary_conditions specified but no boundary_point_map "
+                  "in geometry metadata (only available for maze geometries).")
+        else:
+            from bionetflux.core.boundary_override import apply_boundary_overrides
+            apply_boundary_overrides(
+                constraint_manager,
+                boundary_overrides,
+                boundary_point_map,
+                equation_names,
+                function_resolver=config_manager.function_resolver,
+            )
     
     # Map constraints to discretizations
     constraint_manager.map_to_discretizations(discretizations)

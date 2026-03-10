@@ -25,6 +25,7 @@ class TimeStepResult:
     residual_history: Optional[List[float]] = None
     jacobian_condition: Optional[float] = None
     newton_step_norms: Optional[List[float]] = None
+    flux_data: Optional[List] = None
     
     def __str__(self) -> str:
         status = "CONVERGED" if self.converged else "FAILED"
@@ -72,7 +73,7 @@ class TimeStepper:
             verbose: Whether to print progress information
         """
         self.setup = setup
-        self.newton_solver = newton_solver or NewtonSolver(verbose=verbose)
+        self.newton_solver = newton_solver or NewtonSolver(tolerance=1.e-7,verbose=False)
         self.verbose = verbose
         
         # Cache frequently used components
@@ -212,7 +213,7 @@ class TimeStepper:
         
         # Step 5: Update bulk data via static condensation
         try:
-            updated_bulk_solutions = self.global_assembler.bulk_by_static_condensation(
+            updated_bulk_solutions, flux_solutions = self.global_assembler.bulk_by_static_condensation(
                 global_solution=newton_result.final_solution,
                 forcing_terms=forcing_terms,
                 static_condensations=self.static_condensations,
@@ -262,7 +263,8 @@ class TimeStepper:
             computation_time=total_time,
             residual_history=newton_result.residual_history,
             jacobian_condition=newton_result.jacobian_condition,
-            newton_step_norms=newton_result.step_norms
+            newton_step_norms=newton_result.step_norms,
+            flux_data=flux_solutions
         )
     
     def _create_failed_result(self, solution, bulk_data, error_msg, comp_time):
@@ -367,7 +369,7 @@ class AdaptiveTimeStepper(TimeStepper):
     """
     
     def __init__(self, setup, newton_solver=None, verbose=True,
-                 dt_min=1e-6, dt_max=1.0, safety_factor=0.8):
+                 dt_min=None, dt_max=None, safety_factor=0.8):
         """
         Initialize adaptive time stepper.
         
@@ -375,13 +377,15 @@ class AdaptiveTimeStepper(TimeStepper):
             setup: SolverSetup instance
             newton_solver: Newton solver (created if None)
             verbose: Print progress information
-            dt_min: Minimum time step
-            dt_max: Maximum time step  
+            dt_min: Minimum time step (default: dt_config * 1e-4)
+            dt_max: Maximum time step  (default: dt_config, i.e. the
+                    value from the configuration file)
             safety_factor: Factor for time step adjustment
         """
         super().__init__(setup, newton_solver, verbose)
-        self.dt_min = dt_min
-        self.dt_max = dt_max
+        dt_config = setup.global_discretization.dt
+        self.dt_min = dt_min if dt_min is not None else dt_config * 1e-4
+        self.dt_max = dt_max if dt_max is not None else dt_config
         self.safety_factor = safety_factor
     
     def advance_time_step_adaptive(self, 
@@ -408,6 +412,13 @@ class AdaptiveTimeStepper(TimeStepper):
             print(f"  AdaptiveTimeStepper: trying dt={dt_current:.6f}")
         
         for retry in range(max_retries):
+            # Update dt in the single source of truth first, then let
+            # every StaticCondensation object re-read it and rebuild
+            # its dt-dependent matrices.
+            self.setup.global_discretization.dt = dt_current
+            for sc in self.static_condensations:
+                sc.update_dt()
+            
             # Try time step with current dt
             result = self.advance_time_step(
                 current_solution, current_bulk_data, current_time, dt_current
@@ -415,12 +426,12 @@ class AdaptiveTimeStepper(TimeStepper):
             
             if result.converged:
                 # Success! Suggest next time step based on Newton performance
-                if result.iterations <= 3:
+                if result.iterations <= 8:
                     # Converged quickly - can increase dt
                     dt_next = min(dt_current * 1.2, self.dt_max)
                     if self.verbose and dt_next > dt_current:
                         print(f"    → Increasing dt: {dt_current:.6f} → {dt_next:.6f}")
-                elif result.iterations <= 8:
+                elif result.iterations <= 14:
                     # Reasonable convergence - keep dt
                     dt_next = dt_current
                 else:

@@ -10,14 +10,15 @@ encapsulates all the Newton iteration and bulk data management.
 
 import sys
 import os
-# Add the python_port directory to path for absolute imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 
 from setup_solver import quick_setup, SolverSetup
 from bionetflux.time_integration import TimeStepper
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
-from bionetflux.geometry.domain_geometry import build_grid_geometry
+from bionetflux.geometry.domain_geometry import build_grid_geometry, create_maze_geometry
+import bionetflux.geometry.domain_geometry as _geom_module
 import numpy as np
 import time
 from typing import Optional
@@ -46,8 +47,14 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print("Step 1: Setting up solver...")
     
-    geometry = build_grid_geometry(N=2)
-    
+    # geometry = build_grid_geometry(N=2)
+    _geom_dir = os.path.dirname(_geom_module.__file__)
+    geometry = create_maze_geometry(
+        data_dir=os.path.join(_geom_dir, "maze_3_data"),
+        length=50.0,
+    )   
+
+
     try:
         # Use quick_setup with both geometry and config file support
         setup = quick_setup(
@@ -155,7 +162,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # Time evolution parameters
     current_time = 0.0
     dt = setup.global_discretization.dt
-    T = min(0.5, setup.global_discretization.T)  # Limit runtime for demo
+    T = setup.global_discretization.T # Limit runtime for demo
     max_time_steps = int(T / dt) + 1
     
     # Solution history for analysis
@@ -235,8 +242,6 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # ============================================================================
     
     print(f"\nStep 6: Creating final visualization...")
-    
-
     
     for eq_idx in range(plotter.neq):
         plotter.plot_birdview(

@@ -1,16 +1,15 @@
 import numpy as np
-import sys
-import os
 from typing import Dict, Tuple
 
 from .problem import Problem
 from .static_condensation_base import StaticCondensationBase
 
-# Add the python_port directory to sys.path to allow imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-python_port_dir = os.path.dirname(os.path.dirname(current_dir))
-if python_port_dir not in sys.path:
-    sys.path.insert(0, python_port_dir)
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# python_port_dir = os.path.dirname(os.path.dirname(current_dir))
+# if python_port_dir not in sys.path:
+#     sys.path.insert(0, python_port_dir)
     
 class StaticCondensationOOC(StaticCondensationBase):
     """
@@ -22,8 +21,17 @@ class StaticCondensationOOC(StaticCondensationBase):
     - omega: auxiliary variable (equation 2) 
     - v: auxiliary variable (equation 3)
     - phi: primary variable (equation 4)
-    
+
+    Flux polynomial orders:
+        - Equation 0 (u): P0 flux (1 DOF per element)
+        - Equation 1 (ω): P1 flux (2 DOFs per element)
+        - Equation 2 (v): P1 flux (2 DOFs per element)
+        - Equation 3 (φ): P1 flux (2 DOFs per element)
     """
+
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1, 1, 1]  # P0 for u, P1 for ω, v, φ
     
     def build_matrices(self):
         """
@@ -47,6 +55,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         alpha = 1/nu
         beta = 1/mu
         
+        h = self.discretization.element_length
         
         # **TODO: need to check that the lambda functions are correctly defined
         # Get lambda function and its derivative
@@ -55,14 +64,14 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         # Get stabilization parameters
         tau = self.discretization.tau if hasattr(self.discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
-        tu = tau[0]    # tau for u
+        tu = tau[0]/h    # tau for u
         to = tau[1]    # tau for omega  
         tv = tau[2]    # tau for v
         tp = tau[3]    # tau for phi
         
         # Cache frequently used values
         dt = self.dt  
-        h = self.discretization.element_length
+       
     
         
         # Initialize sc_matrices storage

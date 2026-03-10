@@ -47,6 +47,7 @@ class Problem:
         self.force: List[Callable] = [lambda s, t: np.zeros_like(s)] * neq
         self.u0: List[Callable] = [lambda s: np.zeros_like(s)] * neq
         self.solution: List[Callable] = [lambda s, t: np.zeros_like(s)] * neq
+        self.flux_solution: List[Optional[Callable]] = [None] * neq
         
         # Boundary conditions
         self.flux_u0: List[Callable] = [lambda t: 0.0] * neq  # Left boundary
@@ -72,10 +73,92 @@ class Problem:
         """Set solution term for specified equation."""
         self.solution[equation_idx] = solution_func
 
-    def set_initial_condition(self, equation_idx: int, u0_func: Callable):
-        """Set initial condition for specified equation."""
-        self.u0[equation_idx] = u0_func
+    def set_flux_solution(self, equation_idx: int, flux_func: Callable):
+        """Set analytical flux solution for specified equation.
         
+        This is used for flux error computation, analogous to ``set_solution``
+        for bulk/trace errors.
+        
+        Args:
+            equation_idx: Index of the equation
+            flux_func: Callable(s, t) returning flux values at positions s
+        """
+        self.flux_solution[equation_idx] = flux_func
+
+    def set_initial_condition(self, equation_idx: int, u0_func: Callable):
+        """
+        Set initial condition for specified equation.
+        
+        Args:
+            equation_idx: Index of the equation
+            u0_func: Function that takes either:
+                    - f(s): spatial-only function 
+                    - f(s, t): space-time function (will be evaluated at t=0)
+        """
+        import inspect
+        
+        # Get function signature to determine number of parameters
+        try:
+            sig = inspect.signature(u0_func)
+            n_params = len(sig.parameters)
+            
+            if n_params == 1:
+                # Function takes only spatial argument - create wrapper that can handle both call patterns
+                def robust_wrapper(*args, **kwargs):
+                    # Always call the original function with just the first argument (s)
+                    return u0_func(args[0])
+                self.u0[equation_idx] = robust_wrapper
+            elif n_params >= 2:
+                # Function takes spatial and temporal arguments - create wrapper that evaluates at t=0
+                def robust_wrapper(*args, **kwargs):
+                    if len(args) == 1:
+                        # Called with just s
+                        return u0_func(args[0], 0.0)
+                    elif len(args) >= 2:
+                        # Called with s and t, but we force t=0 for initial condition
+                        return u0_func(args[0], 0.0)
+                    else:
+                        # Use keyword arguments
+                        s = kwargs.get('s', args[0] if args else 0)
+                        return u0_func(s, 0.0)
+                self.u0[equation_idx] = robust_wrapper
+            else:
+                # Function takes no arguments - create constant function
+                constant_value = u0_func()
+                def robust_wrapper(*args, **kwargs):
+                    s = args[0] if args else kwargs.get('s', np.array([0.0]))
+                    return constant_value * np.ones_like(s)
+                self.u0[equation_idx] = robust_wrapper
+                
+        except Exception:
+            # Fallback: create a universal wrapper that tries different call patterns
+            def universal_wrapper(*args, **kwargs):
+                test_s = args[0] if args else kwargs.get('s', np.array([0.0]))
+                
+                # Try single argument first
+                try:
+                    return u0_func(test_s)
+                except TypeError:
+                    pass
+                
+                # Try dual argument with t=0
+                try:
+                    return u0_func(test_s, 0.0)
+                except TypeError:
+                    pass
+                
+                # Try no arguments (constant)
+                try:
+                    constant_value = u0_func()
+                    return constant_value * np.ones_like(test_s)
+                except TypeError:
+                    pass
+                
+                # If all else fails, return zeros
+                return np.zeros_like(test_s)
+            
+            self.u0[equation_idx] = universal_wrapper
+
     def set_boundary_flux(self, equation_idx: int, 
                          left_flux: Optional[Callable] = None,
                          right_flux: Optional[Callable] = None):
