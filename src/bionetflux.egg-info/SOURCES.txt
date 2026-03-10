@@ -10,6 +10,7 @@ src/bionetflux.egg-info/requires.txt
 src/bionetflux.egg-info/top_level.txt
 src/bionetflux/analysis/error_evaluation.py
 src/bionetflux/core/__init__.py
+src/bionetflux/core/boundary_override.py
 src/bionetflux/core/bulk_data.py
 src/bionetflux/core/constraints.py
 src/bionetflux/core/discretization.py
@@ -41,7 +42,10 @@ src/bionetflux/utils/elementary_matrices.py
 src/bionetflux/utils/mesh_mapping.py
 src/bionetflux/visualization/__init__.py
 src/bionetflux/visualization/lean_matplotlib_plotter.py
+tests/test_adaptive_time_stepping.py
+tests/test_boundary_overrides.py
 tests/test_bulk_data.py
+tests/test_compute_n_elements_from_h.py
 tests/test_constraint_override.py
 tests/test_core_smoke.py
 tests/test_domain_flux_jump.py
@@ -51,6 +55,9 @@ tests/test_geometry.py
 tests/test_lean_bulk_data_manager.py
 tests/test_lean_global_assembly.py
 tests/test_lean_setup.py
+tests/test_mass_monitoring.py
+tests/test_maze_geometry.py
 tests/test_problem.py
+tests/test_robin_jacobian.py
 tests/test_sample.py
 tests/test_static_condensation_setup.py
