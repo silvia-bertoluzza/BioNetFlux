@@ -1,0 +1,62 @@
+% ================================================================
+% SECTION 16: VISUALIZATION
+% ================================================================
+\section{Visualization}
+\label{sec:visualization}
+
+\begin{center}
+\code{bionetflux.visualization.lean\_matplotlib\_plotter} \quad(745 lines)
+\end{center}
+
+\code{LeanMatplotlibPlotter} converts trace-solution vectors and
+\code{DomainGeometry} information into matplotlib figures.
+
+% ------------------------------------------------------------------
+\subsection{Constructor}
+
+\begin{lstlisting}[language=Python, caption={LeanMatplotlibPlotter constructor}]
+class LeanMatplotlibPlotter:
+    def __init__(self,
+                 problems: List,
+                 discretizations: List,
+                 equation_names: Optional[List[str]] = None,
+                 figsize: Tuple[float, float] = (12, 8),
+                 output_dir: Optional[str] = None):
+\end{lstlisting}
+
+\noindent On construction:
+\begin{itemize}
+  \item Defaults \code{equation\_names} to \code{[u, \ensuremath{\varphi}]} (KS) or \code{[u, \ensuremath{\omega}, v, \ensuremath{\varphi}]} (OoC).
+  \item Computes a global coordinate mapping from parameter space to
+        physical extrema coordinates via \code{\_compute\_coordinates()}.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{Plot Methods}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{plot\_2d\_curves(trace\_solutions, title, show\_bounding\_box, show\_mesh\_points, save\_filename)} & One subplot per domain; each equation is a 2-D curve $z = f(s)$ in parameter space with mesh dots. \\
+\code{plot\_flat\_3d(trace\_solutions, title, segment\_width, show\_domain\_labels, save\_filename)} & Flat 3-D figure: thick coloured segments in the $(x,y)$-plane, one panel per equation, colouring by solution value. \\
+\code{plot\_birdview(trace\_solutions, title, segment\_width, colorbar, show\_labels, save\_filename)} & Top-down view: solution on the network graph, using colormaps per equation, annotated min/max. \\
+\code{plot\_comparison(trace\_solutions, exact\_solutions, title, save\_filename)} & Overlay numerical and exact trace solutions per domain; shows per-equation error. \\
+\code{plot\_geometry\_with\_indices(geometry, save\_filename, show\_plot)} & Annotated network layout with domain indices, junction markers, and boundary labels. \\
+\bottomrule
+\end{longtable}
+
+\noindent All plotting methods:
+\begin{itemize}
+  \item Accept an optional \code{save\_filename}; if \code{output\_dir} is set, the file is saved relative to that directory.
+  \item Return the \code{matplotlib.figure.Figure} object for further customization.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{Coordinate Mapping}
+
+Solutions live in parameter space $s \in [s_0, s_0 + L]$ per domain.
+The plotter uses \code{problem.extrema} (start/end tuples in physical
+$(x,y)$ coordinates) to linearly map each domain's parametric mesh into
+the network layout.  An internal bounding box is computed from all extrema
+for consistent axis limits.

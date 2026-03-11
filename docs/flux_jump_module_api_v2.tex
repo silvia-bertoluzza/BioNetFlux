@@ -1,0 +1,55 @@
+% ================================================================
+% SECTION 10: FLUX JUMP MODULE
+% ================================================================
+\section{Flux Jump Module}
+\label{sec:flux_jump}
+
+\begin{center}
+\code{bionetflux.core.flux\_jump} \quad(327 lines)
+\end{center}
+
+The module contains a single public function and an embedded self-test.
+
+% ------------------------------------------------------------------
+\subsection{domain\_flux\_jump}
+
+\begin{lstlisting}[language=Python, caption={Flux jump signature}]
+def domain_flux_jump(
+    trace_solution: np.ndarray,       # neq*(N+1) x 1
+    forcing_term: np.ndarray,         # (2*neq) x N
+    problem,                          # unused (backward compat.)
+    discretization,                   # unused (backward compat.)
+    static_condensation               # StaticCondensationBase
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Returns (U, J, F, JF)."""
+\end{lstlisting}
+
+\noindent The arguments \code{problem} and \code{discretization} are retained in the signature for backward compatibility but are not used internally; all information is obtained from \code{static\_condensation}.
+
+\subsubsection{Return Values}
+
+\begin{longtable}{p{2.5cm}p{4cm}p{7.5cm}}
+\toprule
+\textbf{Name} & \textbf{Shape} & \textbf{Description} \\
+\midrule
+\code{U} & $(2 n_\mathrm{eq}) \times N$ & Bulk polynomial coefficients reconstructed from the trace \\
+\code{J} & $(d_f) \times N$ or \code{None} & Flux polynomial coefficients, where $d_f = \sum_k (\mathrm{flux\_order}_k + 1)$ \\
+\code{F} & $n_\mathrm{eq}(N{+}1) \times 1$ & Global residual: accumulated flux-trace contributions \\
+\code{JF} & $n_\mathrm{eq}(N{+}1) \times n_\mathrm{eq}(N{+}1)$ & Global Jacobian w.r.t.\ trace unknowns \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Algorithm}
+
+For each element $k = 0, \ldots, N{-}1$:
+\begin{enumerate}
+  \item Build a local index array of length $2 n_\mathrm{eq}$, pairing the left and right trace node of each equation.
+  \item Extract the local trace column and forcing column.
+  \item Call \code{static\_condensation.static\_condensation(local\_trace, gk)}.
+  \item Store bulk coefficients in $U[:,k]$ and flux coefficients in $J[:,k]$.
+  \item Scatter the returned \code{flux\_trace} into $F$ and the local \code{jacobian} into $JF$ (both via additive assembly using \code{np.add.at}).
+\end{enumerate}
+
+\subsubsection{Built-in Self-Test}
+
+\code{test\_domain\_flux\_jump(verbose=True)} creates mock objects (\code{MockProblem}, \code{MockDiscretization}, \code{MockStaticCondensation}) and runs three parametric test cases plus two edge-case tests (zero trace, zero forcing).  The function returns \code{True} if all checks pass.

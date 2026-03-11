@@ -1,0 +1,167 @@
+% ================================================================
+% SECTION 14: CONFIGURATION SYSTEM
+% ================================================================
+\section{Configuration System}
+\label{sec:config}
+
+\begin{center}
+\code{bionetflux.utils.config\_manager} \quad(550 lines) \\
+\code{bionetflux.problems.ks\_config\_manager} \quad(149 lines) \\
+\code{bionetflux.problems.ooc\_config\_manager} \quad(168 lines)
+\end{center}
+
+All problem parameters, discretization settings, initial conditions,
+forcing functions, and boundary-condition overrides are specified in a
+TOML file.  The configuration system provides loading, merging with
+defaults, function resolution, and validation.
+
+% ------------------------------------------------------------------
+\subsection{TOML File Structure}
+
+A configuration file is organized into the following top-level sections:
+
+\begin{lstlisting}[caption={Typical TOML layout (Keller-Segel example)}]
+[problem]
+name = "KS_Traveling_Wave"
+neq = 2
+problem_type = "ks"
+
+[time_parameters]
+T = 0.5
+dt = 0.05
+
+[physical_parameters.diffusion]
+mu = 2.0
+nu = 1.0
+
+[physical_parameters.reaction]
+a = 0.0
+b = 1.0
+
+[physical_parameters.chemotaxis]
+chi = "constant"
+dchi = "zeros"
+
+[discretization]
+n_elements = 10
+tau = [1.0, 1.0]
+
+[initial_conditions]
+u = "zeros"
+phi = "zeros"
+
+[force_functions]
+u = "zeros"
+phi = "zeros"
+
+[boundary_conditions]
+B1_u = { type = "dirichlet", data = "zeros" }
+\end{lstlisting}
+
+% ------------------------------------------------------------------
+\subsection{load\_toml\_config}
+
+\begin{lstlisting}[language=Python, caption={TOML loader}]
+def load_toml_config(config_file: str) -> Dict[str, Any]:
+\end{lstlisting}
+
+Tries \code{tomllib} (Python $\geq$3.11) first, then falls back to the
+\code{tomli} package.
+
+% ------------------------------------------------------------------
+\subsection{FunctionResolver}
+
+\begin{lstlisting}[language=Python, caption={FunctionResolver essentials}]
+class FunctionResolver:
+    def __init__(self): ...
+    def resolve_function(self, func_spec) -> Callable: ...
+    def resolve_boundary_function(self, func_spec, position) -> Callable: ...
+    def parse_expression(self, expr_str, variables=['s','t']) -> Callable: ...
+    def register_function(self, name, func): ...
+    def register_function_library(self, library): ...
+\end{lstlisting}
+
+Function resolution follows a three-step cascade:
+\begin{enumerate}
+  \item If \code{func\_spec} is already callable, return it.
+  \item If the string appears in the built-in registry, return the registered callable.
+  \item Otherwise parse it as a SymPy expression via \code{sympy.sympify} $\to$ \code{sympy.lambdify}.
+\end{enumerate}
+
+\noindent Built-in common library (selected entries):
+
+\begin{longtable}{p{4.5cm}p{9cm}}
+\toprule
+\textbf{Name} & \textbf{Definition ($s =$ space, $t =$ time)} \\
+\midrule
+\code{zeros} & $f(s,t) = 0$ \\
+\code{ones} / \code{constant} & $f(s,t) = 1$ \\
+\code{sin\_2pi} / \code{cos\_2pi} & $\sin/\cos(2\pi s)$ \\
+\code{gaussian} & $\exp(-s^2)$ \\
+\code{quadratic} & $s(1-s)$ \\
+\code{step} & $H(s - 0.5)$ \\
+\code{traveling\_wave\_u} & KS traveling-wave $u(s,t)$ \\
+\code{traveling\_wave\_phi} & KS traveling-wave $\varphi(s,t)$ \\
+\bottomrule
+\end{longtable}
+
+\code{resolve\_boundary\_function(func\_spec, position)} wraps the resolved
+$f(s,t)$ into $g(t) = f(\text{position},\, t)$, which is the signature expected by
+\code{Constraint.data\_function}.
+
+% ------------------------------------------------------------------
+\subsection{ParameterValidator}
+
+\begin{lstlisting}[language=Python, caption={ParameterValidator}]
+class ParameterValidator:
+    def add_rule(self, param_path: str, rule: dict): ...
+    def validate_config(self, config) -> List[str]: ...
+\end{lstlisting}
+
+Rules are keyed by dot-separated paths (e.g.\
+\code{"physical\_parameters.diffusion.mu"}) and checked for type,
+minimum/maximum, positivity, and required-ness.
+
+% ------------------------------------------------------------------
+\subsection{BaseConfigManager (ABC)}
+
+\begin{lstlisting}[language=Python, caption={BaseConfigManager skeleton}]
+class BaseConfigManager(ABC):
+    def __init__(self, problem_type: str):
+        self.function_resolver = FunctionResolver()
+        self.validator = ParameterValidator()
+
+    @abstractmethod
+    def _setup_defaults(self): ...
+    @abstractmethod
+    def _setup_function_library(self): ...
+    @abstractmethod
+    def _setup_validation_rules(self): ...
+
+    def load_config(self, config_file=None) -> Dict[str, Any]:
+        """Load, merge with defaults, validate, resolve functions."""
+\end{lstlisting}
+
+The \code{load\_config} workflow:
+\begin{enumerate}
+  \item If a file is provided, load it with \code{load\_toml\_config}.
+  \item Recursively merge with \code{self.defaults}.
+  \item Run \code{ParameterValidator.validate\_config}; raise on errors.
+  \item Call \code{\_resolve\_functions} to convert string specs in
+        \code{initial\_conditions} and \code{force\_functions} to callables.
+  \item Return the resolved configuration dictionary.
+\end{enumerate}
+
+% ------------------------------------------------------------------
+\subsection{KSConfigManager and OoCConfigManager}
+
+\begin{longtable}{p{4.5cm}p{4cm}p{5.5cm}}
+\toprule
+\textbf{Class} & \textbf{Problem type key} & \textbf{Additional function library} \\
+\midrule
+\code{KSConfigManager} & \code{"ks"} & \code{ks\_gaussian\_blob}, \code{ks\_step\_function}, \code{chemotactic\_gradient}, \code{attraction\_source} \\
+\code{OoCConfigManager} & \code{"ooc"} & \code{ooc\_linear\_gradient}, \code{ooc\_exponential}, \code{nutrient\_gaussian} \\
+\bottomrule
+\end{longtable}
+
+Both inherit from \code{BaseConfigManager}, define their own defaults (physical parameters matching the respective equation system), validation rules, and problem-specific functions.

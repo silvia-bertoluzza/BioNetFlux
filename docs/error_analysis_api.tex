@@ -1,0 +1,83 @@
+% ================================================================
+% SECTION 17: ERROR ANALYSIS
+% ================================================================
+\section{Error Analysis}
+\label{sec:error_analysis}
+
+Two modules provide error evaluation against analytical solutions:
+
+\begin{center}
+\code{bionetflux.core.minimal\_error\_evaluator} \quad(549 lines) \\
+\code{bionetflux.analysis.error\_evaluation} \quad(1242 lines)
+\end{center}
+
+% ------------------------------------------------------------------
+\subsection{MinimalErrorEvaluator}
+
+A lightweight, stateless evaluator.
+
+\begin{lstlisting}[language=Python, caption={MinimalErrorEvaluator constructor}]
+class MinimalErrorEvaluator:
+    def __init__(self):
+        pass  # No stored state
+\end{lstlisting}
+
+\noindent All computation is done through method arguments:
+
+\begin{longtable}{p{7.5cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{compute\_trace\_error(trace\_solutions, problems, discretizations, time) -> dict} & Nodal $L^2$ and $L^\infty$ error per equation per domain \\
+\code{compute\_bulk\_error(bulk\_solutions, problems, discretizations, time) -> dict} & Element-wise $L^2$ error against analytically projected coefficients \\
+\code{compute\_flux\_error(flux\_solutions, problems, discretizations, static\_condensations, time) -> dict} & Flux-polynomial $L^2$ error, respecting per-equation flux orders \\
+\code{test() -> bool} & Self-test with mock objects \\
+\bottomrule
+\end{longtable}
+
+Analytical solutions are read from \code{problem.solution[eq]} (trace),
+\code{problem.force[eq]} (bulk), and \code{problem.flux\_solution[eq]}
+(flux)---each a callable $f(s,t)$.
+
+% ------------------------------------------------------------------
+\subsection{ErrorEvaluator}
+
+A richer, stateful evaluator that stores the problem and discretization lists on construction.
+
+\begin{lstlisting}[language=Python, caption={ErrorEvaluator constructor}]
+class ErrorEvaluator:
+    def __init__(self, problems: List, discretizations: List):
+\end{lstlisting}
+
+\subsubsection{Error Methods}
+
+\begin{longtable}{p{7.5cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{compute\_trace\_error(trace\_solutions, time) -> dict} & Per-domain, per-equation trace error \\
+\code{compute\_bulk\_error(bulk\_data\_list, time) -> dict} & Bulk $L^2$ error \\
+\code{compute\_convergence\_rate(errors, mesh\_sizes) -> dict} & Log-log slope for $h$-refinement studies \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Reporting}
+
+\begin{longtable}{p{7.5cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{generate\_error\_report(trace\_errors, bulk\_errors, return\_csv\_report) -> str} & Human-readable table + optional CSV \\
+\code{get\_equation\_error(error\_results, domain\_idx, equation\_idx) -> dict} & Extract single-equation result \\
+\code{get\_global\_equation\_error(error\_results, equation\_idx) -> dict} & Global aggregate per equation \\
+\code{get\_analytical\_solutions() -> dict} & Dictionary of all analytical functions \\
+\code{has\_analytical\_solution(domain\_idx) -> bool} & Check if domain has registered solutions \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Standalone Helper}
+
+\begin{lstlisting}[language=Python, caption={Analytical solution extraction}]
+def retrieve_analytical_solution(problems: List) -> Dict:
+    """Build dict {domain_idx: {eq_idx: callable}} from problem.solution."""
+\end{lstlisting}

@@ -1,0 +1,102 @@
+% ================================================================
+% SECTION 5: PROBLEM MODULE
+% ================================================================
+\section{Problem Module}
+\label{sec:problem}
+
+\begin{center}
+\code{bionetflux.core.problem}
+\end{center}
+
+The \code{Problem} class (648 lines) is the base class for all 1D PDE problems.  Each domain in the network is assigned its own \code{Problem} instance.
+
+% ------------------------------------------------------------------
+\subsection{Constructor}
+
+\begin{lstlisting}[language=Python, caption={Problem constructor}]
+class Problem:
+    def __init__(self, 
+                 neq: int = 2,
+                 domain_start: float = 0.0,
+                 domain_length: float = 1.0,
+                 parameters: np.ndarray = None,
+                 problem_type: str = "keller_segel",
+                 name: str = "unnamed_problem"):
+\end{lstlisting}
+
+If \code{parameters} is \code{None}, it defaults to \code{np.array([1.0, 1.0, 0.0, 0.0])}.  The attribute \code{domain\_end} is computed as \code{domain\_start + domain\_length}.
+
+% ------------------------------------------------------------------
+\subsection{Attributes}
+
+\begin{longtable}{p{4.5cm}p{3cm}p{7cm}}
+\toprule
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\midrule
+\code{neq} & \code{int} & Number of equations \\
+\code{domain\_start} & \code{float} & Parameter-space start \\
+\code{domain\_length} & \code{float} & Parameter-space length \\
+\code{domain\_end} & \code{float} & \code{domain\_start + domain\_length} \\
+\code{name} & \code{str} & Human-readable name \\
+\code{parameters} & \code{np.ndarray} & Physical parameter vector \\
+\code{n\_parameters} & \code{int} & \code{len(parameters)} \\
+\code{type} & \code{str} & Problem type string (e.g.\ \code{"keller\_segel"}, \code{"organ\_on\_chip"}) \\
+\code{u\_names} & \code{List[str]} & Equation names; \code{['u','phi']} for \code{neq=2}, else \code{['u0','u1',...]} \\
+\code{unknown\_names} & \code{List[str]} & Display names: \code{["Unknown n.\ 1", ...]} \\
+\code{extrema} & \code{List[Tuple]} & Physical-space endpoints, default \code{[(domain\_start, 0), (domain\_end, 0)]} \\
+\midrule
+\multicolumn{3}{l}{\textit{Callable attributes (functions to be set by the user)}} \\
+\midrule
+\code{chi} & \code{Callable} & Chemotactic sensitivity $\chi(x)$ \\
+\code{dchi} & \code{Callable} & Derivative $\chi'(x)$ \\
+\code{force} & \code{List[Callable]} & Source terms $f_k(s,t)$, one per equation \\
+\code{u0} & \code{List[Callable]} & Initial conditions $u_k^0(s)$ \\
+\code{solution} & \code{List[Callable]} & Analytical solutions $u_k^{\mathrm{ex}}(s,t)$ \\
+\code{flux\_solution} & \code{List[Optional[Callable]]} & Analytical flux solutions (may be \code{None}) \\
+\code{flux\_u0} & \code{List[Callable]} & Left boundary fluxes $\sigma_k(t)$ at $s_0$ \\
+\code{flux\_u1} & \code{List[Callable]} & Right boundary fluxes $\sigma_k(t)$ at $s_1$ \\
+\code{neumann\_data} & \code{np.ndarray} & Shape $(4,)$ --- legacy Neumann data \\
+\bottomrule
+\end{longtable}
+
+All callable lists are initialised with zero functions of the appropriate signature.
+
+% ------------------------------------------------------------------
+\subsection{Setter Methods}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{set\_chemotaxis(chi, dchi)} & Set $\chi(x)$ and $\chi'(x)$ \\
+\code{set\_force(equation\_idx, force\_func)} & Set source $f_k(s,t)$ \\
+\code{set\_solution(equation\_idx, sol\_func)} & Set analytical solution $u_k^{\mathrm{ex}}(s,t)$ \\
+\code{set\_flux\_solution(equation\_idx, flux\_func)} & Set analytical flux \\
+\code{set\_initial\_condition(equation\_idx, u0\_func)} & Set $u_k^0$; auto-wraps 0-, 1-, or 2-argument functions to a unified signature \\
+\code{set\_boundary\_flux(equation\_idx, left, right)} & Set left/right boundary fluxes \\
+\code{set\_extrema(point1, point2)} & Set physical-space endpoint tuples \\
+\code{get\_extrema() -> List[Tuple]} & Retrieve extrema \\
+\code{set\_parameter(index, value)} & Set single parameter \\
+\code{get\_parameter(index) -> float} & Get single parameter \\
+\code{set\_parameters(params)} & Replace entire parameter vector \\
+\code{set\_function(name, func)} & Dynamically set any callable attribute by name \\
+\bottomrule
+\end{longtable}
+
+\begin{notebox}
+\code{set\_initial\_condition} uses \code{inspect.signature} to determine the number of parameters of the supplied function and wraps it into a universal \code{f(s)} signature.  Functions with zero arguments are treated as constants.
+\end{notebox}
+
+% ------------------------------------------------------------------
+\subsection{Validation and Testing}
+
+\begin{longtable}{p{7cm}p{8cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{validate\_problem(verbose=False) -> bool} & Checks: positive \code{neq}, positive \code{domain\_length}, parameter consistency, function list lengths, extrema format, problem type. Returns \code{True} if no errors.  The recognised problem types are \code{"keller\_segel"}, \code{"organ\_on\_chip"}, and \code{"generic"}. \\
+\code{test\_functions(verbose=False) -> bool} & Calls every callable attribute on test arrays and checks return types/shapes. \\
+\code{run\_self\_test(verbose=True) -> bool} & Runs validation, function tests, parameter get/set, extrema get/set, and dynamic function setting. \\
+\code{create\_test\_problems() -> Dict[str, Problem]} & Class method returning a dictionary of test problems: \code{"ks\_basic"}, \code{"ooc\_basic"}, \code{"custom\_geometry"}, \code{"analytical"}, \code{"invalid"}. \\
+\bottomrule
+\end{longtable}

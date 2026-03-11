@@ -1,0 +1,160 @@
+% ================================================================
+% SECTION 4: GEOMETRY MODULE
+% ================================================================
+\section{Geometry Module}
+\label{sec:geometry}
+
+\begin{center}
+\code{bionetflux.geometry.domain\_geometry}
+\end{center}
+
+The geometry module (1830 lines) manages network topology through three public types and four built-in geometry builders.
+
+% ------------------------------------------------------------------
+\subsection{Constants}
+
+\begin{lstlisting}[language=Python, caption={Boundary type constants}]
+EXTERIOR_BOUNDARY = -1   # Physical exterior boundary
+PERIODIC_BOUNDARY = -2   # Periodic connections
+SYMMETRY_BOUNDARY = -3   # Symmetry boundaries
+\end{lstlisting}
+
+These integer sentinels are used as the \code{domain2\_id} field in \code{ConnectionInfo} to flag boundary (non-interior) connections.
+
+% ------------------------------------------------------------------
+\subsection{ConnectionInfo Dataclass}
+
+\begin{structurebox}
+\begin{lstlisting}[language=Python]
+@dataclass
+class ConnectionInfo:
+    domain1_id: int
+    domain2_id: int          # < 0 for boundary connections
+    parameter1: float        # parameter value in domain1
+    parameter2: float        # parameter value in domain2
+    metadata: Dict[str, Any] = None
+\end{lstlisting}
+\end{structurebox}
+
+\noindent Query methods:
+\begin{itemize}
+  \item \code{is\_boundary\_connection() -> bool} --- \code{domain2\_id < 0}
+  \item \code{is\_exterior\_boundary() -> bool}
+  \item \code{is\_periodic\_boundary() -> bool}
+  \item \code{is\_symmetry\_boundary() -> bool}
+  \item \code{get\_boundary\_type() -> Optional[str]} --- returns \code{"exterior"}, \code{"periodic"}, \code{"symmetry"}, or \code{None}
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{DomainInfo Dataclass}
+
+\begin{structurebox}
+\begin{lstlisting}[language=Python]
+@dataclass
+class DomainInfo:
+    domain_id: int
+    extrema_start: Tuple[float, float]   # (x1, y1) physical space
+    extrema_end: Tuple[float, float]     # (x2, y2) physical space
+    domain_start: float = 0.0            # parameter space start
+    domain_length: float = 1.0           # parameter space length
+    name: Optional[str] = None
+    display_color: str = "blue"
+    metadata: Dict[str, Any] = None
+\end{lstlisting}
+\end{structurebox}
+
+\noindent If \code{domain\_length} is left at its default value of 1.0, the \code{\_\_post\_init\_\_} method recomputes it as the Euclidean distance between the extrema.
+
+\smallskip\noindent Methods:
+\begin{itemize}
+  \item \code{euclidean\_length() -> float} --- $\sqrt{(x_2-x_1)^2+(y_2-y_1)^2}$
+  \item \code{center\_point() -> Tuple[float, float]} --- midpoint of the extrema
+  \item \code{direction\_vector() -> Tuple[float, float]} --- unit direction from start to end
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{DomainGeometry Class}
+
+\begin{lstlisting}[language=Python, caption={Constructor}]
+class DomainGeometry:
+    def __init__(self, name: str = "unnamed_geometry"):
+        self.name = name
+        self.domains: List[DomainInfo] = []
+        self.connections: List[ConnectionInfo] = []
+        self._next_id = 0
+        self._global_metadata: Dict[str, Any] = {}
+\end{lstlisting}
+
+\subsubsection{Domain Management}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{add\_domain(extrema\_start, extrema\_end, domain\_start=None, domain\_length=None, name=None, display\_color="blue", **metadata) -> int} & Add a domain; returns integer domain ID \\
+\code{get\_domain(domain\_id) -> DomainInfo} & Retrieve domain by ID \\
+\code{get\_all\_domains() -> List[DomainInfo]} & Get all domains \\
+\code{num\_domains() -> int} & Number of domains \\
+\code{find\_domain\_by\_name(name) -> Optional[int]} & Find domain ID by  name \\
+\code{remove\_domain(domain\_id)} & Remove domain and its connections \\
+\code{get\_domain\_names() -> List[str]} & List all domain names \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Connection Management}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{add\_connection(domain1\_id, domain2\_id, param1, param2, **meta) -> int} & Add inter-domain connection \\
+\code{add\_exterior\_boundary(domain\_id, parameter, **meta) -> int} & Mark an exterior boundary \\
+\code{add\_periodic\_boundary(domain\_id, parameter, **meta) -> int} & Mark a periodic boundary \\
+\code{add\_symmetry\_boundary(domain\_id, parameter, **meta) -> int} & Mark a symmetry boundary \\
+\code{get\_boundary\_connections() -> List} & All boundary connections \\
+\code{get\_interior\_connections() -> List} & All interior connections \\
+\code{get\_connection(id) -> ConnectionInfo} & Retrieve connection by ID \\
+\code{remove\_connection(id)} & Remove connection \\
+\code{get\_connections\_by\_type(type\_str) -> List} & Filter connections \\
+\code{num\_connections() -> int} & Total connection count \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Analysis and Validation}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{validate\_geometry(verbose=False) -> bool} & Comprehensive validation: domain count, length positivity, extrema format, NaN/inf checks \\
+\code{find\_intersections(tolerance=1e-6)} & Detect segment intersections \\
+\code{get\_connectivity\_info(tolerance=1e-6) -> Dict} & Connectivity analysis \\
+\code{suggest\_parameter\_spacing(gap=0.1)} & Suggest parameter space layout \\
+\code{get\_bounding\_box() -> Dict[str, float]} & \code{\{x\_min, x\_max, y\_min, y\_max\}} \\
+\code{total\_length() -> float} & Sum of all domain lengths \\
+\code{summary() -> str} & Human-readable summary \\
+\bottomrule
+\end{longtable}
+
+\noindent The class also implements \code{\_\_len\_\_}, \code{\_\_getitem\_\_}, and \code{\_\_iter\_\_} for Pythonic iteration.
+
+\subsubsection{Self-Test}
+
+\code{DomainGeometry} provides \code{create\_test\_geometries()} (classmethod) and \code{run\_self\_test(verbose=True) -> bool} for validation.
+
+% ------------------------------------------------------------------
+\subsection{Built-in Geometry Builders}
+\label{sec:geometry_builders}
+
+Four standalone functions create common topologies:
+
+\begin{longtable}{p{7cm}p{8cm}}
+\toprule
+\textbf{Function} & \textbf{Description} \\
+\midrule
+\code{build\_arc\_sequence\_geometry(N=2, start=0.0, length=1.0)} & $N$ consecutive aligned segments with exterior boundaries at the two ends and trace-continuity connections at interior junctions \\
+\code{build\_grid\_geometry(N=4)} & OoC-style grid: 4 vertical spines plus $4N$ horizontal connectors, with exterior boundaries and junction connections fully wired \\
+\code{build\_labyrinth\_geometry(n\_cols=3, n\_rows=8, cell\_size=1.0)} & Serpentine maze structure \\
+\code{create\_maze\_geometry(data\_dir=None, length=None)} & Load geometry from CSV files \code{points.csv} and \code{lines.csv}; each line in the CSV defines a domain between two named points.  Boundary points (those appearing in only one line) are marked as exterior boundaries.  The resulting boundary-point map is stored in the geometry's global metadata for use by \code{apply\_boundary\_overrides}. \\
+\bottomrule
+\end{longtable}

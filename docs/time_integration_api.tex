@@ -1,0 +1,164 @@
+% ================================================================
+% SECTION 15: TIME INTEGRATION
+% ================================================================
+\section{Time Integration}
+\label{sec:time_integration}
+
+\begin{center}
+\code{bionetflux.time\_integration.newton\_solver} \quad(445 lines) \\
+\code{bionetflux.time\_integration.time\_stepper} \quad(462 lines)
+\end{center}
+
+Time integration uses an implicit Euler scheme solved at each step by a
+Newton method.  The module provides two levels of abstraction: a low-level
+\code{NewtonSolver} and a higher-level \code{TimeStepper} /
+\code{AdaptiveTimeStepper}.
+
+% ==================================================================
+\subsection{NewtonSolver}
+
+\begin{lstlisting}[language=Python, caption={NewtonSolver constructor}]
+class NewtonSolver:
+    def __init__(self, tolerance: float = 1e-10,
+                 max_iterations: int = 20,
+                 verbose: bool = False):
+\end{lstlisting}
+
+\subsubsection{NewtonResult dataclass}
+
+\begin{lstlisting}[language=Python, caption={NewtonResult fields}]
+@dataclass
+class NewtonResult:
+    converged: bool
+    iterations: int
+    final_solution: np.ndarray
+    final_residual_norm: float
+    residual_history: List[float]
+    step_norms: List[float]
+    jacobian_condition: Optional[float] = None
+    computation_time: float = 0.0
+\end{lstlisting}
+
+\subsubsection{Solver Variants}
+
+Three methods share the same interface:
+
+\begin{lstlisting}[language=Python, caption={Common signature}]
+def solve(self, initial_guess, global_assembler, forcing_terms,
+          static_condensations, current_time, ...) -> NewtonResult:
+\end{lstlisting}
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Method} & \textbf{Strategy} \\
+\midrule
+\code{solve} & Standard Newton: $J\,\delta x = -R$; update $x \mathrel{+}= \delta x$. Uses \code{np.linalg.solve}. \\
+\code{solve\_with\_line\_search(alpha\_init=1.0, alpha\_min=1e-4)} & Backtracking line search: halves $\alpha$ until $\|R(x + \alpha\,\delta x)\| < \|R(x)\|$. \\
+\code{solve\_with\_damping(damping\_factor=0.8)} & Fixed damping: $x \mathrel{+}= \omega\,\delta x$ with constant $\omega \in (0,1]$. \\
+\bottomrule
+\end{longtable}
+
+All variants monitor the Jacobian condition number and record the full residual history.
+
+% ==================================================================
+\subsection{TimeStepResult dataclass}
+
+Defined inline in \code{time\_stepper.py}:
+
+\begin{lstlisting}[language=Python, caption={TimeStepResult fields}]
+@dataclass
+class TimeStepResult:
+    converged: bool
+    iterations: int
+    final_residual_norm: float
+    updated_solution: np.ndarray
+    updated_bulk_data: List          # List[BulkData]
+    computation_time: float
+    # Optional:
+    residual_history: Optional[List[float]] = None
+    jacobian_condition: Optional[float] = None
+    newton_step_norms: Optional[List[float]] = None
+    flux_data: Optional[List] = None
+\end{lstlisting}
+
+\code{summary()} returns a multi-line human-readable report.
+
+% ==================================================================
+\subsection{TimeStepper}
+
+\begin{lstlisting}[language=Python, caption={TimeStepper constructor}]
+class TimeStepper:
+    def __init__(self, setup: SolverSetup,
+                 newton_solver: Optional[NewtonSolver] = None,
+                 verbose: bool = True):
+\end{lstlisting}
+
+\noindent Caches \code{setup.bulk\_data\_manager}, \code{setup.global\_assembler},
+\code{setup.static\_condensations}, \code{setup.problems}, and the spatial
+discretization list.
+
+\subsubsection{initialize\_solution}
+
+\begin{lstlisting}[language=Python, caption={Initial condition setup}]
+def initialize_solution(self) -> Tuple[np.ndarray, List[BulkData]]:
+    """Evaluate ICs, assemble global vector, initialize bulk data."""
+\end{lstlisting}
+
+\subsubsection{advance\_time\_step}
+
+Single-step implicit Euler:
+
+\begin{lstlisting}[language=Python, caption={One time step}]
+def advance_time_step(self, current_solution, current_bulk_data,
+                      current_time, dt) -> TimeStepResult:
+\end{lstlisting}
+
+\noindent Internally:
+\begin{enumerate}
+  \item \code{bulk\_manager.compute\_source\_terms(time=t+dt)}.
+  \item For each domain, \code{static\_condensation.assemble\_forcing\_term(previous\_bulk\_solution, external\_force)}.
+  \item \code{newton\_solver.solve(\ldots)}.
+  \item If converged: \code{global\_assembler.bulk\_by\_static\_condensation} to recover bulk data.
+\end{enumerate}
+
+\subsubsection{advance\_multiple\_steps}
+
+\begin{lstlisting}[language=Python, caption={Multi-step loop}]
+def advance_multiple_steps(self, initial_solution, initial_bulk_data,
+                           start_time, dt, n_steps,
+                           stop_on_failure=True) -> List[TimeStepResult]:
+\end{lstlisting}
+
+Iterates \code{advance\_time\_step} and accumulates \code{TimeStepResult} objects.
+
+% ==================================================================
+\subsection{AdaptiveTimeStepper}
+
+\begin{lstlisting}[language=Python, caption={AdaptiveTimeStepper constructor}]
+class AdaptiveTimeStepper(TimeStepper):
+    def __init__(self, setup, newton_solver=None, verbose=True,
+                 dt_min=None, dt_max=None, safety_factor=0.8):
+\end{lstlisting}
+
+Defaults: \code{dt\_min = dt\_config * 1e-4}, \code{dt\_max = dt\_config} (from the TOML configuration).
+
+\subsubsection{advance\_time\_step\_adaptive}
+
+\begin{lstlisting}[language=Python, caption={Adaptive step}]
+def advance_time_step_adaptive(self, current_solution, current_bulk_data,
+                               current_time, dt_suggested
+                               ) -> Tuple[TimeStepResult, float]:
+    """Returns (result, dt_next)."""
+\end{lstlisting}
+
+\noindent Adaptation rules:
+\begin{itemize}
+  \item \textbf{Converged in $\le 8$ iterations}: increase $\Delta t \times 1.2$ (capped at \code{dt\_max}).
+  \item \textbf{Converged in 9--14 iterations}: keep $\Delta t$.
+  \item \textbf{Converged in $> 14$ iterations}: decrease $\Delta t \times 0.8$.
+  \item \textbf{Failed}: halve $\Delta t$ and retry (up to 5 retries).
+\end{itemize}
+
+Before each attempt the method updates \code{GlobalDiscretization.dt} and
+calls \code{sc.update\_dt()} on every static condensation to rebuild the
+$\Delta t$-dependent element matrices.

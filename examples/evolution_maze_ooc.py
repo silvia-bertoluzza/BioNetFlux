@@ -598,7 +598,7 @@ def run_evolution_with_adaptive_time_stepper(
 
     _geom_dir = os.path.dirname(_geom_module.__file__)
     geometry = create_maze_geometry(
-        data_dir=os.path.join(_geom_dir, "maze_4_data"),
+        data_dir=os.path.join(_geom_dir, "maze_3_data"),
         length=50.0,
     )
 

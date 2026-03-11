@@ -1,0 +1,89 @@
+% ================================================================
+% SECTION 7: DISCRETIZATION MODULE
+% ================================================================
+\section{Discretization Module}
+\label{sec:discretization}
+
+\begin{center}
+\code{bionetflux.core.discretization}
+\end{center}
+
+This module (133 lines) provides classes for spatial mesh generation and time discretization management.
+It does \emph{not} store matrices or polynomial bases---those live in
+\code{ElementaryMatrices} (Section~\ref{sec:elementary_matrices}) and the static-condensation classes (Section~\ref{sec:static_condensation}).
+
+% ------------------------------------------------------------------
+\subsection{compute\_n\_elements\_from\_h}
+
+\begin{lstlisting}[language=Python, caption={Utility: mesh size to element count}]
+def compute_n_elements_from_h(domain_length: float, h: float) -> int:
+    """
+    Return the *even* integer closest to domain_length / h,
+    with a minimum of 4.
+    Being even guarantees the segment midpoint is a mesh node.
+    """
+\end{lstlisting}
+
+\noindent Raises \code{ValueError} if \code{domain\_length \textless= 0} or \code{h \textless= 0}.
+
+% ------------------------------------------------------------------
+\subsection{Discretization (single domain)}
+
+\begin{lstlisting}[language=Python, caption={Discretization constructor}]
+class Discretization:
+    def __init__(self, n_elements: int, domain_start: float = 0.0,
+                 domain_length: float = 1.0, stab_constant: float = 1.0):
+\end{lstlisting}
+
+\noindent Computed at construction (via \code{\_generate\_mesh}):
+
+\begin{longtable}{p{5cm}p{9.5cm}}
+\toprule
+\textbf{Attribute} & \textbf{Description} \\
+\midrule
+\code{n\_nodes} & \code{n\_elements + 1} \\
+\code{element\_length} & \code{domain\_length / n\_elements} \\
+\code{nodes} & \code{np.linspace(domain\_start, domain\_start + domain\_length, n\_nodes)} \\
+\code{elements} & Integer array of shape (\code{n\_elements}, 2), each row is \code{[i, i+1]} \\
+\code{element\_centers} & Midpoints, \code{nodes[:-1] + element\_length / 2} \\
+\bottomrule
+\end{longtable}
+
+\noindent Additional methods:
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{get\_mesh\_info() -> dict} & Returns a dictionary with all mesh parameters \\
+\code{set\_tau(tau\_values: List[float])} & Set per-equation stabilization parameters; stored in \code{self.tau} \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{GlobalDiscretization (multi-domain + time)}
+\label{sec:global_disc}
+
+\begin{lstlisting}[language=Python, caption={GlobalDiscretization constructor}]
+class GlobalDiscretization:
+    def __init__(self, spatial_discretizations: List[Discretization]):
+\end{lstlisting}
+
+\noindent Computed at construction:
+\begin{itemize}
+  \item \code{n\_domains}: number of domains.
+  \item \code{total\_elements}, \code{total\_nodes}: sums across all domains.
+\end{itemize}
+
+\noindent Time parameters (initially \code{None}):
+
+\begin{longtable}{p{6.5cm}p{8cm}}
+\toprule
+\textbf{Method / Attribute} & \textbf{Description} \\
+\midrule
+\code{set\_time\_parameters(dt, T)} & Compute \code{n\_time\_steps = ceil(T/dt)} and fill \code{time\_points = linspace(0, T, n\_time\_steps+1)} \\
+\code{get\_spatial\_discretization(i)} & Return the $i$-th \code{Discretization} \\
+\code{get\_time\_info() -> dict} & Dict with \code{dt}, \code{T}, \code{n\_time\_steps}, \code{time\_points} \\
+\code{get\_global\_info() -> dict} & Dict with \code{n\_domains}, \code{total\_elements} \\
+\bottomrule
+\end{longtable}
