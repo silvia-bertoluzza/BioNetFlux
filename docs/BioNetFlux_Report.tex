@@ -97,7 +97,7 @@
 \newcommand{\bionetflux}{\textsc{BioNetFlux}}
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\ddt}{\frac{\partial}{\partial t}}
-\newcommand{\ddx}{\frac{\partial}{\partial x}}
+\newcommand{\ddx}{\frac{\partial}{\partial s}}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
 
 % ============================================================================
@@ -130,7 +130,7 @@
            Multi-arc maze geometries}}
 
   \vskip 2cm
-  \includegraphics[width=0.7\textwidth]{../Logos/Barra.png}
+  \includegraphics[width=0.95\textwidth]{../Logos/Barra.png}
 \end{titlepage}
 
 % --- Table of contents ------------------------------------------------------
@@ -155,9 +155,9 @@ The framework couples two methodological pillars:
   \item \textbf{Hybridizable Discontinuous Galerkin (HDG) spatial
         discretisation}~\cite{cockburn2009unified,cockburn2016static},
         which reduces the global system to unknowns living on the
-        skeleton (element interfaces and network junctions) and
+        skeleton (in the 1D case, the nodes of the spatial decomposition and the network junctions) and
         recovers the interior solution by element-local back-solves;
-  \item \textbf{Implicit (backward-Euler) time integration} with
+  \item \textbf{Implicit  time integration  (backward-Euler)} with
         Newton--Raphson linearisation and optional adaptive
         time-step control, providing unconditional $A$-stability for
         the stiff chemotactic and reaction terms.
@@ -177,7 +177,7 @@ Key capabilities include:
   \item TOML-based configuration with symbolic function expressions
         resolved at load time;
   \item Rich visualisation: bird's-eye colour maps, flat-3D surface
-        plots, domain-wise 2-D curves, and geometry index diagrams.
+        plots, domain-wise 2-D curves, and geometry diagrams.
 \end{itemize}
 
 The remainder of this report presents the mathematical models
@@ -199,15 +199,15 @@ $\mathcal{G} = (\mathcal{V},\mathcal{E})$
 whose edges $e_j\in\mathcal{E}$, $j=1,\dots,N_{\mathrm{dom}}$,
 are one-dimensional segments of length~$L_j$.
 Each edge is parametrised by a local coordinate
-$s\in[0,L_j]$.  Vertices in $\mathcal{V}$ are classified as:
+$s\in[x_0,x_0+L_j]$.  Default value for $x_0$ is $x_0=0$. Vertices in $\mathcal{V}$ are classified as:
 \begin{itemize}
   \item \textbf{Junction points (J)}: shared endpoints of two or more
-        edges; trace-continuity and Kirchhoff flux-balance conditions
+        edges; trace-continuity or membrane Kedem-Kachalski conditions, as well as Kirchhoff flux-balance conditions
         are imposed here.
   \item \textbf{T-junction points (T)}: endpoints of one edge that
         touch the interior of another edge.
   \item \textbf{Boundary points (B)}: endpoints that lie on the
-        exterior boundary; Dirichlet, Neumann, or Robin conditions
+        exterior boundary of the overall domain; Dirichlet, Neumann, or Robin conditions
         are imposed.
 \end{itemize}
 
@@ -241,7 +241,7 @@ where
 \end{itemize}
 
 \paragraph{Chemotaxis sensitivity.}
-\bionetflux{} implements the \emph{receptor-saturation} model:
+\bionetflux{} offers different options for the definition of the chemotaxis sensitivity function $\chi$. Among other things, it  implements the \emph{receptor-saturation} model:
 \begin{equation}\label{eq:chi}
   \chi(\varphi) = \frac{k_1}{(k_2+\varphi)^2}\,,
   \qquad
@@ -299,9 +299,9 @@ The coupling structure is as follows:
   \item \textbf{Chemoattractant~$\omega$} diffuses ($\epsilon$),
         decays at rate~$c$, and is produced by immune cells at
         rate~$d$.
-  \item \textbf{Tumour cells}~$v$ diffuse very slowly ($\sigma\ll 1$)
+  \item \textbf{Tumour cells}~$v$ diffuse ($\sigma$)
         and are suppressed by $\omega$ via the
-        function $\lambda(\omega)=m_1/(m_2+\omega)$.
+        function $\lambda(\omega)=m_1/(m_2+\omega)$. 
   \item \textbf{Chemoattractant~$\varphi$} diffuses ($\mu$),
         decays at rate~$a$, and is produced by immune cells at
         rate~$b$.
@@ -309,18 +309,21 @@ The coupling structure is as follows:
 The system captures a biologically relevant feedback loop:
 immune cells produce signal molecules that guide their own
 migration (chemotaxis) while simultaneously suppressing tumour
-growth.
+growth. Stationary tumor cells can be emulated by setting $\sigma\ll 1$ as well as $\lambda(\omega) = 0$.
 
 
 \subsection{Boundary and Interface Conditions}\label{sec:bc}
 
-At each vertex of the network the user may assign, independently
-for each equation:
+At the boundary and at the junctions of the network the user may assign, independently
+for each equation, the following condition: at the boundary:
 \begin{description}
   \item[Neumann] $D\,\partial_s u\,n = g(t)$\,---\,prescribed
         flux (homogeneous by default).
   \item[Dirichlet] $u = g(t)$\,---\,prescribed trace.
   \item[Robin] $\alpha\,u + \beta\,D\,\partial_s u\,n = g(t)$.
+\end{description}
+At junctions and T-junctions
+\begin{description}
   \item[Trace continuity] $u^{(j_1)}=u^{(j_2)}$ at a junction
         shared by edges $j_1,j_2$, together with a Kirchhoff-type
         flux balance.
@@ -355,6 +358,7 @@ $(u_h,q_h)\in\mathbb{P}_p(K)\times\mathbb{P}_{p_q}(K)$ satisfying
 \begin{align}
   \int_K \frac{u_h^{n+1}-u_h^n}{\Delta t}\,w\,\mathrm{d}s
   - \int_K q_h^{n+1}\,w'\,\mathrm{d}s
+  + [q_h^{n+1} w \nu]\Big|_{\partial K}
   + \tau\bigl[u_h^{n+1}-\hat u^{n+1}\bigr]\Big|_{\partial K}
   &= \int_K R^{n+1}\,w\,\mathrm{d}s,
   \label{eq:hdg-u}\\[4pt]
@@ -365,13 +369,42 @@ $(u_h,q_h)\in\mathbb{P}_p(K)\times\mathbb{P}_{p_q}(K)$ satisfying
   \label{eq:hdg-q}
 \end{align}
 for all test functions $w\in\mathbb{P}_p(K)$,
-$r\in\mathbb{P}_{p_q}(K)$, where $\tau>0$ is the HDG
-stabilisation parameter and $\hat u$ is the trace unknown on
-$\partial K$.
+$r\in\mathbb{P}_{p_q}(K)$, where $\nu$ is the unit vector pointing outwards of $K$, so that
+\[
+[w ]\Big|_{\partial K} = w(s_R) + w(s_L), \qquad [w \nu ]\Big|_{\partial K} = w(s_R) - w(s_L),
+\]
+ $\tau>0$ is the HDG
+stabilisation parameter. 
+
+\subsection{Coupling and Boundary Conditions}
+Coupling between elements is achieved by defining the numerical trace $\hat u$ at the element interfaces as  single valued at the nodes of the decomposition. The local equations \eqref{eq:hdg-u}-\eqref{eq:hdg-q} are complemented by coupling equations imposing the flux balance conditions. For $K^- = [s_L,\widehat s]$ and $K^+ = [\widehat s, s_R]$ we set
+\[
+q^- = q^{n+1}_h |_{K^-},\qquad q^+ = q^{n+1}_h|_{K^+}, \qquad u^- = u^{n+1}_h |_{K^-},\qquad u^+ = u^{n+1}_h|_{K^+}
+\]
+and the flux balance is imposed as
+\begin{equation}\label{eq:hdg-flux}
+q^+(\widehat s) - q^-(\widehat s) - \tau [ u^+(\widehat s) + u^-(\widehat s) - 2\widehat u^{n+1}(\widehat s)] = 0.
+\end{equation}
+Junction and boundary conditions are implemented by introducing, for all arcs, Lagrange multipliers at all concerned nodes. The flux balance for the given domain is modified by adding the corresponding 
+multiplier and, depending on whether it is a junction or boundary node, one or two additional equations are added to the system to enforce the desired condition. 
+More precisely, for a boundary condition of the form $\alpha u + \beta q = g$ at a 
+boundary node, the equation 
+\[
+\[
+\alpha \hat u + \beta \lambda = g,
+\]
+is added to the system, where $\lambda$ is the Lagrange multiplier associated to 
+the flux balance of the domain containing the boundary node. 
+For continuity at a junction node $\hat s$shared by $2$ domains, an  equations of the form
+\[\hat u^{(1)}(\hat s) - \hat u^{(2)}(\hat s) = 0,\]
+as well as the coupling flux balance equation
+\[
+\lambda^{(1)}(\hat s) + \lambda^{(2)}(\hat s) = 0.
+\]
 
 \subsection{Static Condensation}
 
-Equations~\eqref{eq:hdg-u}--\eqref{eq:hdg-q} can be written in
+Equations~\eqref{eq:hdg-u},\eqref{eq:hdg-q},\eqref{eq:hdg-flux} can be written in
 matrix form on each element as
 \begin{equation}\label{eq:sc-block}
   \begin{pmatrix} A_{ii} & A_{ib} \\ A_{bi} & A_{bb}\end{pmatrix}
@@ -380,7 +413,9 @@ matrix form on each element as
   \begin{pmatrix} \bm f_i \\ \bm f_b\end{pmatrix},
 \end{equation}
 where $\bm u_i$ collects the interior DOFs and $\hat{\bm u}$ the
-trace DOFs.  Eliminating $\bm u_i$:
+trace DOFs,
+and where the first line encompasses equations \eqref{eq:hdg-u}--\eqref{eq:hdg-q}, while the second line stands for equation \eqref{eq:hdg-flux}.
+  Eliminating $\bm u_i$:
 \[
   \widetilde A\,\hat{\bm u} = \widetilde{\bm f},
   \qquad
@@ -392,11 +427,11 @@ The condensed contributions from all elements are assembled into a
 \emph{global} system whose unknowns are the trace values at all
 inter-element faces and network junctions, plus Lagrange multipliers
 that enforce flux balance.  After solving this reduced system, the
-bulk solution is recovered on each element independently.
+bulk solution is recovered on each element independently. Remark that the matrix $A_{ii}$ is block diagonal with small blocks that can be inverted exactly independently of each other thus making the static condensation procedure embarassingly parallel.
 
 \subsection{Flux Polynomial Orders}
 
-\bionetflux{} uses different polynomial orders for the flux variable
+\bionetflux{} offers the possibility of using  different polynomial orders for the flux variable, thus implementing two different versions of the lowest order HDG method. More precisely, for the two model considered,
 depending on the coupling structure of each equation:
 \begin{itemize}
   \item \textbf{Keller--Segel}: equation~0 ($u$): $\mathbb{P}_0$
@@ -418,8 +453,8 @@ scaled analytically to the physical element length~$h$.  The cached
 matrices include the mass matrix~$M$, its inverse~$M^{-1}$, the
 differentiation matrix~$D$, trace-evaluation operators
 $\widetilde N,\hat N$, boundary matrices $G_b,M_b,T$, an
-averaging operator~$A_v$, and a quadrature matrix~$Q$ with
-associated nodes.
+averaging operator~$A_v$, as well as a quadrature matrix~$Q$ with
+associated nodes. 
 
 \subsection{Newton--Raphson Solver}
 
@@ -512,7 +547,7 @@ src/bionetflux/
 \end{enumerate}
 
 \paragraph{Geometry from CSV.}
-Network topologies can be defined entirely by two CSV files
+Network topologies can be defined  by two CSV files
 (\code{points.csv}, \code{lines.csv}).  Each point carries a
 tag whose first letter classifies it as \textbf{J}~(junction),
 \textbf{T}~(T-junction), or \textbf{B}~(boundary).  The parser
@@ -593,7 +628,7 @@ multi-point constraints.
 
 \begin{figure}[H]
   \centering
-  \includegraphics[width=0.70\textwidth]{../outputs/run_20260310_135733/geometry_with_indices.png}
+  \includegraphics[width=0.70\textwidth]{../outputs/run_20260306_144739/geometry_with_indices.png}
   \caption{Maze geometry (\code{maze\_3\_data}, scaled by
            $\ell=50$) with domain indices.  Blue numbers label
            segments; red dots mark junctions (J), T-junctions (T),
@@ -611,15 +646,15 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq0_t25pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq0_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq0_t50pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq0_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq0_t75pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq0_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Immune-cell density~$u$ (equation~0) at three time
@@ -632,15 +667,15 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq1_t25pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq1_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq1_t50pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq1_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq1_t75pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq1_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Chemoattractant~$\omega$ (equation~1).  Produced
@@ -652,15 +687,15 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq2_t25pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq2_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq2_t50pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq2_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq2_t75pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq2_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Tumour-cell density~$v$ (equation~2).  With near-zero
@@ -672,15 +707,15 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq3_t25pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq3_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq3_t50pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq3_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/birdview_eq3_t75pct.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq3_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Chemoattractant~$\varphi$ (equation~3).  Produced
@@ -698,19 +733,19 @@ unknowns at the final time $t=T=3600$.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/final_birdview_eq0.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq0.png}
     \caption{Immune cells~$u$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/final_birdview_eq1.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq1.png}
     \caption{Chemoattractant~$\omega$}
   \end{subfigure}\\[6pt]
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/final_birdview_eq2.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq2.png}
     \caption{Tumour cells~$v$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/final_birdview_eq3.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq3.png}
     \caption{Chemoattractant~$\varphi$}
   \end{subfigure}
   \caption{Final state at $t=T=3600$ for all four unknowns.}
@@ -729,11 +764,11 @@ controller.
 \begin{figure}[H]
   \centering
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/mass_evolution.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/mass_evolution.png}
     \caption{Left/right mass evolution of~$u$.}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260310_135733/dt_evolution.png}
+    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/dt_evolution.png}
     \caption{Adaptive time-step size~$\Delta t$.}
   \end{subfigure}
   \caption{Diagnostic plots for the OoC maze simulation with
@@ -842,7 +877,7 @@ J.~Theoret.\ Biol.\ \textbf{26}(3), 399--415, 1970.
 \bibitem{perthame2007transport}
 B.~Perthame,
 \emph{Transport Equations in Biology},
-Frontiers in Mathematics, Birkh\"auser, Basel, 2007.
+Frontiers in Mathematics, Springer, 2007.
 
 \bibitem{cockburn2009unified}
 B.~Cockburn, J.~Gopalakrishnan, and R.~Lazarov,
@@ -877,11 +912,17 @@ membranes to non-electrolytes},
 Biochim.\ Biophys.\ Acta \textbf{27}, 229--246, 1958.
 
 \bibitem{bertoluzza2023HDG}
-S.~Bertoluzza, G.~Guidoboni, R.~Hild, D.~Ismail, S.~Sacco, and M.~Verri,
-\emph{HDG methods for the simulation of coupled
-multi-physics problems on networks},
-in preparation, 2023--2026.
+S. Bertoluzza, G. Guidoboni, R. Hild, D. Prada, C. Prud’homme, R. Sacco, L. Sala and M. Szopos, A HDG Method for Elliptic Problems with Integral Boundary Condition: Theory and Applications, {Journal of Scientific Computing,} 95(1), 2023.
 
+\bibitem{bertoluzza2026HDG}
+S.~Bertoluzza, G. Bretti, M. Pennacchio, C. Prud'homme
+\emph{HDG discretization for the Keller--Segel equation},
+in preparation, 2026.
+
+
+
+\bibitem{bertoluzza2026ooc} 
+S.~Bertoluzza, G.~Bretti, A numerical study on migratory patterns and taxis of immature dendritic cells in microfluidic chip geometries, in preparation, 2026
 \end{thebibliography}
 \endgroup
 
