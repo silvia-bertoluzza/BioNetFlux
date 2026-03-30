@@ -128,6 +128,7 @@
    \textit{Keller--Segel chemotaxis \(\cdot\)
            Organ-on-Chip transport \(\cdot\)
            Multi-arc maze geometries}}
+       
 
   \vskip 2cm
   \includegraphics[width=0.7\textwidth]{../Logos/Barra.png}
@@ -149,6 +150,9 @@ Its design targets biological transport phenomena\,---\,chemotaxis,
 diffusion-reaction, and advection-diffusion\,---\,on graph-like
 geometries that arise naturally in microfluidic organ-on-chip (OoC)
 devices, vascular networks, and in-vitro cell-migration assays.
+An AI language model (Claude) was used to assist in translating and extending an existing MATLAB implementation—originally written entirely by the author—into Python. The resulting Python code was reviewed, corrected, and fully validated by the author to ensure mathematical and numerical consistency with the MATLAB version.
+
+\
 
 The framework couples two methodological pillars:
 \begin{enumerate}
@@ -179,6 +183,8 @@ Key capabilities include:
   \item Rich visualisation: bird's-eye colour maps, flat-3D surface
         plots, domain-wise 2-D curves, and geometry index diagrams.
 \end{itemize}
+
+
 
 The remainder of this report presents the mathematical models
 (Section~\ref{sec:models}), the HDG discretisation
@@ -825,6 +831,9 @@ Current development directions include:
   \item Integration with experimental data pipelines for
         organ-on-chip calibration.
 \end{itemize}
+
+\section{Acknowledgements} 
+In the preparation of this report, Claude (Claude 4.6 Opus. Anthropic) was utilized to analyze the provided software codebase and draft the initial summary of functionalities. The raw analysis was reviewed, refined, and verified for accuracy by the author. This work is realized with the support of the Italian Ministry of Research, under the complementary action NRRP “D34Health - Digital Driven Diagnostics, prognostics and therapeutics for sustainable Health care” (Grant \#PNC0000001). The author is member of the Istituto Nazionale di Alta Matemetica - Gruppo Nazionale di Calcolo Scientifico.
 
 
 % ============================================================================
