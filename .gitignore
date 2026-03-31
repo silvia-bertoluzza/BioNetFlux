@@ -48,6 +48,7 @@ ENV/
 
 build/
 .cache/
+MatlabReference/
 
 # Generated outputs in examples
 examples/*.png
