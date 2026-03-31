@@ -50,14 +50,16 @@ class StaticCondensationOOC(StaticCondensationBase):
         b = self.problem.parameters[5]       # coupling parameter
         c = self.problem.parameters[6]       # reaction parameter
         d = self.problem.parameters[7]       # coupling parameter
-        chi = self.problem.parameters[8]     # coupling parameter
         
         alpha = 1/nu
         beta = 1/mu
         
         h = self.discretization.element_length
         
-        # **TODO: need to check that the lambda functions are correctly defined
+        # Get chi and dchi as callables from problem (set via set_chemotaxis)
+        self.chi_func = self.problem.chi
+        self.dchi_func = self.problem.dchi
+        
         # Get lambda function and its derivative
         self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
         self.dlambda_func = getattr(self.problem, 'dlambda_function', lambda x: np.zeros_like(x))
@@ -175,7 +177,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Matrices for j construction
         hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h # Checked
         
-        Q = -nu * beta * chi * np.block([
+        Q = -nu * beta * np.block([
             [Z, Z, Z, Z],
             [Z, Z, Z, Z],
             [M, Z, Z, Z]
@@ -286,6 +288,11 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Assemble bulk solution U = [u1; u2; u3; u4]
         U = np.concatenate([u1, u2, u3, u4])
         
+        # Step 5b: Compute average phi and evaluate chi
+        barphi = float(Av @ u4)
+        barchi = self.chi_func(barphi)
+        dbarchi = self.dchi_func(barphi)
+        
         # Compute Jacobian for Newton method
         # Initialize JAC following MATLAB logic
         JAC = np.zeros((8, 8))
@@ -311,10 +318,12 @@ class StaticCondensationOOC(StaticCondensationBase):
         tJ = D1 @ U - D2 @ hU
         dtJ = D1 @ JAC - D2
         
-        # Construction of j and dj
-        j = hB4 @ hU + tJ.T @ Q @ U
-        dj = hB4 - tJ.T @ Q @ JAC - U.T @ Q.T @ dtJ
-        # dj = R[0] * dj  # Restrict to u equation
+        # Construction of j and dj (Q is multiplied by barchi at runtime)
+        j = hB4 @ hU + barchi * tJ.T @ Q @ U
+        # WARNING: the formula for dbarphi_dhU needs to be checked against the theory
+        dbarphi_dhU = Av @ R[3] @ JAC                           # (1, 8)
+        dj = hB4 - barchi * tJ.T @ Q @ JAC - barchi * U.T @ Q.T @ dtJ \
+             - dbarchi * (tJ.T @ Q @ U) * dbarphi_dhU            # (1, 8)
         # Final flux jumps
         
         B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
