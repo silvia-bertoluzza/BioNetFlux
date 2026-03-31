@@ -100,6 +100,8 @@
 \newcommand{\ddx}{\frac{\partial}{\partial s}}
 \newcommand{\norm}[1]{\lVert #1 \rVert}
 
+\renewcommand{\hat}[1]{\widehat{#1}}
+
 % ============================================================================
 \begin{document}
 
@@ -124,14 +126,14 @@
   {\footnotesize
    \textit{Hybridizable Discontinuous Galerkin methods \(\cdot\)
            Static condensation \(\cdot\)
-           Adaptive time stepping}\\[0.3cm]
+           Adaptive time stepping}\\[0.2cm]
    \textit{Keller--Segel chemotaxis \(\cdot\)
            Organ-on-Chip transport \(\cdot\)
            Multi-arc maze geometries}}
        
 
   \vskip 2cm
-  \includegraphics[width=0.95\textwidth]{../Logos/Barra.png}
+  \includegraphics[width=1.1\textwidth]{../Logos/Barra.png}
 \end{titlepage}
 
 % --- Table of contents ------------------------------------------------------
@@ -177,7 +179,7 @@ Key capabilities include:
         system (4~coupled equations)\,---\,and a template for user-defined
         extensions;
   \item Neumann, Dirichlet, Robin, trace-continuity, and
-        Kedem--Katchalsky interface/boundary conditions;
+        Kedem--Katchalsky boundary/interface conditions;
   \item TOML-based configuration with symbolic function expressions
         resolved at load time;
   \item Rich visualisation: bird's-eye colour maps, flat-3D surface
@@ -191,7 +193,7 @@ The remainder of this report presents the mathematical models
 (Section~\ref{sec:hdg}), the software architecture
 (Section~\ref{sec:architecture}), and a gallery of simulation
 results obtained on a maze-type OoC geometry
-(Section~\ref{sec:results}).
+(Section~\ref{sec:results}) mimicking one of the experiments in \cite{um2019immature}.
 
 
 % ============================================================================
@@ -204,14 +206,14 @@ We consider a connected, planar graph
 $\mathcal{G} = (\mathcal{V},\mathcal{E})$
 whose edges $e_j\in\mathcal{E}$, $j=1,\dots,N_{\mathrm{dom}}$,
 are one-dimensional segments of length~$L_j$.
-Each edge is parametrised by a local coordinate
+Each edge is independently parametrised by a local coordinate
 $s\in[x_0,x_0+L_j]$.  Default value for $x_0$ is $x_0=0$. Vertices in $\mathcal{V}$ are classified as:
 \begin{itemize}
   \item \textbf{Junction points (J)}: shared endpoints of two or more
         edges; trace-continuity or membrane Kedem-Kachalski conditions, as well as Kirchhoff flux-balance conditions
         are imposed here.
   \item \textbf{T-junction points (T)}: endpoints of one edge that
-        touch the interior of another edge.
+        touch the interior of another edge; conditions can be imposed similar to the previous ones.
   \item \textbf{Boundary points (B)}: endpoints that lie on the
         exterior boundary of the overall domain; Dirichlet, Neumann, or Robin conditions
         are imposed.
@@ -279,17 +281,17 @@ $(u,\omega,v,\varphi)$, with the following physical roles:
 
 \begin{mathbox}[title={Organ-on-Chip system}]
 \begin{align}
-  \ddt u &= \nu\,u_{ss}
-            - \bigl[\chi(\varphi)\,u\,\varphi_s\bigr]_s
+  \ddt u &= \nu\,\frac{\partial^2}{\partial s^2} u
+            - \frac{\partial}{\partial s} \bigl[\chi(\varphi)\,u\,\frac{\partial}{\partial s}\varphi_s\bigr]
             + f_u,
   \label{eq:ooc-u}\\[3pt]
-  \ddt\omega &= \epsilon\,\omega_{ss}
+  \ddt\omega &= \epsilon\,\frac{\partial^2}{\partial s^2}\omega
                 - c\,\omega + d\,u + f_\omega,
   \label{eq:ooc-omega}\\[3pt]
-  \ddt v &= \sigma\,v_{ss}
+  \ddt v &= \sigma\,\frac{\partial^2}{\partial s^2}v
             - \lambda(\omega)\,v + f_v,
   \label{eq:ooc-v}\\[3pt]
-  \ddt\varphi &= \mu\,\varphi_{ss}
+  \ddt\varphi &= \mu\,\frac{\partial^2}{\partial s^2}\varphi
                  - a\,\varphi + b\,u + f_\varphi,
   \label{eq:ooc-phi}
 \end{align}
@@ -302,13 +304,16 @@ The coupling structure is as follows:
         $\nu$ and \emph{chemotaxis} driven by the gradient of
         $\varphi$, with sensitivity $\chi(\varphi)$ as
         in~\eqref{eq:chi}.
-  \item \textbf{Chemoattractant~$\omega$} diffuses ($\epsilon$),
+  \item \textbf{Chemoattractant~$\omega$} diffuses with coefficient
+ $\epsilon$,
         decays at rate~$c$, and is produced by immune cells at
         rate~$d$.
-  \item \textbf{Tumour cells}~$v$ diffuse ($\sigma$)
+  \item \textbf{Tumour cells}~$v$ diffuse with coefficient
+  $\sigma$ 
         and are suppressed by $\omega$ via the
         function $\lambda(\omega)=m_1/(m_2+\omega)$. 
-  \item \textbf{Chemoattractant~$\varphi$} diffuses ($\mu$),
+  \item \textbf{Chemoattractant~$\varphi$} diffuses with coefficient
+  $\mu$,
         decays at rate~$a$, and is produced by immune cells at
         rate~$b$.
 \end{itemize}
@@ -328,7 +333,7 @@ for each equation, the following condition: at the boundary:
   \item[Dirichlet] $u = g(t)$\,---\,prescribed trace.
   \item[Robin] $\alpha\,u + \beta\,D\,\partial_s u\,n = g(t)$.
 \end{description}
-At junctions and T-junctions
+At junctions and T-junctions flux balance is imposed together with one of the following coupling conditions:
 \begin{description}
   \item[Trace continuity] $u^{(j_1)}=u^{(j_2)}$ at a junction
         shared by edges $j_1,j_2$, together with a Kirchhoff-type
@@ -375,15 +380,15 @@ $(u_h,q_h)\in\mathbb{P}_p(K)\times\mathbb{P}_{p_q}(K)$ satisfying
   \label{eq:hdg-q}
 \end{align}
 for all test functions $w\in\mathbb{P}_p(K)$,
-$r\in\mathbb{P}_{p_q}(K)$, where $\nu$ is the unit vector pointing outwards of $K$, so that
+$r\in\mathbb{P}_{p_q}(K)$, where $\tau>0$ is the HDG
+stabilisation parameter and $\nu$ is the unit vector pointing outwards of $K$, so that
 \[
-[w ]\Big|_{\partial K} = w(s_R) + w(s_L), \qquad [w \nu ]\Big|_{\partial K} = w(s_R) - w(s_L),
+[w ]\Big|_{\partial K} = w(s_R) + w(s_L), \qquad [w \nu ]\Big|_{\partial K} = w(s_R) - w(s_L).
 \]
- $\tau>0$ is the HDG
-stabilisation parameter. 
+ 
 
 \subsection{Coupling and Boundary Conditions}
-Coupling between elements is achieved by defining the numerical trace $\hat u$ at the element interfaces as  single valued at the nodes of the decomposition. The local equations \eqref{eq:hdg-u}-\eqref{eq:hdg-q} are complemented by coupling equations imposing the flux balance conditions. For $K^- = [s_L,\widehat s]$ and $K^+ = [\widehat s, s_R]$ we set
+Coupling between elements is achieved by defining the numerical trace $\hat u$ at the element interfaces as  single valued at the nodes of the decomposition. The local equations \eqref{eq:hdg-u}-\eqref{eq:hdg-q} are complemented by coupling equations imposing the flux balance conditions. For $K^- = [s_L,\widehat s]$ and $K^+ = [\widehat s, s_R]$, with $s_L < \hat s < s_R$, we set
 \[
 q^- = q^{n+1}_h |_{K^-},\qquad q^+ = q^{n+1}_h|_{K^+}, \qquad u^- = u^{n+1}_h |_{K^-},\qquad u^+ = u^{n+1}_h|_{K^+}
 \]
@@ -396,12 +401,11 @@ multiplier and, depending on whether it is a junction or boundary node, one or t
 More precisely, for a boundary condition of the form $\alpha u + \beta q = g$ at a 
 boundary node, the equation 
 \[
-\[
 \alpha \hat u + \beta \lambda = g,
 \]
 is added to the system, where $\lambda$ is the Lagrange multiplier associated to 
-the flux balance of the domain containing the boundary node. 
-For continuity at a junction node $\hat s$shared by $2$ domains, an  equations of the form
+the  domain containing the boundary node. 
+For continuity at a junction node $\hat s$ shared by $2$ domains, an  equations of the form
 \[\hat u^{(1)}(\hat s) - \hat u^{(2)}(\hat s) = 0,\]
 as well as the coupling flux balance equation
 \[
@@ -421,7 +425,7 @@ matrix form on each element as
 where $\bm u_i$ collects the interior DOFs and $\hat{\bm u}$ the
 trace DOFs,
 and where the first line encompasses equations \eqref{eq:hdg-u}--\eqref{eq:hdg-q}, while the second line stands for equation \eqref{eq:hdg-flux}.
-  Eliminating $\bm u_i$:
+  Eliminating the bulk unknown $\bm u_i$ requires solving:
 \[
   \widetilde A\,\hat{\bm u} = \widetilde{\bm f},
   \qquad
@@ -435,9 +439,10 @@ inter-element faces and network junctions, plus Lagrange multipliers
 that enforce flux balance.  After solving this reduced system, the
 bulk solution is recovered on each element independently. Remark that the matrix $A_{ii}$ is block diagonal with small blocks that can be inverted exactly independently of each other thus making the static condensation procedure embarassingly parallel.
 
-\subsection{Flux Polynomial Orders}
+\subsection{Polynomial Orders}
 
-\bionetflux{} offers the possibility of using  different polynomial orders for the flux variable, thus implementing two different versions of the lowest order HDG method. More precisely, for the two model considered,
+At present
+\bionetflux{} implements order $1$ HDG, but it offers the possibility of using  different polynomial orders for the flux variable, thus implementing two different versions of the lowest order HDG method. More precisely, for the two model considered,
 depending on the coupling structure of each equation:
 \begin{itemize}
   \item \textbf{Keller--Segel}: equation~0 ($u$): $\mathbb{P}_0$
@@ -450,6 +455,7 @@ These choices balance accuracy and computational cost: the
 chemotaxis equation for~$u$ couples nonlinearly to~$\varphi$ and
 requires only a low-order flux representation, while the remaining
 diffusion-reaction equations benefit from a richer flux space.
+Higher order methods can be added to the code by writing corresponding static condensation modules.
 
 \subsection{Elementary Matrices}
 
@@ -581,7 +587,7 @@ on a \emph{maze geometry} consisting of~29 segments with multiple
 junctions, T-junctions, and boundary nodes, built from a pair of
 CSV files (\code{maze\_3\_data}).  All coordinates are scaled by
 a factor $\ell=50$, yielding segment lengths in the range
-$[50,300]$ length units.
+$[50,300]$ length units. This simulation mimicks one of the experiments described in \cite{um2019immature}.
 
 \paragraph{Parameters.}
 The simulation uses the parameters listed in
@@ -614,8 +620,8 @@ $u=1$ on domain~28.
       & $b$ ($\varphi$ production) & 0.2   & $\alpha_\varphi$ \\
       & $d$ ($\omega$ production)  & 0.1   & $\alpha_\omega$ \\[3pt]
     Time
-      & $T$                        & 3600  & final time \\
-      & $\Delta t_0$               & 16    & initial time step \\[3pt]
+      & $T$                        & 640  & final time \\
+      & $ \Delta t_0$               & 64   & initial time step \\[3pt]
     Discretisation
       & $h$                        & 15    & target mesh size \\
       & $\tau$                     & $(0.5,0.5,0.5,0.5)$ & HDG stabilisation \\
@@ -632,9 +638,9 @@ T-junctions, an ``outlet'' box at the top (domains~25--28), and
 a rich interior connectivity requiring careful treatment of
 multi-point constraints.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
-  \includegraphics[width=0.70\textwidth]{../outputs/run_20260306_144739/geometry_with_indices.png}
+  \includegraphics[width=0.70\textwidth]{figures/geometry_with_indices.png}
   \caption{Maze geometry (\code{maze\_3\_data}, scaled by
            $\ell=50$) with domain indices.  Blue numbers label
            segments; red dots mark junctions (J), T-junctions (T),
@@ -649,18 +655,18 @@ Figures~\ref{fig:birdview-u}--\ref{fig:birdview-phi} present
 colour-coded bird's-eye views of the four solution
 components at 25\%, 50\%, and 75\% of the final time~$T$.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq0_t25pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq0_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq0_t50pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq0_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq0_t75pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq0_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Immune-cell density~$u$ (equation~0) at three time
@@ -670,18 +676,18 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
   \label{fig:birdview-u}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq1_t25pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq1_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq1_t50pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq1_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq1_t75pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq1_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Chemoattractant~$\omega$ (equation~1).  Produced
@@ -690,38 +696,38 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
   \label{fig:birdview-omega}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq2_t25pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq2_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq2_t50pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq2_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq2_t75pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq2_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Tumour-cell density~$v$ (equation~2).  With near-zero
-           diffusivity~$\sigma=10^{-9}$, the tumour mass remains
+           diffusivity~$\sigma=10^{-9}$, for this experiment, the tumour mass remains
            localised on domain~17 throughout the simulation.}
   \label{fig:birdview-v}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq3_t25pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq3_t25pct.png}
     \caption{$t=0.25\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq3_t50pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq3_t50pct.png}
     \caption{$t=0.50\,T$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.32\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/birdview_eq3_t75pct.png}
+    \includegraphics[width=\textwidth]{figures/birdview_eq3_t75pct.png}
     \caption{$t=0.75\,T$}
   \end{subfigure}
   \caption{Chemoattractant~$\varphi$ (equation~3).  Produced
@@ -736,22 +742,22 @@ components at 25\%, 50\%, and 75\% of the final time~$T$.
 Figure~\ref{fig:final} displays the bird's-eye view of all four
 unknowns at the final time $t=T=3600$.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq0.png}
+    \includegraphics[width=\textwidth]{figures/final_birdview_eq0.png}
     \caption{Immune cells~$u$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq1.png}
+    \includegraphics[width=\textwidth]{figures/final_birdview_eq1.png}
     \caption{Chemoattractant~$\omega$}
   \end{subfigure}\\[6pt]
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq2.png}
+    \includegraphics[width=\textwidth]{figures/final_birdview_eq2.png}
     \caption{Tumour cells~$v$}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/final_birdview_eq3.png}
+    \includegraphics[width=\textwidth]{figures/final_birdview_eq3.png}
     \caption{Chemoattractant~$\varphi$}
   \end{subfigure}
   \caption{Final state at $t=T=3600$ for all four unknowns.}
@@ -767,14 +773,14 @@ the left/right mass evolution of the immune-cell density~$u$
 the time-step size~$\Delta t$ as selected by the adaptive
 controller.
 
-\begin{figure}[H]
+\begin{figure}
   \centering
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/mass_evolution.png}
+    \includegraphics[width=\textwidth]{figures/mass_evolution.png}
     \caption{Left/right mass evolution of~$u$.}
   \end{subfigure}\hfill
   \begin{subfigure}[t]{0.48\textwidth}
-    \includegraphics[width=\textwidth]{../outputs/run_20260306_144739/dt_evolution.png}
+    \includegraphics[width=\textwidth]{figures/dt_evolution.png}
     \caption{Adaptive time-step size~$\Delta t$.}
   \end{subfigure}
   \caption{Diagnostic plots for the OoC maze simulation with
@@ -932,6 +938,10 @@ in preparation, 2026.
 
 \bibitem{bertoluzza2026ooc} 
 S.~Bertoluzza, G.~Bretti, A numerical study on migratory patterns and taxis of immature dendritic cells in microfluidic chip geometries, in preparation, 2026
+
+\bibitem{um2019immature} 
+E. Um, Oh, J.M., Park, J., Song, T., Kim, T.E., Choi, Y., Shin, C., Kolygina, D., Jeon, J.H., Grzybowski, B.A. and Cho, Y.K., Immature dendritic cells navigate microscopic mazes to find tumor cells. Lab on a Chip, 19(9), 2019.
+
 \end{thebibliography}
 \endgroup
 

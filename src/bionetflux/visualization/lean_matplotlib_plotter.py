@@ -615,7 +615,7 @@ class LeanMatplotlibPlotter:
         os.makedirs(self.output_dir, exist_ok=True)
         print(f"✓ Output directory set to: {self.output_dir}")
     
-    def plot_geometry_with_indices(self, geometry, save_filename=None, show_plot=True):
+    def plot_geometry_with_indices(self, geometry, save_filename=None, show_plot=True, show_legend=False):
         """
         Plot the geometry with domain indices labeled on each segment.
         
@@ -623,6 +623,7 @@ class LeanMatplotlibPlotter:
             geometry: DomainGeometry instance
             save_filename: Optional filename to save the plot
             show_plot: Whether to display the plot interactively
+            show_legend: Whether to show the legend (default: False)
         """
         try:
             import matplotlib.pyplot as plt
@@ -646,13 +647,9 @@ class LeanMatplotlibPlotter:
             x_start, y_start = domain_info.extrema_start
             x_end, y_end = domain_info.extrema_end
             
-            # Use domain's display color or default to blue
-            color = domain_info.display_color if hasattr(domain_info, 'display_color') else 'blue'
-            linewidth = 2
-            
             # Plot the segment
             ax.plot([x_start, x_end], [y_start, y_end], 
-                   color=color, linewidth=linewidth, alpha=0.7)
+                   color='blue', linewidth=2, alpha=0.7)
             
             # Add domain index label at the midpoint
             mid_x = (x_start + x_end) / 2
@@ -692,34 +689,34 @@ class LeanMatplotlibPlotter:
         ax.set_aspect('equal')
         
         # Create legend with domain colors
-        unique_colors = set()
-        for domain_id in range(geometry.num_domains()):
-            domain_info = geometry.get_domain(domain_id)
-            color = domain_info.display_color if hasattr(domain_info, 'display_color') else 'blue'
-            unique_colors.add(color)
+        if show_legend:
+            unique_colors = set()
+            for domain_id in range(geometry.num_domains()):
+                domain_info = geometry.get_domain(domain_id)
+                color = domain_info.display_color if hasattr(domain_info, 'display_color') else 'blue'
+                unique_colors.add(color)
         
-        legend_elements = []
-        for color in unique_colors:
+            legend_elements = []
+            for color in unique_colors:
+                legend_elements.append(
+                    plt.Line2D([0], [0], color=color, linewidth=2, label=f'{color.capitalize()} segments')
+                )
             legend_elements.append(
-                plt.Line2D([0], [0], color=color, linewidth=2, label=f'{color.capitalize()} segments')
+                plt.Line2D([0], [0], marker='o', color='black', linewidth=0, 
+                          markersize=6, label='Grid points')
             )
-        legend_elements.append(
-            plt.Line2D([0], [0], marker='o', color='black', linewidth=0, 
-                      markersize=6, label='Grid points')
-        )
-        ax.legend(handles=legend_elements, loc='upper right')
+            ax.legend(handles=legend_elements, loc='upper right')
         
-        # Add geometry summary as text
+        # Add geometry summary as text below the plot area
         bounding_box = geometry.get_bounding_box()
-        summary_text = (f"Domains: {geometry.num_domains()}\n"
-                       f"X range: [{bounding_box['x_min']:.1f}, {bounding_box['x_max']:.1f}]\n"
+        summary_text = (f"Domains: {geometry.num_domains()}    "
+                       f"X range: [{bounding_box['x_min']:.1f}, {bounding_box['x_max']:.1f}]    "
                        f"Y range: [{bounding_box['y_min']:.1f}, {bounding_box['y_max']:.1f}]")
         
-        ax.text(0.02, 0.98, summary_text, transform=ax.transAxes, 
-               fontsize=10, verticalalignment='top',
-               bbox=dict(boxstyle='round,pad=0.5', facecolor='lightblue', alpha=0.8))
+        fig.text(0.5, 0.01, summary_text, ha='center', fontsize=10,
+                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightblue', alpha=0.8))
         
-        plt.tight_layout()
+        plt.tight_layout(rect=[0, 0.04, 1, 1])
         
         # Save if requested
         save_path = self._get_save_path(save_filename)
