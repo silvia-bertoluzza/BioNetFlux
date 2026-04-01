@@ -68,13 +68,13 @@ class NewtonResult:
 \texttt{final\_solution} & \texttt{np.ndarray} & Final Newton iterate (solution or best attempt) \\
 \hline
 
-\texttt{final\_residual\_norm} & \texttt{float} & L2 norm of residual at final iteration \\
+\texttt{final\_residual\_norm} & \texttt{float} & $\ell$2 norm of residual at final iteration \\
 \hline
 
 \texttt{residual\_history} & \texttt{List[float]} & Residual norm at each Newton iteration \\
 \hline
 
-\texttt{step\_norms} & \texttt{List[float]} & L2 norm of Newton step at each iteration \\
+\texttt{step\_norms} & \texttt{List[float]} & $\ell$2 norm of Newton step at each iteration \\
 \hline
 
 \texttt{jacobian\_condition} & \texttt{Optional[float]} & Condition number of final Jacobian (if computed) \\
@@ -211,31 +211,21 @@ residual_history = []
 step_norms = []
 jacobian_condition = None
 
-if self.verbose:
-    print(f"  Newton solver: tolerance={tol:.1e}, max_iterations={max_iter}")
-    print(f"    Time: {current_time:.6f}")
-    print(f"    Forcing terms: {len(forcing_terms)} domains")
 
 for iteration in range(max_iter):
     # Evaluate residual and Jacobian using BioNetFlux global assembler
     try:
-        current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
+        current_res, current_jac = global_assembler.assemble_residual_and_jacobian(
             global_solution=newton_solution,
             forcing_terms=forcing_terms,
             static_condensations=static_condensations,
             time=current_time
         )
     except Exception as e:
-        if self.verbose:
-            print(f"    Iteration {iteration}: Residual/Jacobian assembly failed ({e})")
         return NewtonResult(
             converged=False,
-            iterations=iteration,
-            final_solution=newton_solution,
-            final_residual_norm=np.inf,
-            residual_history=residual_history,
-            step_norms=step_norms,
-            computation_time=time.time() - start_time
+            .
+            .
         )
     
     # Compute residual norm
@@ -244,9 +234,6 @@ for iteration in range(max_iter):
     
     # Check for convergence
     if residual_norm <= tol:
-        if self.verbose:
-            print(f"    ✓ Newton converged in {iteration + 1} iterations")
-            print(f"      Final residual norm: {residual_norm:.6e}")
         return NewtonResult(
             converged=True,
             iterations=iteration + 1,
@@ -262,33 +249,16 @@ for iteration in range(max_iter):
     try:
         jacobian_condition = np.linalg.cond(current_jacobian)
         if jacobian_condition > 1e12:
-            if self.verbose:
-                print(f"    ⚠ Warning: Jacobian poorly conditioned (cond = {jacobian_condition:.2e})")
     except Exception:
-        jacobian_condition = np.inf
-        if self.verbose:
-            print(f"    ⚠ Warning: Could not compute Jacobian condition number")
-    
-    if self.verbose:
-        print(f"    Newton iteration {iteration}: ||R|| = {residual_norm:.6e}")
-        if jacobian_condition is not None and jacobian_condition < np.inf:
-            print(f"                                 cond(J) = {jacobian_condition:.2e}")
     
     # Solve linear system: J * delta_x = -R
     try:
         delta_x = np.linalg.solve(current_jacobian, -current_residual)
     except np.linalg.LinAlgError as e:
-        if self.verbose:
-            print(f"    ✗ Newton failed: Linear system singular ({e})")
         return NewtonResult(
             converged=False,
-            iterations=iteration + 1,
-            final_solution=newton_solution,
-            final_residual_norm=residual_norm,
-            residual_history=residual_history,
-            step_norms=step_norms,
-            jacobian_condition=jacobian_condition,
-            computation_time=time.time() - start_time
+           .
+           .
         )
     
     # Store step norm and update solution
@@ -296,24 +266,14 @@ for iteration in range(max_iter):
     step_norms.append(step_norm)
     newton_solution += delta_x
     
-    if self.verbose and step_norm > 0:
-        print(f"                                 ||δx|| = {step_norm:.6e}")
 
 # Maximum iterations reached
 final_residual_norm = residual_history[-1] if residual_history else np.inf
-if self.verbose:
-    print(f"    ✗ Newton failed to converge after {max_iter} iterations")
-    print(f"      Final residual norm: {final_residual_norm:.6e}")
 
 return NewtonResult(
     converged=False,
-    iterations=max_iter,
-    final_solution=newton_solution,
-    final_residual_norm=final_residual_norm,
-    residual_history=residual_history,
-    step_norms=step_norms,
-    jacobian_condition=jacobian_condition,
-    computation_time=time.time() - start_time
+   .
+   .
 )
 \end{lstlisting}
 
@@ -531,7 +491,7 @@ else:
 
 \subsection{Integration with BioNetFlux Components}
 
-The Newton solver module integrates directly with BioNetFlux components through the solve method interface:
+The Newton solver module integrates directly with BioNetFlux components through the solve method interface, which relies on the {\tt compute\_residual\_and\_jacobian} method of the module {\tt GlobalAssembler} to compute residual and jacobian :
 
 \subsubsection{Global Assembler Integration}
 
@@ -547,8 +507,8 @@ current_residual, current_jacobian = global_assembler.assemble_residual_and_jaco
 
 \textbf{Key Integration Points:}
 \begin{itemize}
-    \item \textbf{Global Solution Vector}: Newton operates on global DOF vector including traces and multipliers
-    \item \textbf{Forcing Terms}: Uses forcing terms computed by BulkDataManager and static condensation
+    \item \textbf{Global Solution Vector}: Newton operates on global DOF vector including traces and multipliers, the structure of which (particularly in relation with the correspondence with the different arcs and equations) is handled by the global assembler
+    \item \textbf{Forcing Terms}: Forcing terms are not vectors with the same structure as the global solution vectors, but bulk data type dual objects. These are computed by BulkDataManager and static condensation
     \item \textbf{Static Condensations}: Integrates with problem-specific static condensation implementations
     \item \textbf{Time Dependence}: Supports time-dependent problems through time parameter
 \end{itemize}
@@ -832,5 +792,12 @@ result = adaptive_newton.solve_adaptive(
 \end{itemize}
 
 This documentation provides an exact reference for the Newton solver module, emphasizing its role as the core nonlinear solver for BioNetFlux time integration and its specialized design for the BioNetFlux architecture.
+
+\
+
+\begin{todobox}
+	Design a more general solver module that can call the newton solver but also other non linear solvers, particularly Picard method.
+\end{todobox}
+
 
 % End of Newton solver module detailed API documentation

@@ -1,0 +1,107 @@
+% ================================================================
+% SECTION 13: SOLVER SETUP
+% ================================================================
+\section{SolverSetup --- Orchestrator}
+\label{sec:setup_solver}
+
+\begin{center}
+\code{bionetflux.setup\_solver} \quad(539 lines)
+\end{center}
+
+\code{SolverSetup} is the top-level orchestrator that 
+ties together a problem module, an optional TOML configuration file, and
+an optional \code{DomainGeometry} to produce all objects needed for a
+simulation run.
+
+% ------------------------------------------------------------------
+\subsection{Constructor}
+
+\begin{lstlisting}[language=Python, caption={SolverSetup constructor}]
+class SolverSetup:
+    def __init__(self,
+                 problem_module: str = "bionetflux.problems.ooc_problem",
+                 config_file: Optional[str] = None,
+                 geometry: Optional[DomainGeometry] = None):
+\end{lstlisting}
+
+No work happens at construction time; the object stores the arguments
+and defers all computation to \code{initialize()}.
+
+% ------------------------------------------------------------------
+\subsection{initialize()}
+
+\begin{enumerate}
+  \item Dynamically imports \code{problem\_module} via \code{importlib.import\_module}.
+  \item Calls the module's \code{create\_global\_framework(geometry=\ldots, config\_file=\ldots)}.
+  \item Stores the returned tuple:
+    \begin{itemize}
+      \item \code{problems}: list of \code{Problem} (one per domain).
+      \item \code{global\_discretization}: \code{GlobalDiscretization}.
+      \item \code{constraint\_manager}: \code{ConstraintManager}.
+      \item \code{problem\_name}: human-readable string.
+    \end{itemize}
+  \item Sets \code{self.constraints = self.constraint\_manager} for backward compatibility.
+\end{enumerate}
+
+% ------------------------------------------------------------------
+\subsection{Lazy Cached Properties}
+
+The four heavy-weight objects are created only on first access and then cached:
+
+\begin{longtable}{p{5cm}p{9.5cm}}
+\toprule
+\textbf{Property} & \textbf{What it creates} \\
+\midrule
+\code{elementary\_matrices} & \code{ElementaryMatrices(orthonormal\_basis=False)} \\
+\code{static\_condensations} & One \code{StaticCondensationFactory.create()} per domain; matrices are built immediately. \\
+\code{global\_assembler} & \code{GlobalAssembler.from\_framework\_objects(problems, global\_disc, static\_condensations, constraint\_manager)} \\
+\code{bulk\_data\_manager} & \code{BulkDataManager(domain\_data\_list)} via \code{extract\_domain\_data\_list} \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{Solution-Vector Helpers}
+
+\begin{longtable}{p{8cm}p{6.5cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{create\_initial\_conditions() -> (List[np.ndarray], np.ndarray)} & Evaluate \code{problem.u0[eq](node)} for each domain; multipliers are zeros \\
+\code{create\_global\_solution\_vector(trace\_solutions, multipliers) -> np.ndarray} & Concatenate domain traces + multipliers into one vector \\
+\code{extract\_domain\_solutions(global\_solution) -> (List[np.ndarray], np.ndarray)} & Inverse of the above \\
+\code{get\_problem\_info() -> dict} & Summary dict: name, DOF counts, time params, per-domain info \\
+\code{validate\_setup(verbose=False) -> bool} & Round-trip test, bulk data test, residual/Jacobian test \\
+\code{compute\_geometry\_from\_problems(name=None) -> DomainGeometry} & Build a \code{DomainGeometry} from problem extrema (fallback for legacy usage) \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{Module-Level Functions}
+
+\begin{lstlisting}[language=Python, caption={Convenience factories}]
+def create_solver_setup(problem_module, config_file=None,
+                        geometry=None) -> SolverSetup:
+    """Create and initialize a SolverSetup instance."""
+
+def quick_setup(problem_module="bionetflux.problems.test_problem2",
+                validate=True,
+                config_file=None,
+                geometry=None) -> SolverSetup:
+    """Create, initialize, and optionally validate a SolverSetup."""
+\end{lstlisting}
+
+\code{quick\_setup} additionally calls \code{\_validate\_config\_compatibility}
+when a \code{config\_file} is provided, checking that the TOML problem type
+matches the problem module name.
+
+% ------------------------------------------------------------------
+\subsection{Backward-Compatible Shim}
+
+A thin re-export shim at \code{src/setup\_solver.py} (top-level) allows legacy
+\code{from setup\_solver import SolverSetup, quick\_setup} imports to work:
+
+\begin{lstlisting}[language=Python, caption={src/setup\_solver.py}]
+from bionetflux.setup_solver import (
+    SolverSetup, create_solver_setup, quick_setup
+)
+\end{lstlisting}

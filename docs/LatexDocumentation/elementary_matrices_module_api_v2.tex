@@ -1,0 +1,79 @@
+% ================================================================
+% SECTION 12: ELEMENTARY MATRICES
+% ================================================================
+\section{Elementary Matrices}
+\label{sec:elementary_matrices}
+
+\begin{center}
+\code{bionetflux.utils.elementary\_matrices} \quad($\sim$230 lines)
+\end{center}
+
+All element-level HDG matrices are computed once on the reference interval
+$[0,1]$ using SymPy symbolic integration, then stored as NumPy arrays.
+
+% ------------------------------------------------------------------
+\subsection{Constructor}
+
+\begin{lstlisting}[language=Python, caption={ElementaryMatrices constructor}]
+class ElementaryMatrices:
+    def __init__(self, orthonormal_basis: bool = False):
+\end{lstlisting}
+
+\noindent Only the Lagrange basis (\code{orthonormal\_basis=False}) is operational.
+Passing \code{orthonormal\_basis=True} raises \code{NotImplementedError}.
+
+With the standard Lagrange basis on $[0,1]$:
+\[
+  e_0(y) = 1-y, \qquad e_1(y) = y, \qquad n_0 = -1, \quad n_1 = +1.
+\]
+
+% ------------------------------------------------------------------
+\subsection{Matrix Catalogue}
+
+All matrices are accessed via \code{get\_matrix(name)}.
+
+\begin{longtable}{p{2cm}p{4.5cm}p{7cm}}
+\toprule
+\textbf{Key} & \textbf{Definition} & \textbf{Description} \\
+\midrule
+\code{M} & $M_{ij} = \int_0^1 e_j\, e_i\, dy$ & Mass matrix ($2\times 2$) \\
+\code{IM} & $M^{-1}$ & Inverse of the mass matrix \\
+\code{D} & $D_{ij} = \int_0^1 e_j\, e_i'\, dy$ & Derivative matrix \\
+\code{T} & $T_{ij} = e_j(x_i)$ & Trace matrix (evaluation at endpoints) \\
+\code{Gb} & $\text{Gb}_{ij} = e_i(0)\hat e_j(0) + e_i(1)\hat e_j(1)$ & Boundary Gramian \\
+\code{Mb} & $\text{Mb}_{ij} = e_i(0)e_j(0) + e_i(1)e_j(1)$ & Boundary mass matrix \\
+\code{Ntil} & $\tilde N_{ij} = e_j(0)e_i(0)n_0 + e_j(1)e_i(1)n_1$ & Normal matrix \\
+\code{Nhat} & $\hat N = \begin{pmatrix}-1&0\\0&1\end{pmatrix}$ & Hat-normal matrix \\
+\code{Z} & $0_{2\times 2}$ & Zero matrix \\
+\code{Av} & $\mathbf{1}^T T^{-1} M$ & Averaging operator (row) \\
+\code{QUAD} & $Q_{ij} = e_i(\xi_j)\,w_j / 2$ & Quadrature matrix (4-point LGL) \\
+\code{qnodes} & $[-1, -0.447, 0.447, 1]$ & LGL nodes on $[-1,1]$ \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{Built-in Verification}
+
+The constructor checks the following identities:
+\begin{align}
+  D + D^T - \tilde N &= 0 & &\text{(integration by parts)}, \\
+  (\tilde N - D)\, M^{-1}\,(D - \hat N\, T) &= 0 & &\text{($\partial_{xx}=0$ for linear)}, \\
+  \text{Mb} - \text{Gb}\, T &= 0 & &\text{(boundary consistency)}.
+\end{align}
+
+Results are stored in \code{test\_integration\_by\_parts},
+\code{test\_dxx\_zero}, and \code{test\_mb\_gb} and can be printed with
+\code{print\_tests()}.
+
+% ------------------------------------------------------------------
+\subsection{Public API}
+
+\begin{longtable}{p{7.5cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{get\_matrix(name: str) -> np.ndarray} & Retrieve matrix by key \\
+\code{get\_all\_matrices() -> Dict[str, np.ndarray]} & Copy of the full catalogue \\
+\code{print\_tests()} & Print verification residuals \\
+\bottomrule
+\end{longtable}

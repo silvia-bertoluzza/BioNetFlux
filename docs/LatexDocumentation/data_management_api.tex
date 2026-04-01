@@ -1,0 +1,177 @@
+% ================================================================
+% SECTION 8: DATA MANAGEMENT
+% ================================================================
+\section{Data Management}
+\label{sec:data_management}
+
+\begin{center}
+\code{bionetflux.core.domain\_data} ~~\textbar~~
+\code{bionetflux.core.bulk\_data} ~~\textbar~~
+\code{bionetflux.core.lean\_bulk\_data\_manager}
+\end{center}
+
+Three tightly related modules manage the per-element polynomial
+coefficient arrays that represent the numerical solution.
+
+% ------------------------------------------------------------------
+\subsection{DomainData --- Lightweight Container}
+
+\begin{center}
+\code{bionetflux.core.domain\_data} \quad(52 lines)
+\end{center}
+
+A plain data-class that stores only the quantities needed for bulk operations on one domain:
+
+\begin{lstlisting}[language=Python, caption={DomainData constructor}]
+class DomainData:
+    def __init__(self,
+                 neq: int,
+                 n_elements: int,
+                 nodes: np.ndarray,
+                 element_length: float,
+                 mass_matrix: np.ndarray,
+                 trace_matrix: np.ndarray,
+                 initial_conditions: List[Optional[Callable]],
+                 forcing_functions: List[Optional[Callable]]):
+\end{lstlisting}
+
+All array arguments are copied on construction.  Instances are created exclusively by the static factory in \code{BulkDataManager} (see below).
+
+% ------------------------------------------------------------------
+\subsection{BulkData --- Per-Domain Solution Storage}
+\label{sec:bulk_data}
+
+\begin{center}
+\code{bionetflux.core.bulk\_data} \quad(449 lines)
+\end{center}
+
+\begin{structurebox}{BulkData internal layout}
+Each \code{BulkData} instance stores an array
+\[
+  \mathtt{data} \in \mathbb{R}^{2 n_\mathrm{eq} \times n_\mathrm{el}}.
+\]
+For equation $e$ and element $k$ the two rows
+$\mathtt{data}[2e:2e{+}2,\, k]$ hold the two bulk polynomial
+coefficients $(\hat u_{0}, \hat u_{1})$ of that equation on that
+element.  This representation follows the HDG convention of a P1
+polynomial on the reference interval $[0,1]$.
+\end{structurebox}
+
+\subsubsection{Constructor}
+
+\begin{lstlisting}[language=Python, caption={BulkData constructor}]
+class BulkData:
+    def __init__(self, problem: Problem, discretization: Discretization,
+                 dual: bool = False):
+\end{lstlisting}
+
+\noindent On construction the class:
+\begin{enumerate}
+  \item Retrieves the trace matrix \code{T}, mass matrix \code{M}, quadrature matrix \code{QUAD} and quadrature nodes \code{qnodes} from an internally created \code{ElementaryMatrices(orthonormal\_basis=False)} instance.
+  \item Allocates \code{self.data = np.zeros((2*neq, n\_elements))}.
+\end{enumerate}
+
+\subsubsection{set\_data --- Polymorphic Initializer}
+
+\begin{lstlisting}[language=Python, caption={set\_data signature}]
+def set_data(self, input_data, time: float = 0.0):
+\end{lstlisting}
+
+Dispatches to the \textbf{primal} or \textbf{dual} path depending on the \code{dual} flag.  Both paths accept three data formats:
+
+\begin{longtable}{p{5.5cm}p{9cm}}
+\toprule
+\textbf{Input format} & \textbf{Action} \\
+\midrule
+\code{np.ndarray} of shape $(2 n_\mathrm{eq}, n_\mathrm{el})$ & Direct copy \\
+\code{List} of $n_\mathrm{eq}$ callables $f(s,t)$ & \textbf{Primal:} evaluate at nodes, solve trace system.
+  \textbf{Dual:} integrate via quadrature. \\
+\code{np.ndarray} of size $n_\mathrm{eq}(n_\mathrm{el}{+}1)$ & Reconstruct coefficients from trace values \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Query and Utility Methods}
+
+\begin{longtable}{p{7cm}p{7.5cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{get\_data() -> np.ndarray} & Return a copy of \code{self.data} \\
+\code{get\_element\_data(k) -> np.ndarray} & Column $k$ of \code{data} (shape $(2 n_\mathrm{eq},)$) \\
+\code{get\_trace\_values() -> np.ndarray} & Placeholder --- prints a warning \\
+\code{compute\_mass(M) -> float} & $\sum_e \sum_k \mathbf{1}^T M \, \mathtt{data}[2e{:}2e{+}2, k]$ \\
+\code{test() -> bool} & Built-in self-test (shape, NaN, bounds) \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{BulkDataManager --- Multi-Domain Coordinator}
+\label{sec:bulk_data_manager}
+
+\begin{center}
+\code{bionetflux.core.lean\_bulk\_data\_manager} \quad(776 lines)
+\end{center}
+
+\begin{structurebox}{Design philosophy}
+\code{BulkDataManager} stores only a list of \code{DomainData} objects.
+Framework objects (\code{Problem}, \code{Discretization}, \code{StaticCondensation}) are passed as \emph{method arguments} rather than stored, keeping the manager lightweight and decoupled.
+Every public method that accepts framework objects validates them against the stored domain data before proceeding.
+\end{structurebox}
+
+\subsubsection{Constructor and Factory}
+
+\begin{lstlisting}[language=Python, caption={BulkDataManager initialization}]
+class BulkDataManager:
+    def __init__(self, domain_data_list: List[DomainData]):
+        self.domain_data_list = domain_data_list
+
+    @staticmethod
+    def extract_domain_data_list(problems, discretizations,
+                                 static_condensations) -> List[DomainData]:
+        """Static factory: extract DomainData from framework objects."""
+\end{lstlisting}
+
+The factory method builds one \code{DomainData} per domain by:
+\begin{enumerate}
+  \item Calling \code{sc.build\_matrices()} to obtain mass and trace matrices.
+  \item Extracting initial-condition and forcing callables from the \code{Problem} (\code{problem.u0[\ldots]} or \code{problem.force[\ldots]}).
+\end{enumerate}
+
+\subsubsection{Lifecycle Methods}
+
+\begin{longtable}{p{9cm}p{6cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{create\_bulk\_data(domain\_index, problem, discretization, dual=False) -> BulkData} & Create an empty \code{BulkData} for one domain \\
+\code{initialize\_all\_bulk\_data(problems, discretizations, time=0.0) -> List[BulkData]} & Initialize all domains from initial conditions \\
+\code{initialize\_bulk\_data\_from\_initial\_conditions (i, problem, disc, time) -> BulkData} & Initialize a single domain from ICs \\
+\code{update\_bulk\_data(bulk\_data\_list, new\_data\_list)} & Overwrite bulk coefficients (validates shapes and NaN) \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Computation Methods}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{compute\_source\_terms(problems, discretizations, time) -> List[BulkData]} & Dual-mode integration of \code{problem.force} \\
+\code{compute\_forcing\_terms(bulk\_data\_list, problems, discretizations, time, dt) -> List[np.ndarray]} & Combine mass-matrix $\times$ old solution + forcing $\times$ $\Delta t$ (implicit Euler) \\
+\code{compute\_total\_mass(bulk\_data\_list) -> float} & Sum per-domain mass for conservation check \\
+\code{compute\_mass\_conservation(bulk\_data\_list) -> float} & Alias for \code{compute\_total\_mass} \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Utility Methods}
+
+\begin{longtable}{p{7cm}p{7.5cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{get\_num\_domains() -> int} & Number of domains \\
+\code{get\_domain\_info(i) -> DomainData} & Inspect domain $i$ \\
+\code{get\_bulk\_data\_arrays(bulk\_data\_list) -> List[np.ndarray]} & Extract raw arrays \\
+\code{test(problems, discretizations, static\_condensations) -> bool} & Comprehensive self-test (9 sub-tests) \\
+\bottomrule
+\end{longtable}

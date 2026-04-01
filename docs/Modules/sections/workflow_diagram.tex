@@ -1,0 +1,281 @@
+% BioNetFlux Workflow Section for Main Documentation
+% To be included in master LaTeX document
+
+\section{BioNetFlux Experimental Workflow}
+\label{sec:bionetflux_workflow}
+
+This section illustrates the typical experimental workflow in BioNetFlux, showing how the configuration-driven architecture coordinates the various framework components to perform biological network transport simulations.
+
+\subsection{Workflow Overview}
+
+The BioNetFlux framework follows a systematic six-phase approach for conducting biological transport simulations:
+
+\begin{enumerate}
+    \item \textbf{Configuration Phase}: Load and validate TOML configuration files
+    \item \textbf{Geometry Phase}: Create and validate network topology
+    \item \textbf{Problem Setup Phase}: Generate problem instances and discretizations
+    \item \textbf{Solver Setup Phase}: Initialize numerical solution components
+    \item \textbf{Time Evolution Phase}: Perform time-stepping with Newton iteration
+    \item \textbf{Output Phase}: Generate visualizations and analysis
+\end{enumerate}
+
+\subsection{Detailed Workflow Diagram}
+
+The following diagram shows the complete experimental workflow with class relationships and method calls:
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[scale=0.8, every node/.style={scale=0.8}]
+
+% Define colors
+\definecolor{configcolor}{RGB}{255, 165, 0}
+\definecolor{geometrycolor}{RGB}{0, 128, 128}
+\definecolor{problemcolor}{RGB}{70, 130, 180}
+\definecolor{solvercolor}{RGB}{220, 20, 60}
+\definecolor{outputcolor}{RGB}{34, 139, 34}
+
+% Define styles
+\tikzset{
+    configbox/.style={rectangle, rounded corners, minimum width=2cm, minimum height=0.8cm, 
+                     align=center, draw=configcolor, fill=configcolor!20, thick, font=\scriptsize},
+    geometrybox/.style={rectangle, rounded corners, minimum width=2cm, minimum height=0.8cm,
+                       align=center, draw=geometrycolor, fill=geometrycolor!20, thick, font=\scriptsize},
+    problembox/.style={rectangle, rounded corners, minimum width=2cm, minimum height=0.8cm,
+                     align=center, draw=problemcolor, fill=problemcolor!20, thick, font=\scriptsize},
+    solverbox/.style={rectangle, rounded corners, minimum width=2cm, minimum height=0.8cm,
+                    align=center, draw=solvercolor, fill=solvercolor!20, thick, font=\scriptsize},
+    outputbox/.style={rectangle, rounded corners, minimum width=2cm, minimum height=0.8cm,
+                     align=center, draw=outputcolor, fill=outputcolor!20, thick, font=\scriptsize},
+    arrow/.style={->, >=stealth, thick}
+}
+
+% Configuration Phase
+\node[configbox] (config) {TOML\\ Config};
+\node[configbox, right=1.5cm of config] (configmgr) {Config\\Manager};
+\node[configbox, right=1.5cm of configmgr] (resolver) {Function\\Resolver};
+
+% Geometry Phase  
+\node[geometrybox, below=1cm of config] (geometry) {Domain\\Geometry};
+\node[geometrybox, right=1.5cm of geometry] (factory) {Geometry\\Factory};
+
+% Problem Phase
+\node[problembox, below=1cm of geometry] (problems) {Problem\\List};
+\node[problembox, right=1.5cm of problems] (discretization) {Discretization\\List};
+\node[problembox, right=1.5cm of discretization] (constraints) {Constraint\\Manager};
+
+% Solver Phase
+\node[solverbox, below=1cm of problems] (global_disc) {Global\\Discretization};
+\node[solverbox, right=1.5cm of global_disc] (assembler) {Global\\Assembler};
+
+% Time Evolution
+\node[solverbox, below=1cm of global_disc] (newton) {Newton\\Solver};
+\node[solverbox, right=1.5cm of newton] (timestepper) {Time\\Stepper};
+
+% Output
+\node[outputbox, below=1cm of newton] (plotter) {Plotter};
+\node[outputbox, right=1.5cm of plotter] (analysis) {Analysis};
+
+% Arrows showing data flow
+\draw[arrow, configcolor] (config) -- (configmgr);
+\draw[arrow, configcolor] (configmgr) -- (resolver);
+\draw[arrow, geometrycolor] (configmgr) -- (geometry);
+\draw[arrow, geometrycolor] (geometry) -- (factory);
+\draw[arrow, problemcolor] (geometry) -- (problems);
+\draw[arrow, problemcolor] (geometry) -- (discretization);
+\draw[arrow, problemcolor] (geometry) -- (constraints);
+\draw[arrow, problemcolor] (resolver) -- (problems);
+\draw[arrow, solvercolor] (discretization) -- (global_disc);
+\draw[arrow, solvercolor] (problems) -- (assembler);
+\draw[arrow, solvercolor] (constraints) -- (assembler);
+\draw[arrow, solvercolor] (global_disc) -- (assembler);
+\draw[arrow, solvercolor] (assembler) -- (newton);
+\draw[arrow, solvercolor] (newton) -- (timestepper);
+\draw[arrow, outputcolor] (timestepper) -- (plotter);
+\draw[arrow, outputcolor] (timestepper) -- (analysis);
+
+% Phase labels
+\node[above=0.5cm of configmgr, configcolor, font=\bfseries\small] {Configuration};
+\node[above=0.5cm of factory, geometrycolor, font=\bfseries\small] {Geometry};
+\node[above=0.5cm of discretization, problemcolor, font=\bfseries\small] {Problem Setup};
+\node[above=0.5cm of assembler, solvercolor, font=\bfseries\small] {Solver Setup};
+\node[below=0.3cm of timestepper, orange, font=\bfseries\small] {Time Evolution};
+\node[below=0.3cm of analysis, outputcolor, font=\bfseries\small] {Output};
+
+\end{tikzpicture}
+\caption{BioNetFlux Experimental Workflow - Class Relationships and Data Flow}
+\label{fig:bionetflux_workflow}
+\end{figure}
+
+\subsection{Key Workflow Steps}
+
+\subsubsection{Phase 1: Configuration Loading}
+
+\begin{lstlisting}[language=Python, caption=Configuration Phase Example]
+# Load problem-specific configuration
+from bionetflux.problems.ooc_config_manager import OoCConfigManager
+
+config_manager = OoCConfigManager()
+config = config_manager.load_config("my_experiment.toml")
+
+# Functions are automatically resolved from string specifications
+initial_conditions = config['initial_conditions']  # Now callables
+force_functions = config['force_functions']        # Now callables
+\end{lstlisting}
+
+\subsubsection{Phase 2: Geometry Creation}
+
+\begin{lstlisting}[language=Python, caption=Geometry Phase Example]
+# Create or load geometry
+from bionetflux.geometry.domain_geometry import build_grid_geometry
+
+geometry = build_grid_geometry(N=4)  # 4×4 grid with 18 domains
+geometry.validate_geometry(verbose=True)
+
+# Geometry automatically tracks connections
+boundary_connections = geometry.get_boundary_connections()
+interior_connections = geometry.get_interior_connections()
+\end{lstlisting}
+
+\subsubsection{Phase 3: Problem Setup}
+
+\begin{lstlisting}[language=Python, caption=Problem Setup Phase Example]
+# Create problems from geometry and configuration
+problems = []
+for domain_id in range(geometry.num_domains()):
+    domain_info = geometry.get_domain(domain_id)
+    
+    problem = Problem(
+        neq=config['problem']['neq'],
+        domain_start=domain_info.domain_start,
+        domain_length=domain_info.domain_length,
+        parameters=parameters_from_config,
+        problem_type="organ_on_chip"
+    )
+    
+    # Apply configuration functions
+    problem.set_initial_condition(0, initial_conditions['u'])
+    problem.set_force(0, force_functions['u'])
+    problems.append(problem)
+\end{lstlisting}
+
+\subsubsection{Phase 4: Solver Setup}
+
+\begin{lstlisting}[language=Python, caption=Solver Setup Phase Example]
+# Create global discretization and assembler
+global_disc = GlobalDiscretization(discretizations)
+global_disc.set_time_parameters(dt, T)
+
+# Setup constraints from geometry
+constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
+constraint_manager.map_to_discretizations(discretizations)
+
+# Initialize global assembler
+assembler = GlobalAssembler(problems, global_disc, constraint_manager)
+\end{lstlisting}
+
+\subsubsection{Phase 5: Time Evolution}
+
+\begin{lstlisting}[language=Python, caption=Time Evolution Phase Example]
+# Main simulation loop
+newton_solver = NewtonSolver(tolerance=1e-10)
+time_stepper = TimeStepper(dt, T)
+
+while not time_stepper.is_finished():
+    # Assemble system for current time
+    residual, jacobian = assembler.assemble_residual_and_jacobian(
+        current_solution, time_stepper.current_time
+    )
+    
+    # Solve nonlinear system
+    solution_update = newton_solver.solve(residual, jacobian)
+    
+    # Advance time
+    current_solution = time_stepper.advance_time(
+        current_solution, solution_update
+    )
+\end{lstlisting}
+
+\subsubsection{Phase 6: Output and Analysis}
+
+\begin{lstlisting}[language=Python, caption=Output Phase Example]
+# Extract domain solutions
+domain_solutions = assembler.extract_domain_solutions(final_solution)
+
+# Visualization
+plotter = LeanMatplotlibPlotter(problems, discretizations)
+plotter.plot_2d_curves(domain_solutions, title="Final Solution")
+plotter.plot_birdview(domain_solutions, equation_idx=0, time=T)
+plotter.plot_flat_3d(domain_solutions, equation_idx=0)
+
+# Analysis
+total_mass = compute_total_mass(domain_solutions)
+conservation_error = check_mass_conservation(domain_solutions)
+\end{lstlisting}
+
+\subsection{Complete Experiment Example}
+
+Here's a complete example showing how all phases work together:
+
+\begin{lstlisting}[language=Python, caption=Complete BioNetFlux Experiment]
+def run_bionetflux_experiment(config_file="ooc_experiment.toml"):
+    """
+    Complete BioNetFlux experimental workflow.
+    """
+    
+    # Phase 1: Configuration
+    from bionetflux.problems.ooc_problem import create_global_framework
+    problems, global_disc, constraints, name = create_global_framework(
+        config_file=config_file
+    )
+    
+    # Phase 2-4: Setup (handled by create_global_framework)
+    print(f"Experiment: {name}")
+    print(f"Domains: {len(problems)}")
+    print(f"Constraints: {constraints.n_constraints}")
+    
+    # Phase 5: Time Evolution
+    from bionetflux.solvers.setup_solver import setup_complete_solver
+    solver = setup_complete_solver(problems, global_disc, constraints)
+    
+    # Create initial conditions
+    initial_traces, initial_multipliers = solver.create_initial_conditions()
+    
+    # Time evolution loop
+    final_solution = solver.evolve_in_time(
+        initial_solution=(initial_traces, initial_multipliers),
+        progress_callback=lambda t, sol: print(f"Time: {t:.3f}")
+    )
+    
+    # Phase 6: Output
+    from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+    
+    plotter = LeanMatplotlibPlotter(problems, global_disc.spatial_discretizations)
+    final_traces, _ = solver.extract_domain_solutions(final_solution)
+    
+    # Generate comprehensive output
+    plotter.plot_2d_curves(final_traces, title=f"{name} - Final State")
+    plotter.plot_comparison(initial_traces, final_traces, 0.0, global_disc.T)
+    plotter.show_all()
+    
+    return final_traces, solver
+
+# Run experiment
+if __name__ == "__main__":
+    results, solver = run_bionetflux_experiment("my_ooc_experiment.toml")
+    print("Experiment completed successfully!")
+\end{lstlisting}
+
+\subsection{Workflow Benefits}
+
+The configuration-driven workflow provides several advantages:
+
+\begin{itemize}
+    \item \textbf{Reproducibility}: TOML files ensure exact experimental reproduction
+    \item \textbf{Flexibility}: Easy parameter sweeps and function variations
+    \item \textbf{Modularity}: Clear separation between setup, solving, and analysis
+    \item \textbf{Validation}: Automatic consistency checking at each phase
+    \item \textbf{Extensibility}: New problem types integrate seamlessly
+    \item \textbf{Documentation}: Configuration files serve as experimental records
+\end{itemize}
+
+This workflow architecture positions BioNetFlux as a powerful platform for systematic biological network research with excellent experimental control and documentation capabilities.

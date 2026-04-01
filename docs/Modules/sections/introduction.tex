@@ -1,0 +1,26 @@
+\section{Introduction}
+
+\bionetflux{} is a computational framework designed for simulating biological transport phenomena on complex one dimensional networks. Based on an Hybridized Discontinuous Galerkin (HDG) approach, the framework specializes in solving coupled partial differential equations (PDEs) on multi-arc (branch/channel) networks, with particular focus on:
+
+\begin{itemize}
+    \item \textbf{Keller-Segel chemotaxis models}: Cell migration driven by chemical gradients
+    \item \textbf{Organ-on-Chip systems}: Microfluidic device simulations with multiple compartments
+    \item \textbf{Multi-arc networks}: Complex geometries with different type of junction conditions and interface constraints
+\end{itemize}
+
+\subsection{Key Features}
+
+\begin{itemize}
+    \item \textbf{Multi-Arc Support}: Handle complex network topologies with arbitrary arc connections
+    \item \textbf{Arbitrary equation number}: Parametric handling of the number of equations per arc
+    \item \textbf{Geometry Management}: Intuitive geometry definition using the \code{DomainGeometry} class
+    \item \textbf{Flexible Constraints}: Support for Neumann, Dirichlet, and Robin boundary conditions and  Kedem-Katchalsky junction conditions
+    \item \textbf{Visualization}: 2D curve plots, 3D flat views, and bird's eye network visualization
+    \item \textbf{Static Condensation}: Efficient element-level solution elimination
+    \item \textbf{Time Evolution}: Euler implicit time stepping with nonlinear solver
+   \item \textbf{Extensibility}: Adding new problem classes by writing problem specific static condensation modules 
+\end{itemize}
+
+\begin{warningbox}
+	Throughout the code we use the word {\tt Domain} as a synonym of {\tt Arc}
+\end{warningbox}

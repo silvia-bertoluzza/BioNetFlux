@@ -163,12 +163,20 @@ The constraint system handles boundary conditions and inter-domain coupling thro
     \item \textbf{Validation System}: Comprehensive constraint consistency checking
 \end{itemize}
 
-\input{HDGDataStructure}
+\newcommand{\arc}{S}
 
 \section{Static Condensation Framework}
 \label{sec:static_condensation}
 
+Discrete trial and test functions $w$ in $H^1(\arc)$, $\arc$ being an arc of the geometry, are represented both as trace vectors (that is the vector of values of $w$ in the {\tt N\_nodes} nodes of the spatial discretization), and as discontinuous P1 functions, represented by a couple of coefficients per elements. The main representation method is as trace vectors. This is the data representation used for the linear or non-linear equation to be solved iteratively. As customary in the HDG method, the bulk representation, which is managed via the  {\tt BulkData} and {\tt BulkDataManager} classes (see Sections \ref{sec:bulk_data_module_api} and \ref{sec:lean_bulk_data_manager_api}), is retrieved via a static condensation procedure, by locally solving the equation at hand in each element. This procedure is handled by the {\tt static\_condensation} module.
+
+\
+
 \bionetflux{} implements HDG through a flexible static condensation framework that supports problem-specific implementations while maintaining a consistent interface.
+
+\
+
+The {\tt StaticCondensation} class is one of the only two classes that depends on the particular type of problem that needs to be solved (the other being the {\tt Problem} class). Different {\tt StaticCondensation} classes are implemented for different type of problems. Upon initialization, via the module {\tt static\_condensation\_factory} the right module is chosen to initialize the correct {\tt StaticCondensation} object by looking at the {\tt problem\_type} attribute of the problem at hand. Currently, two problem types have been included in the code, the Keller-Segel problem, and the OoC problem (simulation of the interaction of tumor and immune system cells in an organ-on-chip device)..
 
 \subsection{Base Class Architecture}
 
@@ -182,7 +190,9 @@ class StaticCondensationBase(ABC):
         pass
     
     @abstractmethod
-    def static_condensation(self, local_trace, local_source, **kwargs):
+    def static_condensation(self, local_trace: np.ndarray, 
+   											   local_source: np.ndarray, **kwargs) 
+    										   -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """Perform element-level static condensation."""
         pass
     
@@ -194,30 +204,69 @@ class StaticCondensationBase(ABC):
 
 \subsection{Problem-Specific Implementations}
 
-\subsubsection{Keller-Segel Implementation}
-The \code{KellerSegelStaticCondensation} class handles chemotaxis problems:
-\begin{itemize}
-    \item \textbf{Nonlinear Coupling}: Chemotaxis sensitivity functions \code{chi(x)} and \code{dchi(x)}
-    \item \textbf{Matrix Assembly}: Builds L1, L2 matrices and coupling terms
-    \item \textbf{Jacobian Computation}: Automatic differentiation for Newton's method
-    \item \textbf{Flux Recovery}: Proper flux computation including nonlinear terms
-\end{itemize}
-
 \subsubsection{Factory Pattern}
 The \code{StaticCondensationFactory} automatically selects the appropriate implementation:
 \begin{lstlisting}[language=Python, caption=Factory Usage]
-# Automatic selection based on problem type
-sc = StaticCondensationFactory.create(
-    problem=problem,
-    global_discretization=global_disc,
-    elementary_matrices=elem_matrices,
-    domain_index=0
-)
+	# Automatic selection based on problem type
+	sc = StaticCondensationFactory.create(
+	problem=problem,
+	global_discretization=global_disc,
+	elementary_matrices=elem_matrices,
+	domain_index=0
+	)
 \end{lstlisting}
+
+\subsubsection{Keller-Segel Implementation}
+The \code{KellerSegelStaticCondensation} class is called for {\tt problem\_type} = {\tt "keller\_segel"}. It handles chemotaxis problems modeled by the one dimensional Keller-Segel equation:
+\begin{gather*}\label{KS1}
+	\partial_t u - \partial_s\cdot (\mu\partial_s u - \chi u \partial_s \phi) = f_u,\\ 
+	\partial_t \phi - \partial_s\cdot \nu \partial_s \phi + a \phi - b u = f_{\phi},
+\end{gather*}
+\begin{itemize}
+    \item \textbf{Nonlinear Coupling}: Chemotaxis sensitivity functions \code{chi(x)} and \code{dchi(x)}
+    \item \textbf{Matrix Assembly}: Builds the elementary matrices and and coupling terms that serve as building blocks for the static condensation procedure 
+    \item \textbf{Jacobian Computation}: Evaluates elementary contribution to the Jacobian for Newton's method
+    \item \textbf{Flux Recovery}: Proper flux computation including nonlinear terms
+\end{itemize}
+
+\begin{warningbox}
+	When I implemented the code, the equation form that I considered was
+	\begin{gather*}\label{KS1}
+		\partial_t u - \partial_s\cdot \mu (\partial_s u - \chi u \partial_s \phi) = f_u,\\ 
+	\partial_t \phi - \partial_s\cdot \nu \partial_s \phi + a \phi - b u = f_{\phi}.
+	\end{gather*}
+	which requires a different scaling for the non linear coefficient $\chi$. I believe this is the version that is actually implemented in the code. I need to check if this is the case and, in case, fix this.
+\end{warningbox}
+
+\newcommand{\ds}{\partial_s}
+\newcommand{\vc}{v}
+\newcommand{\uc}{u}
+\newcommand{\pc}{\omega}
+\newcommand{\qc}{\phi}
+
+
+
+\subsubsection{Organ-on-Chip Implementation}
+The \code{StaticCondensationOOC} class is called for {\tt problem\_type} = {\tt "organ\_on\_chip"}. It handles the simulation of the mutual interaction between tumor and immune system cells, modeled by the equation
+\begin{gather*}
+	\partial_t \vc - \ds \nu_v^\text{c} \ds \vc + \lambda^*  (\pc) \vc = 0  \\
+		\partial_t \uc - \ds (\nu_u^\text{c} \ds \uc - \chi \ds \qc \uc) = 0,\\
+		\partial_t \pc - \ds \nu_\omega^\text{c} \pc + \beta \pc  - \alpha \uc = 0,  \\
+		\partial_t \qc - \ds  \nu_\phi^\text{c} \qc + a^\text{c}_\psi \qc  - b^\text{c}_\psi \vc = 0.
+\end{gather*}
+\begin{itemize}
+	\item \textbf{Nonlinear Coupling}: Chemotaxis sensitivity functions \code{chi(x)} and \code{dchi(x)}
+	\item \textbf{Matrix Assembly}: Builds the elementary matrices and and coupling terms that serve as building blocks for the static condensation procedure 
+	\item \textbf{Jacobian Computation}: Evaluates elementary contribution to the Jacobian for Newton's method
+	\item \textbf{Flux Recovery}: Proper flux computation including nonlinear terms
+\end{itemize}
+
+\begin{todobox}{Check the equations above for consistency with the notation in the code}
+\end{todobox}
 
 \subsection{Elementary Matrices}
 
-The \code{ElementaryMatrices} class provides precomputed reference element matrices:
+The \code{ElementaryMatrices} class provides precomputed general purpose reference element matrices, which are common to most static condensations:
 \begin{itemize}
     \item \textbf{Mass Matrix (M)}: Element mass matrix for time integration
     \item \textbf{Trace Matrix (T)}: Relates bulk DOFs to boundary traces
@@ -228,15 +277,15 @@ The \code{ElementaryMatrices} class provides precomputed reference element matri
 \section{Global Assembly System}
 \label{sec:global_assembly}
 
-The global assembly system coordinates element-level computations into a global nonlinear system suitable for Newton iteration.
+The global assembly system implemented in the {\tt lean\_global\_assembly} module coordinates element-level computations into a global nonlinear system suitable for subsequent Newton iteration.
 
 \subsection{Assembly Architecture}
 
 The \code{GlobalAssembler} class provides:
 \begin{itemize}
     \item \textbf{DOF Management}: Automatic tracking of trace and multiplier DOFs
-    \item \textbf{Residual Assembly}: Global residual vector construction
-    \item \textbf{Jacobian Assembly}: Global Jacobian matrix for Newton's method
+    \item \textbf{Global Residual Assembly}: Global residual vector construction
+    \item \textbf{Global Jacobian Assembly}: Global Jacobian matrix for Newton's method
     \item \textbf{Bulk Recovery}: Post-processing of bulk solutions from traces
 \end{itemize}
 
@@ -360,14 +409,31 @@ plotter.plot_comparison(
 \section{Time Evolution and Newton Solver}
 \label{sec:time_evolution}
 
-\bionetflux{} implements implicit Euler time stepping with Newton's method for solving the resulting nonlinear systems at each time step.
+
+\newcommand{\traceToBulk}{\mathcal{B}} 
+\newcommand{\traceToFlux}{\mathcal{L}}	
+\newcommand{\fluxBalance}{\mathcal{F}}
+
+For a general problem and a general one-step time discretization scheme, at each time step a problem has to be solved that has the form
+\begin{gather*}
+\mathcal{L}(\widehat u^{n+1},u^{n+1},\widehat j^{n+1} ; f^{n+1}
+) + \mathcal B(\lambda^{n+1})  = 0
+\end{gather*}
+
+
+\bionetflux{} implements implicit Euler time stepping with Newton's method for solving the resulting nonlinear systems at each time step. At present, the time discretization scheme is hard-coded within the {\tt static\_condensation} method. Applying static condensation to the system obtained by the chosed time discretization of the equation, this is reduced to a system of the form
+\[
+\fluxBalance(\traceToFlux(\widehat u^{n+1},\widehat u^n,f^{n+1}),\lambda^{n+1}) = 0, \qquad 
+\] 
 
 \subsection{Time Evolution Framework}
 
+
+
 \subsubsection{Implicit Euler Integration}
-The framework uses backward Euler for stability:
+The framework uses backward Euler for stability: 
 \begin{equation}
-\frac{U^{n+1} - U^n}{\Delta t} + \mathcal{L}(U^{n+1}) = f^{n+1}
+\frac{\traceToBulk (u^{n+1}) - \traceToBulk (u^n)}{\Delta t} + \mathcal{L}(u^{n+1}) = f^{n+1}
 \end{equation}
 
 where:
@@ -380,7 +446,7 @@ where:
 \subsubsection{Newton's Method Implementation}
 At each time step, the nonlinear system is solved using Newton's method:
 \begin{enumerate}
-    \item \textbf{Residual Computation}: $R(U^{(k)}) = 0$ where $k$ is the Newton iteration
+    \item \textbf{Residual Computation}: $R(U^{(k)}) = 0$ where $k$ is the Newton iteration, performeb by the \code{flux\_jump} module via call to 
     \item \textbf{Jacobian Assembly}: $J^{(k)} = \frac{\partial R}{\partial U}\Big|_{U^{(k)}}$
     \item \textbf{Linear System}: Solve $J^{(k)} \delta U = -R(U^{(k)})$
     \item \textbf{Solution Update}: $U^{(k+1)} = U^{(k)} + \delta U$
@@ -449,7 +515,7 @@ def time_evolution_example():
             print(f"  Newton {newton_iter}: ||R|| = {residual_norm:.6e}")
             
             if residual_norm < newton_tolerance:
-                print(f"  ✓ Newton converged in {newton_iter + 1} iterations")
+                print(f"  \checkmark Newton converged in {newton_iter + 1} iterations")
                 break
             
             # Newton update
@@ -457,7 +523,7 @@ def time_evolution_example():
                 delta_x = np.linalg.solve(jacobian, -residual)
                 newton_solution += delta_x
             except np.linalg.LinAlgError:
-                print(f"  ✗ Newton failed: singular Jacobian")
+                print(f"  \times Newton failed: singular Jacobian")
                 break
         
         # Update solution
@@ -485,15 +551,15 @@ The framework provides tools for monitoring convergence:
 \begin{itemize}
     \item \textbf{Residual Norms}: Track $\|R\|_2$ at each Newton iteration
     \item \textbf{Solution Updates}: Monitor $\|\delta U\|$ for step size analysis
-    \item \textbf{Jacobian Conditioning}: Check condition numbers for stability
+%    \item \textbf{Jacobian Conditioning}: Check condition numbers for stability
 \end{itemize}
 
-\subsubsection{Adaptive Parameters}
-\begin{itemize}
-    \item \textbf{Time Step Control}: Adjust $\Delta t$ based on Newton convergence
-    \item \textbf{Tolerance Adjustment}: Relax tolerance for difficult time steps
-    \item \textbf{Damping Strategies}: Implement line search for robustness
-\end{itemize}
+%\subsubsection{Adaptive Parameters}
+%\begin{itemize}
+%    \item \textbf{Time Step Control}: Adjust $\Delta t$ based on Newton convergence
+%    \item \textbf{Tolerance Adjustment}: Relax tolerance for difficult time steps
+%    \item \textbf{Damping Strategies}: Implement line search for robustness
+%\end{itemize}
 
 \section{Creating New Problems}
 \label{sec:creating_problems}

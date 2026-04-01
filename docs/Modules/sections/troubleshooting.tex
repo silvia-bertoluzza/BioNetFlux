@@ -1,0 +1,55 @@
+\section{Troubleshooting}
+
+\subsection{Common Issues}
+
+\subsubsection{Import Errors}
+\begin{lstlisting}[language=Python, caption={Path Setup}]
+# Ensure correct path setup
+import sys
+sys.path.insert(0, '/path/to/BioNetFlux/code')
+\end{lstlisting}
+
+\subsubsection{Geometry Validation}
+\begin{lstlisting}[language=Python, caption={Geometry Debugging}]
+# Check geometry before problem creation
+geometry = DomainGeometry("test")
+# ... add domains ...
+print(geometry.summary())  # Verify domain layout
+print(geometry.get_bounding_box())  # Check coordinates
+\end{lstlisting}
+
+\subsubsection{Constraint Setup}
+\begin{lstlisting}[language=Python, caption={Constraint Verification}]
+# Verify constraint mapping
+constraint_manager.map_to_discretizations(discretizations)
+print(f"Total constraints: {constraint_manager.n_multipliers}")
+\end{lstlisting}
+
+\subsubsection{Solution Convergence}
+\begin{lstlisting}[language=Python, caption={Convergence Monitoring}]
+# Monitor Newton iteration
+newton_tolerance = 1e-10
+max_newton_iterations = 20
+
+# Check residual norms during iteration
+if residual_norm > newton_tolerance:
+    print(f"Convergence issue: residual = {residual_norm:.2e}")
+\end{lstlisting}
+
+\subsection{Performance Optimization}
+
+\begin{enumerate}
+    \item \textbf{Mesh Resolution}: Balance accuracy vs. computational cost
+    \item \textbf{Time Step Size}: Use adaptive time stepping for stability
+    \item \textbf{Newton Tolerance}: Adjust based on problem requirements
+    \item \textbf{Domain Decomposition}: Optimize domain sizes for load balancing
+\end{enumerate}
+
+\subsection{Debugging Tips}
+
+\begin{enumerate}
+    \item \textbf{Visualization}: Use all three plot types to understand solution behavior
+    \item \textbf{Parameter Validation}: Check physical parameter ranges
+    \item \textbf{Constraint Verification}: Ensure proper interface connectivity
+    \item \textbf{Solution Monitoring}: Track solution norms and residuals
+\end{enumerate}
