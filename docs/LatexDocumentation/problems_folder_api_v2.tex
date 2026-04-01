@@ -1,0 +1,133 @@
+% ================================================================
+% SECTION 18: PROBLEM IMPLEMENTATIONS
+% ================================================================
+\section{Problem Implementations}
+\label{sec:problems}
+
+\begin{center}
+\code{bionetflux.problems.ks\_problem} \quad(569 lines) \\
+\code{bionetflux.problems.ooc\_problem} \quad(596 lines) \\
+\code{bionetflux.utils.mesh\_mapping} \quad(100 lines)
+\end{center}
+
+Each problem module is a \emph{recipe}: a standalone Python file that,
+given an optional geometry and an optional TOML file, produces the
+four objects expected by \code{SolverSetup.initialize()}.
+
+% ------------------------------------------------------------------
+\subsection{Module-Level Entry Point}
+
+Both modules expose:
+
+\begin{lstlisting}[language=Python, caption={Shared module entry point}]
+def create_global_framework(
+    geometry: Optional[DomainGeometry] = None,
+    config_file: Optional[str] = None
+) -> Tuple[List[Problem], GlobalDiscretization,
+           ConstraintManager, str]:
+\end{lstlisting}
+
+If \code{geometry} is \code{None}, a built-in default geometry is created.  If
+\code{config\_file} is \code{None}, the config manager's defaults apply.
+
+\subsubsection{Internal Workflow (common to both)}
+
+\begin{enumerate}
+  \item Load and validate the TOML configuration via the problem-specific config manager
+\\    (\code{KSConfigManager} or \code{OoCConfigManager}).
+  \item Build or accept the \code{DomainGeometry}.
+  \item For each domain in the geometry, create:
+    \begin{itemize}
+      \item A \code{Problem} instance with physical parameters, initial conditions, forcing functions, and (optionally) exact solutions as callables.
+      \item A \code{Discretization} from \code{n\_elements} (or from target $h$ via \code{compute\_n\_elements\_from\_h}).
+    \end{itemize}
+  \item Assemble a \code{GlobalDiscretization} and call \code{set\_time\_parameters(dt,\,T)}.
+  \item Build a \code{ConstraintManager}:
+    \begin{itemize}
+      \item Homogeneous Neumann BCs at all exterior boundary points.
+      \item Trace-continuity (or Kedem-Katchalsky) at all interior junctions.
+    \end{itemize}
+  \item Optionally apply per-point boundary overrides from the TOML \code{[boundary\_conditions]}
+    section via \code{apply\_boundary\_overrides}.
+  \item Call \code{constraint\_manager.map\_to\_discretizations()}.
+  \item Return \code{(problems, global\_discretization, constraint\_manager, problem\_name)}.
+\end{enumerate}
+
+% ------------------------------------------------------------------
+\subsection{Keller-Segel Module}
+
+\begin{longtable}{p{5cm}p{9.5cm}}
+\toprule
+\textbf{Key} & \textbf{Value} \\
+\midrule
+Config type & \code{"ks"} \\
+Core type & \code{"keller\_segel"} (for \code{StaticCondensationFactory}) \\
+$n_\mathrm{eq}$ & 2: $u$ (cell density), $\varphi$ (chemical signal) \\
+Default geometry & \code{build\_arc\_sequence\_geometry(N=1, start=2.0, length=1.0)} \\
+Parameters & $\mu$, $\nu$, $a$, $b$ \quad plus callables $\chi(s,t)$, $\chi'(s,t)$ \\
+\bottomrule
+\end{longtable}
+
+Additional helper functions:
+\begin{itemize}
+  \item \code{build\_default\_ks\_geometry()} --- one-arc default.
+  \item \code{setup\_constraints\_from\_geometry(geometry, problems, neq)} --- constraint builder used internally.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{Organ-on-Chip Module}
+
+\begin{longtable}{p{5cm}p{9.5cm}}
+\toprule
+\textbf{Key} & \textbf{Value} \\
+\midrule
+Config type & \code{"ooc"} \\
+Core type & \code{"organ\_on\_chip"} (for \code{StaticCondensationFactory}) \\
+$n_\mathrm{eq}$ & 4: $u$, $\omega$, $v$, $\varphi$ \\
+Default geometry & \code{build\_grid\_geometry()} \\
+Parameters & $\nu$, $\mu$, $\epsilon$, $\sigma$, $a$, $b$, $c$, $d$, $\chi$  plus callables \\
+\bottomrule
+\end{longtable}
+
+Additional helpers:
+\begin{itemize}
+  \item \code{build\_default\_geometry()} --- default OoC grid.
+  \item \code{build\_T\_junction\_geometry()} --- alternative T-junction layout.
+\end{itemize}
+
+% ------------------------------------------------------------------
+\subsection{Writing a Custom Problem Module}
+
+Any Python file that exposes \code{create\_global\_framework(geometry, config\_file)}
+with the same return signature can serve as a problem module.  The
+minimum steps are:
+
+\begin{enumerate}
+  \item Define or subclass a \code{BaseConfigManager} for TOML support.
+  \item Register the corresponding \code{StaticCondensation} class via \\
+        \code{StaticCondensationFactory.register\_implementation("my\_type", MyStaticCond)}.
+  \item Build \code{Problem} objects with appropriate \code{type="my\_type"}.
+  \item Return the standard 4-tuple.
+\end{enumerate}
+
+% ------------------------------------------------------------------
+\subsection{Mesh Mapping Utilities}
+\label{sec:mesh_mapping}
+
+\begin{center}
+\code{bionetflux.utils.mesh\_mapping}
+\end{center}
+
+\begin{lstlisting}[language=Python, caption={Mesh mapping utilities}]
+def parametric_to_physical_mesh(domain: DomainInfo,
+                                discretization: Discretization
+                                ) -> Tuple[np.ndarray, np.ndarray]:
+    """Map parametric nodes to (x, y) physical coordinates."""
+
+def create_physical_mesh_dict(domain, discretization) -> dict:
+    """Full mesh dictionary with nodes_physical, nodes_parametric, etc."""
+\end{lstlisting}
+
+Both functions perform a linear interpolation between the parametric coordinates of the extrema \code{domain.extrema\_start}
+and \code{domain.extrema\_end} using the normalised parametric coordinate
+$t = (s - s_0) / L$.

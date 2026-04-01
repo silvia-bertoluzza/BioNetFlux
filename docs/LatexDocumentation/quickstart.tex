@@ -1,0 +1,109 @@
+% ================================================================
+% SECTION 3: QUICK START & WORKFLOW
+% ================================================================
+\section{Quick Start \& Workflow}
+\label{sec:quickstart}
+
+\subsection{Installation}
+
+\bionetflux{} uses a standard \code{pyproject.toml} build.  Install in development (editable) mode:
+
+\begin{lstlisting}[language=bash, caption={Installation}]
+cd BioNetFlux
+pip install -e .          # installs bionetflux + dependencies
+pip install -e ".[dev]"   # also installs pytest, black, mypy, etc.
+\end{lstlisting}
+
+After installation the package \code{bionetflux} and the top-level shim \code{setup\_solver} are both importable from anywhere.
+
+\subsection{Minimal Working Example}
+
+A complete simulation requires four steps: \textbf{setup}, \textbf{time-stepper creation}, \textbf{time evolution loop}, and \textbf{visualisation}.
+
+\begin{lstlisting}[language=Python, caption={Minimal working example}]
+from setup_solver import quick_setup
+from bionetflux.time_integration.time_stepper import TimeStepper
+from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+# 1. Setup (loads problem module, geometry, config)
+setup = quick_setup(
+    problem_module="bionetflux.problems.ks_problem",
+    validate=True,
+    config_file="config/ks_parameters.toml"
+)
+
+# 2. Create time stepper and initial conditions
+stepper = TimeStepper(setup, verbose=True)
+solution, bulk_data = stepper.initialize_solution()
+
+# 3. Time loop
+dt = setup.global_discretization.dt
+T  = setup.global_discretization.T
+t  = 0.0
+while t < T:
+    result = stepper.advance_time_step(solution, bulk_data, t, dt)
+    if result.converged:
+        solution  = result.updated_solution
+        bulk_data = result.updated_bulk_data
+        t += dt
+    else:
+        print(f"Newton failed at t={t:.4f}")
+        break
+
+# 4. Visualise
+traces, multipliers = setup.extract_domain_solutions(solution)
+plotter = LeanMatplotlibPlotter(
+    setup.problems,
+    setup.global_discretization.spatial_discretizations
+)
+plotter.plot_2d_curves(traces, title="Final solution")
+plotter.show_all()
+\end{lstlisting}
+
+\subsection{TOML Configuration Overview}
+
+Physical parameters, discretisation settings, initial/boundary conditions, and source terms are specified in TOML files.  A Keller-Segel configuration (\code{config/ks\_parameters.toml}) has the following top-level sections:
+
+\begin{lstlisting}[caption={TOML configuration structure}]
+[problem]                   # name, neq, problem_type
+[time_parameters]           # T, dt
+[discretization]            # n_elements or h, tau
+[physical_parameters.diffusion]     # nu, mu
+[physical_parameters.reaction]      # a, b
+[physical_parameters.chemotaxis]    # chi, dchi (function names)
+[initial_conditions]        # per-equation function names
+[exact_solutions]           # per-equation function names (optional)
+[exact_solution_derivatives]# per-equation function names (optional)
+[force_functions]           # per-equation function names
+[domain_initial_conditions] # domain-specific overrides
+[domain_force_functions]    # domain-specific overrides
+[boundary_conditions]       # per-boundary-point overrides
+\end{lstlisting}
+
+Function values can be:
+\begin{itemize}
+    \item A \textbf{named function} from the built-in library (e.g., \code{"zeros"}, \code{"ones"}, \code{"traveling\_wave\_u"}, \code{"gaussian"}).
+    \item A \textbf{SymPy expression string} using variables \code{s} (space) and \code{t} (time), e.g., \code{"2.5 + 0.0*s"}.
+    \item A \textbf{constant string} like \code{"constant"} (resolves to a constant-one function).
+\end{itemize}
+
+See Section~\ref{sec:config} for the full configuration reference.
+
+\subsection{Adding a Custom Problem}
+
+To create a new problem type:
+
+\begin{enumerate}
+    \item Create a Python module in \code{bionetflux/problems/} with a function:
+    \begin{lstlisting}[language=Python]
+def create_global_framework(geometry=None, config_file=None):
+    # ... build problems, discretizations, constraints ...
+    return problems, global_discretization, constraint_manager, "My Problem"
+    \end{lstlisting}
+    \item If the PDE system requires a new static condensation procedure, sub-class and register \code{StaticCondensationBase}:
+    \begin{lstlisting}[language=Python]
+from bionetflux.core.static_condensation_factory import StaticCondensationFactory
+StaticCondensationFactory.register_implementation("my_type", MyStaticCondensation)
+    \end{lstlisting}
+    \item Call \code{quick\_setup("bionetflux.problems.my\_module")} from a driver script.
+\end{enumerate}

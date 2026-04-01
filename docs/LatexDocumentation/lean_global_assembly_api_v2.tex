@@ -1,0 +1,121 @@
+% ================================================================
+% SECTION 11: GLOBAL ASSEMBLY
+% ================================================================
+\section{Global Assembly}
+\label{sec:global_assembly}
+
+\begin{center}
+\code{bionetflux.core.lean\_global\_assembly} \quad(849 lines)
+\end{center}
+
+The \code{GlobalAssembler} orchestrates the element loop, constraint
+enforcement, and DOF bookkeeping that yield the global Newton residual
+and Jacobian.
+
+% ------------------------------------------------------------------
+\subsection{DOF Structure}
+
+The global solution vector is partitioned as
+\[
+  \mathbf{x} = \bigl[\underbrace{U^{(0)},\;\ldots,\;U^{(D-1)}}_{\text{trace DOFs}} \;\big|\;
+                \underbrace{\lambda_0,\;\ldots,\;\lambda_{M-1}}_{\text{multipliers}}\bigr],
+\]
+where $D$ is the number of domains and $M = \sum_c n_c$ is the total multiplier count from all constraints.
+Within each domain block $U^{(i)}$, the trace unknowns are ordered equation-major:
+$\bigl[u^{(i)}_0,\ldots,u^{(i)}_{N_i},\;\varphi^{(i)}_0,\ldots,\varphi^{(i)}_{N_i},\;\ldots\bigr]$.
+
+% ------------------------------------------------------------------
+\subsection{Constructor and Factory}
+
+\begin{lstlisting}[language=Python, caption={GlobalAssembler constructors}]
+class GlobalAssembler:
+    def __init__(self, domain_data_list: List[DomainData],
+                 constraint_manager: Optional[ConstraintManager] = None):
+        """Direct constructor from pre-extracted domain data."""
+
+    @classmethod
+    def from_framework_objects(cls, problems, global_discretization,
+                               static_condensations,
+                               constraint_manager=None):
+        """Factory: extract DomainData, then construct."""
+\end{lstlisting}
+
+The factory calls \code{BulkDataManager.extract\_domain\_data\_list} internally.
+On construction, \code{\_compute\_dof\_structure()} fills:
+
+\begin{longtable}{p{6cm}p{8.5cm}}
+\toprule
+\textbf{Attribute} & \textbf{Description} \\
+\midrule
+\code{domain\_trace\_sizes} & List of $n_\mathrm{eq} \cdot (N_i + 1)$ per domain \\
+\code{domain\_trace\_offsets} & Cumulative sum (start index in $\mathbf{x}$) \\
+\code{total\_trace\_dofs} & Sum of all trace sizes \\
+\code{n\_multipliers} & From \code{constraint\_manager.n\_multipliers} \\
+\code{total\_dofs} & \code{total\_trace\_dofs + n\_multipliers} \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{assemble\_residual\_and\_jacobian}
+
+\begin{lstlisting}[language=Python, caption={Core assembly method}]
+def assemble_residual_and_jacobian(
+    self, global_solution: np.ndarray,
+    forcing_terms: List[np.ndarray],
+    static_condensations: List,
+    time: float
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Returns (residual, jacobian) of size total_dofs."""
+\end{lstlisting}
+
+\noindent The method:
+\begin{enumerate}
+  \item Extracts per-domain trace vectors from \code{global\_solution}.
+  \item Calls \code{domain\_flux\_jump} for each domain.
+  \item Scatters each domain's $F$ and $JF$ into the global residual/Jacobian.
+  \item If a \code{ConstraintManager} is present:
+    \begin{enumerate}[label=(\alph*)]
+      \item Adds multiplier contributions to the trace block of the residual.
+      \item Calls \code{constraint\_manager.compute\_constraint\_residuals()} for the multiplier block.
+      \item Fills the constraint Jacobian entries via \code{\_add\_constraint\_jacobian\_contributions}.
+    \end{enumerate}
+\end{enumerate}
+
+% ------------------------------------------------------------------
+\subsection{bulk\_by\_static\_condensation}
+
+\begin{lstlisting}[language=Python, caption={Bulk recovery}]
+def bulk_by_static_condensation(
+    self, global_solution, forcing_terms,
+    static_condensations, time
+) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    """Returns (bulk_solution_list, flux_solution_list)."""
+\end{lstlisting}
+
+Same element loop as \code{assemble\_residual\_and\_jacobian} but collects and returns the bulk ($U$) and flux ($J$) arrays per domain instead of the residual.
+
+% ------------------------------------------------------------------
+\subsection{compute\_forcing\_terms}
+
+\begin{lstlisting}[language=Python, caption={Forcing-term computation}]
+def compute_forcing_terms(
+    self, bulk_data_list, problems, discretizations,
+    time: float, dt: float
+) -> List[np.ndarray]:
+\end{lstlisting}
+
+Delegates to \code{BulkDataManager.compute\_forcing\_terms} after validating framework objects.
+
+% ------------------------------------------------------------------
+\subsection{Additional Methods}
+
+\begin{longtable}{p{8cm}p{6.5cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{initialize\_all\_bulk\_data(problems, discretizations, time)} & Wrapper around \code{BulkDataManager.initialize\_all\_bulk\_data} \\
+\code{\_extract\_trace\_solutions(global\_solution) -> List[np.ndarray]} & Partition global vector into per-domain trace vectors \\
+\code{\_add\_constraint\_jacobian\_contributions(jacobian, trace\_solutions, multipliers, time)} & Fill off-diagonal constraint blocks in the Jacobian \\
+\code{test(problems, discretizations, static\_condensations) -> bool} & Comprehensive self-test (DOF structure, assembly, symmetry) \\
+\bottomrule
+\end{longtable}

@@ -1,0 +1,404 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{graphicx}
+\usepackage[headheight=14pt]{geometry}
+\usepackage{fancyhdr}
+\usepackage{listings}
+\usepackage[dvipsnames]{xcolor}
+\usepackage{hyperref}
+\usepackage{tocloft}
+\usepackage{titlesec}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{tikz}
+\usepackage{bclogo}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{enumitem}
+
+% ----------------------------------------------------------------
+% Custom tcolorbox environments
+% ----------------------------------------------------------------
+\newtcolorbox{structurebox}{
+	colback=teal!5!white,
+	colframe=teal!75!black,
+	title=DATA STRUCTURE,
+	fonttitle=\bfseries,
+	boxrule=0.8pt,
+	arc=4pt,
+	left=1mm,
+	right=1mm,
+	top=1mm,
+	bottom=1mm
+}
+
+\newtcolorbox{notebox}{
+	colback=olive!5!white,
+	colframe=olive!75!black,
+	title=NOTE,
+	fonttitle=\bfseries,
+	boxrule=0.8pt,
+	arc=4pt,
+	left=1mm,
+	right=1mm,
+	top=1mm,
+	bottom=1mm
+}
+
+\newtcolorbox{designbox}{
+	colback=blue!5!white,
+	colframe=blue!60!black,
+	title=DESIGN PATTERN,
+	fonttitle=\bfseries,
+	boxrule=0.8pt,
+	arc=4pt,
+	left=1mm,
+	right=1mm,
+	top=1mm,
+	bottom=1mm
+}
+
+% ----------------------------------------------------------------
+% Page setup
+% ----------------------------------------------------------------
+\geometry{margin=2.5cm}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\textsc{BioNetFlux Documentation}}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{\textit{Multi-Domain Biological Network Flow Simulation}}
+
+% ----------------------------------------------------------------
+% Hyperlink setup
+% ----------------------------------------------------------------
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={BioNetFlux Documentation},
+    pdfauthor={BioNetFlux Development Team},
+}
+
+% ----------------------------------------------------------------
+% Code listing style
+% ----------------------------------------------------------------
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+% ----------------------------------------------------------------
+% Custom commands
+% ----------------------------------------------------------------
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\bionetflux}{\textsc{BioNetFlux}}
+\newcommand{\brokencode}{\bcattention}
+
+% ----------------------------------------------------------------
+% Title
+% ----------------------------------------------------------------
+\title{\Huge {\textbf{\bionetflux{} Documentation}} \\[0.5cm]
+       \Large Multi-Domain Biological Network Flow Simulation}
+\author{BioNetFlux Development Team}
+\date{\today}
+
+\begin{document}
+
+% ================================================================
+% TITLE PAGE
+% ================================================================
+\begin{titlepage}
+	\newgeometry{bottom=1cm} 
+	
+    \centering
+    
+    \includegraphics[width=0.6\textwidth]{BioNetFlux_Logo.jpg}\\[1cm]
+    
+    {\Huge \textbf{\bionetflux{}} \\[0.5cm]}
+    {\Large \textbf{Documentation} \\[1cm]}
+    
+    {\large Multi-Domain Biological Network Flow Simulation \\[0.3cm]}
+    {\large A Python Framework for Complex Network Geometries \\[2cm]}
+
+    
+    {\Large BioNetFlux Development Team \\[0.5cm]}
+    {\large \today}
+    
+    \vskip2cm
+    
+    {\footnotesize 
+    \textit{Comprehensive guide to multi-domain biological transport simulations} \\
+    \textit{including Keller-Segel chemotaxis and organ-on-chip modeling}
+    }
+        
+    \vfill
+        
+    \newlength{\barw}
+    \setlength{\barw}{1.15\textwidth}
+    
+    \noindent
+    \hspace*{-\dimexpr(\barw-\textwidth)/2\relax}%
+   \includegraphics[width=\barw]{Barra_D34Health.png}\par
+    
+\end{titlepage}
+
+\restoregeometry
+
+% ================================================================
+% TABLE OF CONTENTS
+% ================================================================
+\tableofcontents
+\clearpage
+
+% ================================================================
+% ACKNOWLEDGEMENTS
+% ================================================================
+\section*{Acknowledgements}
+\addcontentsline{toc}{section}{Acknowledgements}
+
+The development of BioNetFlux was carried out thanks to the support by the Italian Ministry of Research, under the complementary actions to the NRRP ``D34Health -- Digital Driven Diagnostics, prognostics and therapeutics for sustainable Health care'' Grant (\#PNC0000001).
+
+\
+
+
+An AI language model (Claude)
+was used to assist in translating and extending an existing MATLAB implementation—originally
+written entirely by the author—into Python. The resulting Python code was reviewed, corrected,
+and fully validated by the author to ensure mathematical and numerical consistency with the
+MATLAB version. 
+
+\
+
+Portions of this documentation were drafted with assistance from the Claude Sonnet 4 AI language model, with all content reviewed and edited by the authors.
+
+
+\clearpage
+
+% ================================================================
+% SECTION 1: INTRODUCTION
+% ================================================================
+\section{Introduction}
+\label{sec:introduction}
+
+\bionetflux{} (version 1.0.0) is a Python framework for simulating biological transport phenomena on complex one-dimensional networks. Built on a Hybridizable Discontinuous Galerkin (HDG) approach, the framework solves coupled partial differential equations (PDEs) on multi-arc (branch/channel) network topologies, with particular focus on:
+
+\begin{itemize}
+    \item \textbf{Keller-Segel chemotaxis models}: Two-equation systems ($u$, $\varphi$) modeling cell migration driven by chemical gradients.
+    \item \textbf{Organ-on-Chip systems}: Four-equation systems ($u$, $\omega$, $v$, $\varphi$) modeling multi-compartment microfluidic devices with tumor suppression and immune cell dynamics.
+    \item \textbf{Multi-arc networks}: Complex geometries including grid networks, labyrinth structures, and mazes loaded from CSV data.
+\end{itemize}
+
+\begin{notebox}
+Throughout the code the word \code{Domain} is used as a synonym of \code{Arc} (a single 1D segment of the network).
+\end{notebox}
+
+\subsection{Key Features}
+
+\begin{itemize}
+    \item \textbf{Multi-arc support}: Handle complex network topologies with arbitrary arc connections via the \code{DomainGeometry} class.
+    \item \textbf{Arbitrary equation count}: Parametric handling of the number of equations per arc (\code{neq}).
+    \item \textbf{TOML configuration}: Problem parameters, initial conditions, boundary conditions, and force functions specified via TOML configuration files with a function resolution system.
+    \item \textbf{Flexible constraints}: Dirichlet, Neumann, Robin boundary conditions and Kedem-Katchalsky, trace-continuity junction conditions.
+    \item \textbf{Static condensation}: Efficient element-level solution by static condensation via the \code{StaticCondensationFactory} pattern, mapping problem types to specific implementations.
+    \item \textbf{Time evolution}: Implicit Euler time stepping with standard, line-search, and damped Newton solvers; adaptive time step control.
+    \item \textbf{Visualization}: 2D curve plots, 3D flat views, bird's eye network views, and geometry index plots via \code{LeanMatplotlibPlotter}.
+    \item \textbf{Error analysis}: Trace, bulk, and flux error evaluators with convergence rate computation.
+    \item \textbf{Extensibility}: New problem classes require only a new problem module and a corresponding \code{StaticCondensationBase} subclass.
+\end{itemize}
+
+\subsection{Dependencies}
+
+\bionetflux{} requires Python $\ge$ 3.11 and depends on:
+\begin{itemize}
+	\item \code{numpy} $\ge$ 1.24.0 --- array computation and linear algebra
+	\item \code{matplotlib} $\ge$ 3.6.0 --- visualization
+	\item \code{sympy} $\ge$ 1.12 --- symbolic computation for elementary matrices and expression parsing
+	\item \code{tomli} $\ge$ 2.0.0 --- TOML parsing (only for Python $<$ 3.11; Python 3.11+ uses the built-in \code{tomllib})
+\end{itemize}
+
+% ================================================================
+% SECTION 2: ARCHITECTURE OVERVIEW
+% ================================================================
+\input{architecture_overview}
+
+% ================================================================
+% SECTION 3: QUICK START & WORKFLOW
+% ================================================================
+\input{quickstart}
+
+% ================================================================
+% CHAPTER DIVIDER: API REFERENCE
+% ================================================================
+\clearpage
+\thispagestyle{empty}
+\vspace*{\fill}
+\begin{center}
+	{\Huge \textbf{Module API Reference}}\\[1cm]
+	{\Large Detailed documentation of every module in \bionetflux{}}
+\end{center}
+\vspace*{\fill}
+\clearpage
+
+% ================================================================
+% SECTIONS 4--18: MODULE API DOCUMENTATION
+% ================================================================
+\input{domain_geometry_api_v2}
+\input{problem_module_api_v2}
+\input{constraints_module_api_v2}
+\input{discretization_module_api_v2}
+\input{data_management_api}
+\input{static_condensation_modules_api_v2}
+\input{flux_jump_module_api_v2}
+\input{lean_global_assembly_api_v2}
+\input{elementary_matrices_module_api_v2}
+\input{setup_solver_api}
+\input{config_system_api}
+\input{time_integration_api}
+\input{lean_matplotlib_plotter_api_v2}
+\input{error_analysis_api}
+\input{problems_folder_api_v2}
+\input{test_suite}
+
+% ================================================================
+% SECTION 20: EXAMPLE APPLICATIONS
+% ================================================================
+\section{Example Applications}
+\label{sec:examples}
+
+The \code{examples/} directory contains complete runnable scripts demonstrating the framework.  The two primary examples are summarized below.
+
+\subsection{Keller-Segel Evolution}
+
+File: \code{examples/evolution\_example\_ks.py}
+
+\begin{lstlisting}[language=Python, caption={Keller-Segel example (simplified excerpt)}]
+from setup_solver import quick_setup
+from bionetflux.time_integration.time_stepper import TimeStepper
+from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+# 1. Setup
+config_file = "config/ks_parameters.toml"
+setup = quick_setup(
+    problem_module="bionetflux.problems.ks_problem",
+    validate=True,
+    config_file=config_file
+)
+
+# 2. Time stepper
+stepper = TimeStepper(setup, verbose=True)
+solution, bulk_data = stepper.initialize_solution()
+
+# 3. Evolve
+dt = setup.global_discretization.dt
+T  = setup.global_discretization.T
+current_time = 0.0
+while current_time < T:
+    result = stepper.advance_time_step(solution, bulk_data, current_time, dt)
+    if result.converged:
+        solution = result.updated_solution
+        bulk_data = result.updated_bulk_data
+        current_time += dt
+
+# 4. Visualize
+traces, _ = setup.extract_domain_solutions(solution)
+plotter = LeanMatplotlibPlotter(
+    setup.problems,
+    setup.global_discretization.spatial_discretizations
+)
+plotter.plot_2d_curves(traces, title="Final State")
+plotter.show_all()
+\end{lstlisting}
+
+\subsection{Organ-on-Chip with Maze Geometry}
+
+File: \code{examples/evolution\_maze\_ooc.py}
+
+\begin{lstlisting}[language=Python, caption={OoC maze example (simplified excerpt)}]
+from setup_solver import quick_setup
+from bionetflux.time_integration.time_stepper import TimeStepper, AdaptiveTimeStepper
+from bionetflux.geometry.domain_geometry import create_maze_geometry
+
+# 1. Build maze geometry from CSV data
+geometry = create_maze_geometry(
+    data_dir="examples/maze_2_data",
+    length=50.0
+)
+
+# 2. Setup with custom geometry
+setup = quick_setup(
+    problem_module="bionetflux.problems.ooc_problem",
+    validate=True,
+    config_file="config/ooc_parameters.toml",
+    geometry=geometry
+)
+
+# 3. Adaptive time stepping
+stepper = TimeStepper(setup, verbose=True)
+adaptive = stepper.get_adaptive_stepper(
+    dt_min=setup.global_discretization.dt * 1e-4,
+    dt_max=setup.global_discretization.dt
+)
+
+solution, bulk_data = stepper.initialize_solution()
+dt = setup.global_discretization.dt
+current_time = 0.0
+
+while current_time < setup.global_discretization.T:
+    result, dt = adaptive.advance_time_step_adaptive(
+        solution, bulk_data, current_time, dt
+    )
+    if result.converged:
+        solution = result.updated_solution
+        bulk_data = result.updated_bulk_data
+        current_time += dt
+\end{lstlisting}
+
+
+% ================================================================
+% CONTACT
+% ================================================================
+\section{Contact and Support}
+
+For questions, issues, or contributions:
+
+\begin{itemize}
+    \item \textbf{Repository}: \bionetflux{} GitHub
+    \item \textbf{Documentation}: See \code{docs/} directory
+    \item \textbf{Examples}: See \code{examples/} directory
+    \item \textbf{Issues}: Submit via GitHub Issues
+\end{itemize}
+
+\vspace{2cm}
+
+\begin{center}
+\textbf{\bionetflux{} Development Team} \\
+\textit{Multi-Domain Biological Network Flow Simulation Framework}
+\end{center}
+
+\end{document}

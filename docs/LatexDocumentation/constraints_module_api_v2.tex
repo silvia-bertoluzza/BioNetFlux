@@ -1,0 +1,158 @@
+% ================================================================
+% SECTION 6: CONSTRAINTS MODULE
+% ================================================================
+\section{Constraints Module}
+\label{sec:constraints}
+
+\begin{center}
+\code{bionetflux.core.constraints} ~~and~~ \code{bionetflux.core.boundary\_override}
+\end{center}
+
+The constraints module (612 lines) manages Lagrange-multiplier-based enforcement of boundary and junction conditions.  The boundary override sub-module (187 lines) applies per-point, per-equation overrides from TOML configuration.
+
+% ------------------------------------------------------------------
+\subsection{ConstraintType Enum}
+
+\begin{lstlisting}[language=Python, caption={Constraint types}]
+class ConstraintType(Enum):
+    DIRICHLET        = "dirichlet"
+    NEUMANN          = "neumann"
+    ROBIN            = "robin"
+    TRACE_CONTINUITY = "trace_continuity"
+    KEDEM_KATCHALSKY = "kedem_katchalsky"
+\end{lstlisting}
+
+The first three are \textbf{boundary conditions} (single domain, single multiplier); the last two are \textbf{junction conditions} (two domains, two multipliers).
+
+% ------------------------------------------------------------------
+\subsection{Constraint Class}
+
+\begin{lstlisting}[language=Python, caption={Constraint constructor}]
+class Constraint:
+    def __init__(self, 
+                 constraint_type: ConstraintType,
+                 equation_index: int,
+                 domains: List[int],
+                 positions: List[float],
+                 parameters: Optional[np.ndarray] = None,
+                 data_function: Optional[Callable] = None):
+\end{lstlisting}
+
+\noindent Validation at construction time:
+\begin{itemize}
+  \item \code{len(domains)} must equal \code{len(positions)}.
+  \item Boundary types require exactly one domain; junction types require exactly two.
+\end{itemize}
+
+\noindent Properties and methods:
+\begin{longtable}{p{6cm}p{9cm}}
+\toprule
+\textbf{Member} & \textbf{Description} \\
+\midrule
+\code{is\_boundary\_condition} & \code{True} for Dirichlet, Neumann, Robin \\
+\code{is\_junction\_condition} & \code{True} for Trace Continuity, Kedem-Katchalsky \\
+\code{n\_multipliers -> int} & 1 for boundary, 2 for junction \\
+\code{get\_data(time) -> float} & Evaluate the \code{data\_function} at time $t$ \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{ConstraintManager Class}
+
+\begin{lstlisting}[language=Python, caption={ConstraintManager constructor}]
+class ConstraintManager:
+    def __init__(self):
+        self.constraints: List[Constraint] = []
+        self._node_mappings = []           # filled by map_to_discretizations
+\end{lstlisting}
+
+\subsubsection{Adding Constraints}
+
+Two parallel API styles are provided: \code{add\_*} methods append and return an index; \code{make\_*} methods return a \code{Constraint} object without appending.
+
+\begin{longtable}{p{7.5cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{add\_constraint(constraint) -> int} & Append raw \code{Constraint} \\
+\code{add\_dirichlet(eq\_idx, domain\_id, position, data\_function=None)} & Dirichlet BC \\
+\code{add\_neumann(eq\_idx, domain\_id, position, data\_function=None)} & Neumann BC \\
+\code{add\_robin(eq\_idx, domain\_id, position, alpha, beta, data\_function=None)} & Robin BC ($\alpha u + \beta \sigma = g$) \\
+\code{add\_trace\_continuity(eq\_idx, dom1, dom2, pos1, pos2)} & Trace jump = 0 \\
+\code{add\_kedem\_katchalsky(eq\_idx, dom1, dom2, pos1, pos2, permeability)} & Kedem-Katchalsky \\
+\midrule
+\code{make\_dirichlet(...) -> Constraint} & Factory (no append) \\
+\code{make\_neumann(...) -> Constraint} & Factory (no append) \\
+\code{make\_robin(...) -> Constraint} & Factory (no append) \\
+\code{make\_trace\_continuity(...) -> Constraint} & Factory (no append) \\
+\code{make\_kedem\_katchalsky(...) -> Constraint} & Factory (no append) \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Querying and Modifying}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{find\_constraints(domain\_index=None, equation\_index=None, constraint\_type=None, position=None) -> List[int]} & Find indices matching all supplied filters \\
+\code{replace\_constraint(index, new\_constraint)} & Replace constraint at given index \\
+\code{get\_constraints\_by\_domain(domain\_index) -> List[int]} & Filter by domain \\
+\code{get\_constraints\_by\_type(constraint\_type) -> List[int]} & Filter by type \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Assembly Interface}
+
+\begin{longtable}{p{8cm}p{7cm}}
+\toprule
+\textbf{Method} & \textbf{Description} \\
+\midrule
+\code{map\_to\_discretizations(discretizations)} & Compute node indices from positions; must be called after all constraints are added and before assembly. \\
+\code{get\_node\_indices(constraint\_index) -> List[int]} & Node indices for a constraint \\
+\code{n\_constraints -> int} & Number of constraints (property) \\
+\code{n\_multipliers -> int} & Total multiplier count (property) \\
+\code{get\_multiplier\_data(time) -> np.ndarray} & Evaluate all data functions at time $t$ \\
+\code{compute\_constraint\_residuals(...)} & Compute residual and Jacobian contributions for all constraints \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{Boundary Override Mechanism}
+\label{sec:boundary_override}
+
+\begin{center}
+\code{bionetflux.core.boundary\_override}
+\end{center}
+
+The function \code{apply\_boundary\_overrides} replaces default Neumann constraints with overrides specified in the TOML \code{[boundary\_conditions]} section.
+
+\begin{lstlisting}[language=Python, caption={Boundary override signature}]
+def apply_boundary_overrides(
+    constraint_manager: ConstraintManager,
+    boundary_overrides: Dict[str, Any],
+    boundary_point_map: Dict[str, tuple],
+    equation_names: List[str],
+    function_resolver: Optional[Any] = None,
+) -> None:
+\end{lstlisting}
+
+\noindent The TOML key format is \code{<point\_name>\_<equation\_name>} and the value is an inline table:
+
+\begin{lstlisting}[caption={Boundary override TOML format}]
+[boundary_conditions]
+B1_u   = { type = "dirichlet", data = "zeros" }
+B2_phi = { type = "neumann",   data = "sin_t" }
+B3_v   = { type = "robin",  alpha = 1.0, beta = 0.5, data = "zeros" }
+\end{lstlisting}
+
+\noindent The function:
+\begin{enumerate}
+  \item Parses the key to extract the point name and equation name.
+  \item Looks up \code{(domain\_id, position)} from \code{boundary\_point\_map} (stored in geometry global metadata by \code{create\_maze\_geometry}).
+  \item Finds the existing default Neumann constraint via \code{find\_constraints}.
+  \item Creates the replacement constraint using the \code{make\_*} factory.
+  \item Calls \code{replace\_constraint} to swap it in.
+\end{enumerate}
+
+The caller must call \code{constraint\_manager.map\_to\_discretizations()} after overrides are applied.
