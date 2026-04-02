@@ -1,6 +1,6 @@
 # BioNetFlux Documentation
 
-![BioNetFlux Logo](../assets/bionetflux_logo.png)
+![BioNetFlux Logo](../Logos/BioNetFlux.png)
 
 ---
 
@@ -10,7 +10,7 @@
 
 ---
 
-![Barra Bar](../assets/barra_bar.png)
+![Barra Bar](../Logos/Barra.png)
 
 ---
 
