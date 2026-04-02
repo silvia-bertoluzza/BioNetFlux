@@ -10,7 +10,14 @@
 
 ---
 
-![Barra Bar](../Logos/Barra.png)
+**Acknowledgements** The development of *BioNetFlux* was carried out with the
+support of the Italian Ministry of Research, under the complementary action NRRP “D34Health
+- Digital Driven Diagnostics, prognostics and therapeutics for sustainable Health care” (Grant
+#PNC0000001). An AI language model (Claude)
+was used to assist in translating and extending an existing MATLAB implementation—originally
+written entirely by the author—into Python. The resulting Python code was reviewed, corrected,
+and fully validated by the author to ensure mathematical and numerical consistency with the
+MATLAB version.
 
 ---
 
@@ -723,3 +730,8 @@ For questions, issues, or contributions:
 *Multi-Domain Biological Network Flow Simulation Framework*
 
 ---
+
+![Barra Bar](../Logos/Barra.png)
+
+---
+
