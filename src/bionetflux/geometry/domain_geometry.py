@@ -1063,13 +1063,14 @@ class DomainGeometry:
         
         return all_passed
     
-def build_grid_geometry(N: int = 4):
+def build_grid_geometry(N: int = 4, length: float = 1.0):
     """
     Build a default OoC grid geometry with vertical segments and horizontal connectors.
     Includes explicit connections for constraint generation.
     
     Args:
         N: Number of horizontal segments in each section (default: 4)
+        length: Scaling factor applied to all point coordinates (default: 1.0)
     
     Returns:
         DomainGeometry: Default grid geometry instance
@@ -1081,46 +1082,46 @@ def build_grid_geometry(N: int = 4):
     # Vertical segments
     # S1: Left vertical segment
     geometry.add_domain(
-        extrema_start=(-1.0, -1.0),
-        extrema_end=(-1.0, 1.0),
+        extrema_start=(-1.0 * length, -1.0 * length),
+        extrema_end=(-1.0 * length, 1.0 * length),
         name="S1_left_vertical",
         display_color="blue"
     )
     
     # S2: Lower middle vertical segment  
     geometry.add_domain(
-        extrema_start=(0.0, -1.0),
-        extrema_end=(0.0, -0.1),
+        extrema_start=(0.0 * length, -1.0 * length),
+        extrema_end=(0.0 * length, -0.1 * length),
         name="S2_lower_middle_vertical",
         display_color="green"
     )
     
     # S3: Upper middle vertical segment
     geometry.add_domain(
-        extrema_start=(0.0, 0.1),
-        extrema_end=(0.0, 1.0),
+        extrema_start=(0.0 * length, 0.1 * length),
+        extrema_end=(0.0 * length, 1.0 * length),
         name="S3_upper_middle_vertical",
         display_color="green"
     )
     
     # S4: Right vertical segment
     geometry.add_domain(
-        extrema_start=(1.0, -1.0),
-        extrema_end=(1.0, 1.0),
+        extrema_start=(1.0 * length, -1.0 * length),
+        extrema_end=(1.0 * length, 1.0 * length),
         name="S4_right_vertical",
         display_color="blue"
     )
     
     # Horizontal connectors - Lower section (-0.9 < y < -0.2)
-    y_lower_values = np.linspace(-0.9, -0.2, N)
+    y_lower_values = np.linspace(-0.9 * length, -0.2 * length, N)
     
     print(f"  Adding {N} lower horizontal connectors at y = {y_lower_values}")
     
     # Lower connectors: S1 to S2
     for i, y_pos in enumerate(y_lower_values):
         geometry.add_domain(
-            extrema_start=(-1.0, y_pos),
-            extrema_end=(0.0, y_pos),
+            extrema_start=(-1.0 * length, y_pos),
+            extrema_end=(0.0 * length, y_pos),
             name=f"lower_S1_S2_{i+1}",
             display_color="red"
         )
@@ -1128,22 +1129,22 @@ def build_grid_geometry(N: int = 4):
     # Lower connectors: S4 to S2  
     for i, y_pos in enumerate(y_lower_values):
         geometry.add_domain(
-            extrema_start=(1.0, y_pos),
-            extrema_end=(0.0, y_pos),
+            extrema_start=(1.0 * length, y_pos),
+            extrema_end=(0.0 * length, y_pos),
             name=f"lower_S4_S2_{i+1}",
             display_color="red"
         )
     
     # Horizontal connectors - Upper section (0.2 < y < 0.9)
-    y_upper_values = np.linspace(0.2, 0.9, N)
+    y_upper_values = np.linspace(0.2 * length, 0.9 * length, N)
     
     print(f"  Adding {N} upper horizontal connectors at y = {y_upper_values}")
     
     # Upper connectors: S1 to S3
     for i, y_pos in enumerate(y_upper_values):
         geometry.add_domain(
-            extrema_start=(-1.0, y_pos),
-            extrema_end=(0.0, y_pos),
+            extrema_start=(-1.0 * length, y_pos),
+            extrema_end=(0.0 * length, y_pos),
             name=f"upper_S1_S3_{i+1}",
             display_color="red"
         )
@@ -1151,8 +1152,8 @@ def build_grid_geometry(N: int = 4):
     # Upper connectors: S4 to S3
     for i, y_pos in enumerate(y_upper_values):
         geometry.add_domain(
-            extrema_start=(1.0, y_pos),
-            extrema_end=(0.0, y_pos),
+            extrema_start=(1.0 * length, y_pos),
+            extrema_end=(0.0 * length, y_pos),
             name=f"upper_S4_S3_{i+1}",
             display_color="red"
         )
@@ -1182,7 +1183,8 @@ def build_grid_geometry(N: int = 4):
         intersection_y = horizontal_domain_info.extrema_start[1]  # y-coordinate at S1 end
         
         # Map to S1 parameter space: S1 spans y ∈ [-1, 1], param ∈ [0, domain_length]
-        s1_param = (intersection_y + 1.0) / 2.0 * geometry.get_domain(0).domain_length
+        # s1_param = (intersection_y + 1.0) / 2.0 * geometry.get_domain(0).domain_length
+        s1_param = (intersection_y + 1.0 * length) / 2.0
         
         # Add connection between horizontal connector start and S1
         geometry.add_connection(
@@ -1203,7 +1205,7 @@ def build_grid_geometry(N: int = 4):
         intersection_y = horizontal_domain_info.extrema_start[1]  # y-coordinate at S4 end
         
         # Map to S4 parameter space: S4 spans y ∈ [-1, 1], param ∈ [0, domain_length]
-        s4_param = (intersection_y + 1.0) / 2.0 * geometry.get_domain(3).domain_length
+        s4_param = (intersection_y + length * 1.0) / 2.0
         
         # Add connection between horizontal connector start and S4
         geometry.add_connection(
@@ -1223,9 +1225,8 @@ def build_grid_geometry(N: int = 4):
         intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S2 end
         
         # Map to S2 parameter space: S2 spans y ∈ [-1, -0.1], param ∈ [0, domain_length]
-        s2_y_start, s2_y_end = -1.0, -0.1
-        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) * geometry.get_domain(1).domain_length
-        
+        s2_y_start, s2_y_end = -1.0 * length, -0.1 * length
+        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) 
         # Add connection between horizontal connector end and S2
         geometry.add_connection(
             domain1_id=domain_idx,  # S1->S2 connector
@@ -1240,9 +1241,8 @@ def build_grid_geometry(N: int = 4):
         intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S2 end
         
         # Map to S2 parameter space
-        s2_y_start, s2_y_end = -1.0, -0.1
-        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) * geometry.get_domain(1).domain_length
-        
+        s2_y_start, s2_y_end = -1.0 * length, -0.1 * length
+        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) 
         # Add connection between horizontal connector end and S2
         geometry.add_connection(
             domain1_id=domain_idx,  # S4->S2 connector
@@ -1261,9 +1261,8 @@ def build_grid_geometry(N: int = 4):
         intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S3 end
         
         # Map to S3 parameter space: S3 spans y ∈ [0.1, 1.0], param ∈ [0, domain_length]
-        s3_y_start, s3_y_end = 0.1, 1.0
-        s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) * geometry.get_domain(2).domain_length
-        
+        s3_y_start, s3_y_end = 0.1 * length, 1.0 * length
+        s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) 
         # Add connection between horizontal connector end and S3
         geometry.add_connection(
             domain1_id=domain_idx,  # S1->S3 connector
@@ -1278,7 +1277,7 @@ def build_grid_geometry(N: int = 4):
         intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S3 end
         
         # Map to S3 parameter space
-        s3_y_start, s3_y_end = 0.1, 1.0
+        s3_y_start, s3_y_end = 0.1 * length, 1.0 * length
         s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) * geometry.get_domain(2).domain_length
         
         # Add connection between horizontal connector end and S3
