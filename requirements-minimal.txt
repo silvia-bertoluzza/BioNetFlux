@@ -1,0 +1,5 @@
+# Minimal requirements for testing BioNetFlux
+numpy>=1.24.0
+matplotlib>=3.6.0
+sympy>=1.12
+pytest>=7.4.0

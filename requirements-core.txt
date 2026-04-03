@@ -1,0 +1,8 @@
+# Core dependencies for BioNetFlux
+numpy>=1.24.0
+matplotlib>=3.6.0
+sympy>=1.12
+
+# Optional scientific computing dependencies
+# scipy>=1.10.0         # Not used by core — only if explicitly approved
+# pandas>=1.5.0         # For data analysis (install with: pip install -e ".[extras]")

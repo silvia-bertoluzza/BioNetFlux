@@ -28,12 +28,47 @@ __pycache__/
 .DS_Store
 
 
+
 # Python cache for new structure
 src/**/__pycache__/
 tests/__pycache__/
 
 # IDE files
-.vscode/
 .idea/
+# Note: .vscode/ is tracked to share testing configuration
 
+# Environment files (user-specific)
+.env
+.venv/
+venv/
+env/
+ENV/
+
+
+
+build/
+.cache/
+MatlabReference/
+
+# Generated outputs in examples
+examples/*.png
+examples/*.csv
+examples/*.txt
+examples/outputs/
+
+# User-specific VS Code settings (if needed)
+.vscode/settings.local.json
+
+# Original conda requirements (too specific)
+requirements.txt.conda-backup
+
+!docs/BioNetFlux_Logo.png
+!docs/Barra_D34Health.png
+
+# AGENT instruction files
+AGENT_INSTRUCTIONS.md
+AGENT_RULES_SHORT.md
+PROMPTS.md
+
+outputs/
 

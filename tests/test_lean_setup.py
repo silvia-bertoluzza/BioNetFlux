@@ -15,8 +15,8 @@ import pytest
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Add the python_port directory to path for absolute imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from setup_solver import SolverSetup, create_solver_setup, quick_setup
 

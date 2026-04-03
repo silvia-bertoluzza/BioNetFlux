@@ -4,36 +4,29 @@
 
 **Multi-Domain Biological Network Flow Simulation Framework**
 
-BioNetFlux is a Python computational framework for simulating biological transport phenomena on complex network geometries. It specializes in solving coupled partial differential equations on multi-arc networks with applications in chemotaxis, organ-on-chip systems, and microfluidic networks.
+BioNetFlux is a Python computational framework for simulating biological transport phenomena on complex network geometries. It uses the **Hybridizable Discontinuous Galerkin (HDG)** method to solve coupled partial differential equations on 1D multi-arc networks, with applications in chemotaxis, organ-on-chip systems, and microfluidic networks.
 
 ## Features
 
-- 🧬 **Multi-Domain Networks**: Complex geometries with arbitrary domain connections
-- 🎯 **Keller-Segel Models**: Chemotaxis and cell migration simulations  
-- 🔬 **Organ-on-Chip**: Microfluidic device modeling
-- 📐 **Geometry Management**: Intuitive network definition tools
-- 🎨 **Advanced Visualization**: Multiple plot types for network analysis
-- ⚡ **Efficient Solvers**: Newton-Raphson with static condensation
-- 🔗 **Interface Conditions**: Neumann, Dirichlet, and Kedem-Katchalsky constraints
+- **Multi-Domain Networks**: Complex geometries with arbitrary domain connections
+- **Keller-Segel Models**: Chemotaxis and cell migration simulations
+- **Organ-on-Chip**: Microfluidic device modeling
+- **Geometry Management**: Intuitive network definition tools
+- **Visualization**: Birdview, flat-3D, and 2D-curve plotting for network solutions
+- **Efficient Solvers**: Newton-Raphson with HDG static condensation
+- **Interface Conditions**: Neumann, Dirichlet, and Kedem-Katchalsky constraints
 
 ## Quick Start
 
 ```python
-# Add src to Python path
-import sys
-sys.path.insert(0, 'src')
-
-# Import BioNetFlux components
-from bionetflux.core.problem import Problem
-from bionetflux.geometry.domain_geometry import DomainGeometry
-from bionetflux.problems.KS_grid_geometry import create_global_framework
-
-# Load problem
-from setup_solver import quick_setup
+from bionetflux.setup_solver import quick_setup
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
-setup = quick_setup("bionetflux.problems.KS_grid_geometry")
 
-# Create initial conditions  
+# Set up a Keller-Segel problem
+setup = quick_setup("bionetflux.problems.ks_problem",
+                     config_file="config/ks_parameters.toml")
+
+# Create initial conditions
 trace_solutions, multipliers = setup.create_initial_conditions()
 
 # Visualize
@@ -47,37 +40,60 @@ plotter.show_all()
 Comprehensive documentation is available in [`docs/BioNetFlux_Documentation.md`](docs/BioNetFlux_Documentation.md), including:
 
 - Architecture overview
-- Module documentation  
+- Module documentation
 - Creating new problems
 - Geometry definition guide
 - Visualization system
 - API reference
-- Example applications
 
 ## Examples
 
-- **Simple Example**: [`examples/simple_example.py`](examples/simple_example.py)
-- **Grid Networks**: `bionetflux.problems.KS_grid_geometry`
-- **T-Junctions**: `bionetflux.problems.T_junction`
-- **Custom Geometries**: `bionetflux.problems.KS_with_geometry`
+- **Keller-Segel evolution**: [`examples/evolution_example_ks.py`](examples/evolution_example_ks.py)
+- **Keller-Segel (verbose)**: [`examples/evolution_example_ks_verbose.py`](examples/evolution_example_ks_verbose.py)
+- **Organ-on-Chip evolution**: [`examples/evolution_example_ooc.py`](examples/evolution_example_ooc.py)
+- **Component examples**: [`examples/components/`](examples/components/) — individual module demonstrations
 
 ## Installation
 
-1. Clone the repository:
+### Prerequisites
+
+- Python 3.11+
+- pip
+
+### Install (recommended — editable mode)
+
 ```bash
 git clone <repository-url>
 cd BioNetFlux
+pip install -e .
 ```
 
-2. Install dependencies:
+For development (adds pytest, flake8, black, mypy):
+
 ```bash
-pip install numpy matplotlib
+pip install -e ".[dev]"
 ```
 
-3. Run examples:
+For optional extras (pandas, toml — used by some examples):
+
 ```bash
-cd examples
-python simple_example.py
+pip install -e ".[extras]"
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+pytest
+
+# Run tests with coverage
+pytest --cov=bionetflux
+
+# Run specific test file
+pytest tests/test_geometry.py
+
+# Run tests in verbose mode
+pytest -v
 ```
 
 ## Project Structure
@@ -85,16 +101,22 @@ python simple_example.py
 ```
 BioNetFlux/
 ├── src/
-│   ├── bionetflux/
-│   │   ├── core/           # Mathematical components
-│   │   ├── geometry/       # Network geometry tools
-│   │   ├── problems/       # Problem definitions
-│   │   ├── solver/         # Numerical solvers
-│   │   └── visualization/  # Plotting system
-│   └── setup_solver.py    # Main interface
-├── docs/                   # Documentation
-├── examples/               # Example applications
-└── README.md
+│   └── bionetflux/
+│       ├── core/              # Problem, Discretization, Constraints,
+│       │                      #   BulkData, FluxJump, GlobalAssembly,
+│       │                      #   StaticCondensation
+│       ├── geometry/          # DomainGeometry, DomainInfo
+│       ├── problems/          # Problem definitions (KS, OoC, templates)
+│       ├── time_integration/  # NewtonSolver, TimeStepper
+│       ├── utils/             # ElementaryMatrices, ConfigManager
+│       ├── visualization/     # LeanMatplotlibPlotter
+│       ├── analysis/          # ErrorEvaluator
+│       └── setup_solver.py    # Orchestrator (SolverSetup, quick_setup)
+├── config/                    # TOML parameter files
+├── docs/                      # Documentation
+├── examples/                  # Example scripts
+├── tests/                     # pytest test suite
+└── pyproject.toml             # Package configuration
 ```
 
 ## Key Components
@@ -104,15 +126,15 @@ BioNetFlux/
 from bionetflux.geometry import DomainGeometry
 
 geometry = DomainGeometry("network_name")
-geometry.add_domain(extrema_start=(0,0), extrema_end=(1,0), name="segment1")
-geometry.add_domain(extrema_start=(1,0), extrema_end=(1,1), name="segment2")
+geometry.add_domain(extrema_start=(0, 0), extrema_end=(1, 0), name="segment1")
+geometry.add_domain(extrema_start=(1, 0), extrema_end=(1, 1), name="segment2")
 ```
 
 ### Problem Definition
 ```python
-def create_global_framework():
+def create_global_framework(geometry, config_file=None):
     # 1. Define geometry
-    # 2. Create problems from geometry  
+    # 2. Create problems from geometry
     # 3. Set up constraints
     # 4. Return framework components
     return problems, global_discretization, constraint_manager, name
@@ -120,9 +142,8 @@ def create_global_framework():
 
 ### Visualization
 ```python
-# Three complementary visualization modes:
 plotter.plot_2d_curves()    # Domain-wise solution profiles
-plotter.plot_flat_3d()      # 3D network with solution heights  
+plotter.plot_flat_3d()      # 3D network with solution heights
 plotter.plot_birdview()     # Top-down color-coded network
 ```
 
@@ -135,29 +156,27 @@ plotter.plot_birdview()     # Top-down color-coded network
 
 ## Contributing
 
-1. Fork the repository
-2. Create a feature branch
-3. Add tests for new functionality
-4. Submit a pull request
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for development guidelines and contribution instructions.
 
 ## License
 
-[License information]
+This project is licensed under the MIT License. See [`LICENSE`](LICENSE) for details.
 
 ## Citation
 
 If you use BioNetFlux in your research, please cite:
 
-```
-[Citation information]
+```bibtex
+@software{bionetflux2026,
+  author  = {Bertoluzza, Silvia},
+  title   = {BioNetFlux: Multi-Arc Biological Network Flow Simulation Framework},
+  year    = {2026},
+  url     = {https://github.com/silvia-bertoluzza/bionetflux}
+}
 ```
 
 ## Contact
 
 - **Issues**: Submit via GitHub Issues
-- **Documentation**: See `docs/` directory  
+- **Documentation**: See `docs/` directory
 - **Examples**: See `examples/` directory
-
----
-
-**BioNetFlux Development Team**

@@ -16,6 +16,14 @@ class ElementaryMatrices:
         Args:
             orthonormal_basis: Use orthonormal basis (default: False, uses Lagrange basis)
         """
+        if orthonormal_basis:
+            raise NotImplementedError(
+                "CRITICAL ERROR: orthonormal_basis=True is not properly implemented and should not be used!\n"
+                "The orthonormal basis construction contains errors and will produce incorrect results.\n"
+                "Please use orthonormal_basis=False (default) which provides the standard Lagrange basis.\n"
+                "This is the tested and validated implementation."
+            )
+            
         self.orthonormal_basis = orthonormal_basis
         self.matrices = {}
         self._build_matrices()
@@ -110,7 +118,7 @@ class ElementaryMatrices:
         # Trace matrix: T_ij = eⱼ(xᵢ) (transpose of Gramian)
         Trace = Gb.T
         self.matrices['T'] = np.array(Trace).astype(float)
-        
+
         # Average matrix
         Trace_inv = Trace.inv()
         ones_vec = sp.Matrix([1, 1])

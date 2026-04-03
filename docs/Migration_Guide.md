@@ -1,5 +1,7 @@
 # BioNetFlux Code Structure Migration Guide (Version 1)
 
+> **STATUS: COMPLETED** — This migration has been fully executed. The codebase now uses `src/bionetflux/` (not `code/ooc1d/`), all imports use `bionetflux.*`, and tests are in `tests/`. This document is retained as a historical reference of the migration process.
+
 *Conservative migration with minimal changes - import updates only*
 
 ## Migration Strategy Overview

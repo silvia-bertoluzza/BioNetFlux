@@ -1,0 +1,595 @@
+% Problems Folder Detailed API Documentation (Current Implementation)
+% To be included in master LaTeX document
+%
+% Usage: \input{api/problems_folder_detailed_api}
+
+\section{Problems Folder Detailed API Reference}
+\label{sec:problems_folder_detailed_api}
+
+This section provides comprehensive documentation for the actual problem modules implemented in the BioNetFlux problems folder, based on the current source code analysis.
+
+\subsection{Problems Folder Structure}
+
+The problems folder contains the following implemented modules:
+
+\begin{itemize}
+    \item \textbf{custom\_problem\_template.py}: Template for creating new problems
+    \item \textbf{ooc\_problem.py}: OrganOnChip grid problem with configuration system
+    \item \textbf{ooc\_config\_manager.py}: OrganOnChip-specific configuration manager
+    \item \textbf{ks\_config\_manager.py}: Keller-Segel-specific configuration manager
+\end{itemize}
+
+\subsection{Configuration-Based Problem Architecture}
+\label{subsec:config_architecture}
+
+All current problem modules follow a configuration-driven architecture using TOML files and specialized configuration managers.
+
+\subsubsection{Configuration Manager Pattern}
+
+\begin{lstlisting}[language=Python, caption=Configuration Manager Pattern]
+# Each problem type has its own configuration manager
+from bionetflux.problems.ooc_config_manager import OoCConfigManager
+from bionetflux.problems.ks_config_manager import KSConfigManager
+
+def create_global_framework(config_file: Optional[str] = None):
+    # Load configuration with validation
+    config_manager = OoCConfigManager()  # or KSConfigManager()
+    config = config_manager.load_config(config_file)
+    
+    # Extract resolved functions from config
+    initial_conditions = config['initial_conditions']  # Already callables
+    force_functions = config['force_functions']        # Already callables
+    # ...existing code...
+\end{lstlisting}
+
+\subsection{OrganOnChip Configuration Manager}
+\label{subsec:ooc_config_manager}
+
+\subsubsection{OoCConfigManager Class}
+
+\begin{lstlisting}[language=Python, caption=OoC Configuration Manager]
+class OoCConfigManager(BaseConfigManager):
+    def __init__(self):
+        super().__init__("ooc")  # Config manager type
+    
+    def _setup_defaults(self):
+        self.defaults = {
+            'problem': {
+                'name': 'OoC_Grid_Problem',
+                'neq': 4,
+                'problem_type': 'ooc'  # Config validation type
+            },
+            'physical_parameters': {
+                'viscosity': {'nu': 1.0, 'mu': 2.0, 'epsilon': 1.0, 'sigma': 1.0},
+                'reaction': {'a': 0.0, 'c': 0.0},
+                'coupling': {'b': 1.0, 'd': 1.0, 'chi': 1.0}
+            },
+            'discretization': {
+                'n_elements': 20,
+                'tau': [0.5, 0.5, 0.5, 0.5]
+            },
+            'initial_conditions': {
+                'u': 'zeros', 'omega': 'zeros', 'v': 'zeros', 'phi': 'zeros'
+            },
+            'force_functions': {
+                'u': 'zeros', 'omega': 'zeros', 'v': 'zeros', 'phi': 'zeros'
+            },
+            'domain_initial_conditions': {},  # Domain-specific overrides
+            'domain_force_functions': {}      # Domain-specific overrides
+        }
+\end{lstlisting}
+
+\subsubsection{OoC Function Library}
+
+The OoC configuration manager provides specialized functions:
+
+\begin{lstlisting}[language=Python, caption=OoC Function Library]
+def _setup_function_library(self):
+    ooc_functions = {
+        # OrganOnChip specific functions
+        'ooc_viscous_profile': lambda s, t=0: s * (1 - s),
+        'ooc_parabolic_flow': lambda s, t=0: 4 * s * (1 - s),
+        'ooc_inlet_profile': lambda s, t=0: np.where(np.abs(s) < 0.1, 1.0, 0.0),
+        
+        # Time-dependent functions
+        'sin_t': lambda s, t=0: np.sin(t) * np.ones_like(s),
+        'cos_t': lambda s, t=0: np.cos(t) * np.ones_like(s),
+        'exp_t': lambda s, t=0: np.exp(-t) * np.ones_like(s),
+        
+        # Combined space-time functions
+        'traveling_wave': lambda s, t=0: np.sin(2 * np.pi * (s - t)),
+        'diffusive_wave': lambda s, t=0: np.exp(-t) * np.sin(np.pi * s),
+    }
+\end{lstlisting}
+
+\subsection{Keller-Segel Configuration Manager}
+\label{subsec:ks_config_manager}
+
+\subsubsection{KSConfigManager Class}
+
+\begin{lstlisting}[language=Python, caption=KS Configuration Manager]
+class KSConfigManager(BaseConfigManager):
+    def __init__(self):
+        super().__init__("ks")  # Config manager type
+    
+    def _setup_defaults(self):
+        self.defaults = {
+            'problem': {
+                'name': 'KS_Traveling_Wave_Problem',
+                'neq': 2,
+                'problem_type': 'ks'
+            },
+            'physical_parameters': {
+                'diffusion': {'mu': 2.0, 'nu': 1.0},
+                'reaction': {'a': 0.0, 'b': 1.0},
+                'chemotaxis': {
+                    'chi': 'constant',    # Function name
+                    'dchi': 'zeros'       # Function name
+                }
+            },
+            'discretization': {
+                'n_elements': 10,
+                'tau': [1.0, 1.0]  # 2 equations
+            },
+            'initial_conditions': {
+                'u': 'zeros',    # Cell density
+                'phi': 'zeros'   # Chemical concentration
+            }
+        }
+\end{lstlisting}
+
+\subsubsection{KS Function Library}
+
+\begin{lstlisting}[language=Python, caption=KS Function Library]
+def _setup_function_library(self):
+    ks_functions = {
+        # Keller-Segel specific functions
+        'ks_gaussian_blob': lambda s, t=0: np.exp(-(s - 2.0)**2),
+        'ks_step_function': lambda s, t=0: np.where(np.abs(s - 2.0) < 0.5, 1.0, 0.0),
+        
+        # Chemotactic patterns
+        'chemotactic_gradient': lambda s, t=0: s * np.exp(-s),
+        'attraction_source': lambda s, t=0: np.exp(-((s - 2.0)**2) / 0.5),
+    }
+\end{lstlisting}
+
+\subsection{Custom Problem Template}
+\label{subsec:custom_problem_template}
+
+The \texttt{custom\_problem\_template.py} provides a structured template for creating new problems.
+
+\subsubsection{Template Structure}
+
+\begin{lstlisting}[language=Python, caption=Custom Problem Template Structure]
+def create_global_framework():
+    """
+    Custom problem template following MATLAB TestProblem.m structure.
+    Returns: (problems, global_discretization, constraint_manager, problem_name)
+    """
+    
+    # SECTION 1: PHYSICAL PARAMETERS (From MATLAB TestProblem.m)
+    neq = 4  # 4-equation OrganOnChip system
+    
+    # Physical parameters following MATLAB TestProblem.m exactly
+    nu, mu, epsilon, sigma = 1.0, 2.0, 1.0, 1.0  # Viscosity
+    a, c = 0.0, 0.0                               # Reaction
+    b, d, chi = 1.0, 1.0, 1.0                     # Coupling
+    parameters = np.array([nu, mu, epsilon, sigma, a, b, c, d, chi])
+    
+    # SECTION 2: MATHEMATICAL FUNCTIONS
+    def lambda_func(x): return np.ones_like(x)    # Constant function
+    def dlambda_func(x): return np.zeros_like(x)  # Derivative
+    
+    # Initial conditions matching MATLAB TestProblem.m
+    def initial_u(s, t=0.0): return np.sin(2 * np.pi * s)  # Non-trivial u
+    def initial_omega(s, t=0.0): return np.zeros_like(s)    # Zero omega
+    def initial_v(s, t=0.0): return np.zeros_like(s)        # Zero v  
+    def initial_phi(s, t=0.0): return np.zeros_like(s)      # Zero phi
+    
+    # Source terms (all zero matching MATLAB)
+    def source_u(s, t): return np.zeros_like(s)
+    # ... similar for omega, v, phi
+    
+    # SECTION 3: GEOMETRY SETUP - ⚠️ CUSTOMIZE THIS SECTION ⚠️
+    geometry = DomainGeometry("custom_geometry")
+    # User adds geometry.add_domain() calls here
+    
+    # SECTION 4: PROBLEM CREATION (Automated from geometry)
+    # SECTION 5: CONSTRAINT SETUP - ⚠️ CUSTOMIZE THIS SECTION ⚠️  
+    # SECTION 6-7: GLOBAL DISCRETIZATION AND VALIDATION
+\end{lstlisting}
+
+\subsection{OrganOnChip Grid Problem}
+\label{subsec:ooc_grid_problem}
+
+The \texttt{ooc\_problem.py} implements a complete OrganOnChip problem with grid geometry.
+
+\subsubsection{Main Framework Method}
+
+\begin{lstlisting}[language=Python, caption=OoC Problem Framework]
+def create_global_framework(geometry: Optional[DomainGeometry] = None,
+                          config_file: Optional[str] = None):
+    """
+    OrganOnChip problem with grid geometry and configuration system.
+    
+    Args:
+        geometry: Optional pre-defined geometry. Uses build_default_geometry() if None
+        config_file: Optional TOML configuration file
+    
+    Returns:
+        Tuple: (problems, global_discretization, constraint_manager, problem_name)
+    """
+    
+    CONFIG_VALIDATION_TYPE = "ooc"      # For config file validation
+    PROBLEM_TYPE = "organ_on_chip"      # For StaticCondensationFactory
+    
+    # Configuration loading with validation
+    config_manager = OoCConfigManager()
+    config = config_manager.load_config(config_file)
+    
+    # Extract configuration sections
+    problem_config = config['problem']
+    phys_params = config['physical_parameters']
+    initial_conditions = config['initial_conditions']  # Already callables
+    domain_initial_conditions = config.get('domain_initial_conditions', {})
+    domain_force_functions = config.get('domain_force_functions', {})
+    
+    # Create problems from geometry
+    problems = []
+    for domain_id in range(geometry.num_domains()):
+        domain_info = geometry.get_domain(domain_id)
+        problem = Problem(neq, domain_info.domain_start, domain_info.domain_length,
+                         parameters, "my_problem_type", name)
+        # Set functions...
+        problems.append(problem)
+    
+    # Setup constraints from geometry
+    constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
+    
+    # Return framework components
+    return problems, global_discretization, constraint_manager, problem_name
+\end{lstlisting}
+
+\subsubsection{Geometry Integration}
+
+\begin{lstlisting}[language=Python, caption=Geometry Integration]
+def build_default_geometry():
+    """Build the default OoC grid geometry."""
+    return build_grid_geometry()  # From geometry module
+
+def setup_constraints_from_geometry(geometry: DomainGeometry, problems, neq: int):
+    """Generate constraint manager from geometry connections."""
+    constraint_manager = ConstraintManager()
+    
+    # Process boundary connections
+    boundary_connections = geometry.get_boundary_connections()
+    for conn in boundary_connections:
+        if conn.is_exterior_boundary():
+            for eq_idx in range(neq):
+                constraint_manager.add_neumann(
+                    equation_index=eq_idx,
+                    domain_index=conn.domain1_id,
+                    position=conn.parameter1,
+                    data_function=lambda t: 0.0  # Homogeneous Neumann
+                )
+    
+    # Process interior connections
+    interior_connections = geometry.get_interior_connections()
+    for conn in interior_connections:
+        for eq_idx in range(neq):
+            constraint_manager.add_trace_continuity(
+                equation_index=eq_idx,
+                domain1_index=conn.domain1_id,
+                domain2_index=conn.domain2_id,
+                position1=conn.parameter1,
+                position2=conn.parameter2
+            )
+    
+    return constraint_manager
+\end{lstlisting}
+
+\subsubsection{Domain-Specific Overrides}
+
+\begin{lstlisting}[language=Python, caption=Domain-Specific Configuration]
+# Apply domain-specific initial condition overrides
+equation_names = ['u', 'omega', 'v', 'phi']
+
+for domain_eq_key, func_name in domain_initial_conditions.items():
+    # Parse "domain_<id>_<equation_name>"
+    if domain_eq_key.startswith('domain_') and '_' in domain_eq_key[7:]:
+        parts = domain_eq_key[7:].split('_', 1)
+        domain_id = int(parts[0])
+        equation_name = parts[1]
+        
+        if domain_id < len(problems) and equation_name in equation_names:
+            equation_id = equation_names.index(equation_name)
+            resolved_func = config_manager.function_resolver.resolve_function(func_name)
+            problems[domain_id].set_initial_condition(equation_id, resolved_func)
+            print(f"✓ Set initial condition: domain {domain_id}, equation '{equation_name}' -> {func_name}")
+\end{lstlisting}
+
+\subsection{Parameter Management}
+\label{subsec:parameter_management}
+
+\subsubsection{OrganOnChip Parameter Structure}
+
+\begin{longtable}{|p{3cm}|p{2cm}|p{2cm}|p{6cm}|}
+\hline
+\textbf{Parameter} & \textbf{Index} & \textbf{Default} & \textbf{Physical Meaning} \\
+\hline
+\endhead
+
+\texttt{nu} & 0 & 1.0 & Cell diffusion coefficient \\
+\hline
+
+\texttt{mu} & 1 & 2.0 & Potential diffusion coefficient \\
+\hline
+
+\texttt{epsilon} & 2 & 1.0 & Chemical diffusion coefficient \\
+\hline
+
+\texttt{sigma} & 3 & 1.0 & Velocity diffusion coefficient \\
+\hline
+
+\texttt{a} & 4 & 0.0 & Growth/decay rate \\
+\hline
+
+\texttt{b} & 5 & 1.0 & Velocity-potential coupling \\
+\hline
+
+\texttt{c} & 6 & 0.0 & Chemical reaction rate \\
+\hline
+
+\texttt{d} & 7 & 1.0 & Cell-chemical coupling \\
+\hline
+
+\texttt{chi} & 8 & 1.0 & Chemotactic sensitivity \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Keller-Segel Parameter Structure}
+
+\begin{longtable}{|p{3cm}|p{2cm}|p{2cm}|p{6cm}|}
+\hline
+\textbf{Parameter} & \textbf{Config Path} & \textbf{Default} & \textbf{Physical Meaning} \\
+\hline
+\endhead
+
+\texttt{mu} & diffusion.mu & 2.0 & Cell diffusion coefficient \\
+\hline
+
+\texttt{nu} & diffusion.nu & 1.0 & Chemical diffusion coefficient \\
+\hline
+
+\texttt{a} & reaction.a & 0.0 & Reaction parameter a \\
+\hline
+
+\texttt{b} & reaction.b & 1.0 & Reaction parameter b \\
+\hline
+
+\texttt{chi} & chemotaxis.chi & 'constant' & Chemotactic sensitivity function \\
+\hline
+
+\texttt{dchi} & chemotaxis.dchi & 'zeros' & Derivative of chemotaxis function \\
+\hline
+
+\end{longtable}
+
+\subsection{Problem Module Usage Patterns}
+\label{subsec:usage_patterns}
+
+\subsubsection{Using OrganOnChip Problem}
+
+\begin{lstlisting}[language=Python, caption=OoC Problem Usage]
+# Method 1: Using default configuration
+from bionetflux.problems.ooc_problem import create_global_framework
+problems, global_disc, constraints, name = create_global_framework()
+
+# Method 2: Using custom geometry
+from bionetflux.geometry.domain_geometry import DomainGeometry
+geometry = DomainGeometry("custom")
+geometry.add_domain(extrema_start=(0,0), extrema_end=(1,0), name="domain1")
+problems, global_disc, constraints, name = create_global_framework(geometry=geometry)
+
+# Method 3: Using TOML configuration file
+problems, global_disc, constraints, name = create_global_framework(
+    config_file="my_ooc_config.toml"
+)
+\end{lstlisting}
+
+\subsubsection{TOML Configuration Example}
+
+\begin{lstlisting}[language=toml, caption=OoC TOML Configuration]
+[problem]
+name = "My_OoC_Problem"
+neq = 4
+problem_type = "ooc"
+
+[time_parameters]
+T = 2.0
+dt = 0.05
+
+[physical_parameters.viscosity]
+nu = 1.5
+mu = 2.5
+epsilon = 1.2
+sigma = 0.8
+
+[physical_parameters.coupling]
+chi = 2.0
+
+[initial_conditions]
+u = "ooc_gaussian_blob"
+v = "ooc_parabolic_flow"
+
+[domain_initial_conditions]
+domain_0_u = "constant"
+domain_3_v = "ooc_inlet_profile"
+
+[domain_force_functions]
+domain_1_omega = "sin_t"
+\end{lstlisting}
+
+\subsection{Function Resolution System}
+\label{subsec:function_resolution}
+
+\subsubsection{Function Library Hierarchy}
+
+\begin{lstlisting}[language=Python, caption=Function Resolution Process]
+# 1. Common functions (in BaseConfigManager)
+common_functions = {
+    'zeros': lambda s, t=0: np.zeros_like(s),
+    'ones': lambda s, t=0: np.ones_like(s),
+    'constant': lambda s, t=0: np.ones_like(s),
+    'linear': lambda s, t=0: s,
+    'quadratic': lambda s, t=0: s**2,
+    'sin': lambda s, t=0: np.sin(np.pi * s),
+    'cos': lambda s, t=0: np.cos(np.pi * s),
+}
+
+# 2. Problem-specific functions (OoC or KS)
+# Added by _setup_function_library() in each config manager
+
+# 3. Resolution order:
+#    - Check problem-specific library first
+#    - Fall back to common library
+#    - Raise error if function not found
+\end{lstlisting}
+
+\subsection{Validation System}
+\label{subsec:validation_system}
+
+\subsubsection{Configuration Validation Rules}
+
+\begin{lstlisting}[language=Python, caption=Validation Rules Example]
+# In OoCConfigManager
+def _setup_validation_rules(self):
+    # Problem type validation
+    self.validator.add_rule('problem.problem_type', 
+                          {'type': str, 'required': True})
+    
+    # Physical parameter validation
+    self.validator.add_rule('physical_parameters.viscosity.nu', 
+                          {'type': float, 'min': 0.0, 'positive': True})
+    
+    # Time parameter validation
+    self.validator.add_rule('time_parameters.T', 
+                          {'type': float, 'min': 0.0, 'positive': True})
+    
+    # Discretization validation
+    self.validator.add_rule('discretization.n_elements', 
+                          {'type': int, 'min': 1})
+\end{lstlisting}
+
+\subsubsection{Problem Type Validation}
+
+\begin{lstlisting}[language=Python, caption=Problem Type Validation]
+def load_config(self, config_file: Optional[str] = None):
+    config = super().load_config(config_file)
+    
+    # Validate problem type matches
+    if config_file:
+        config_problem_type = config.get('problem', {}).get('problem_type', None)
+        if config_problem_type and config_problem_type != self.problem_type:
+            raise ValueError(
+                f"Configuration problem type '{config_problem_type}' does not match "
+                f"expected problem type '{self.problem_type}'"
+            )
+    
+    return config
+\end{lstlisting}
+
+\subsection{Mathematical Formulation}
+\label{subsec:mathematical_formulation}
+
+\subsubsection{OrganOnChip System}
+
+The 4-equation OrganOnChip system implemented in the problems:
+
+\begin{align}
+\frac{\partial u}{\partial t} &= \nu \nabla^2 u - \chi \nabla \cdot (u \nabla \phi) + a u + f_u(x,t) \\
+\frac{\partial \omega}{\partial t} &= \epsilon \nabla^2 \omega + c \omega + d u + f_\omega(x,t) \\
+\frac{\partial v}{\partial t} &= \sigma \nabla^2 v + \lambda(\bar{\omega}) v + f_v(x,t) \\
+\frac{\partial \phi}{\partial t} &= \mu \nabla^2 \phi + a \phi + b v + f_\phi(x,t)
+\end{align}
+
+where $\bar{\omega} = \frac{1}{|K|} \int_K \omega \, dx$ is the cell-averaged value.
+
+\subsubsection{Keller-Segel System}
+
+The 2-equation Keller-Segel system:
+
+\begin{align}
+\frac{\partial u}{\partial t} &= \mu \nabla^2 u - \nabla \cdot (u \chi(\phi) \nabla \phi) + f_u(x,t) \\
+\frac{\partial \phi}{\partial t} &= \nu \nabla^2 \phi + u + f_\phi(x,t)
+\end{align}
+
+\subsection{Extension Guidelines}
+\label{subsec:extension_guidelines}
+
+\subsubsection{Creating New Problem Modules}
+
+\begin{lstlisting}[language=Python, caption=New Problem Module Template]
+def create_global_framework(config_file: Optional[str] = None):
+    """
+    New problem module following BioNetFlux patterns.
+    """
+    
+    # 1. Create specialized config manager
+    config_manager = MyNewConfigManager()
+    config = config_manager.load_config(config_file)
+    
+    # 2. Extract parameters and functions
+    parameters = extract_parameters_from_config(config)
+    initial_conditions = config['initial_conditions']  # Already resolved
+    
+    # 3. Create geometry (default or provided)
+    geometry = build_my_geometry()
+    
+    # 4. Create problems from geometry
+    problems = []
+    for domain_id in range(geometry.num_domains()):
+        domain_info = geometry.get_domain(domain_id)
+        problem = Problem(neq, domain_info.domain_start, domain_info.domain_length,
+                         parameters, "my_problem_type", name)
+        # Set functions...
+        problems.append(problem)
+    
+    # 5. Setup constraints from geometry
+    constraint_manager = setup_constraints_from_geometry(geometry, problems, neq)
+    
+    # 6. Return framework components
+    return problems, global_discretization, constraint_manager, problem_name
+\end{lstlisting}
+
+\subsubsection{Configuration Manager Guidelines}
+
+\begin{lstlisting}[language=Python, caption=New Config Manager Template]
+class MyNewConfigManager(BaseConfigManager):
+    def __init__(self):
+        super().__init__("my_type")
+    
+    def _setup_defaults(self):
+        self.defaults = {
+            'problem': {'name': 'My_Problem', 'neq': N, 'problem_type': 'my_type'},
+            'physical_parameters': { /* your parameters */ },
+            'initial_conditions': { /* your variables */ },
+            # ...existing code...
+        }
+    
+    def _setup_function_library(self):
+        my_functions = {
+            'my_special_function': lambda s, t=0: /* implementation */,
+            # ...existing code...
+        }
+        self.function_resolver.register_function_library(my_functions)
+    
+    def _setup_validation_rules(self):
+        # Add your validation rules
+        # ...existing code...
+\end{lstlisting}
+
+This documentation provides comprehensive coverage of the actual problem modules implemented in the BioNetFlux problems folder, reflecting the current configuration-driven architecture and providing clear guidelines for extension.
+
+% End of problems folder detailed API documentation

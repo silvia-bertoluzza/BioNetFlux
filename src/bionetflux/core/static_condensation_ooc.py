@@ -1,16 +1,15 @@
 import numpy as np
-import sys
-import os
 from typing import Dict, Tuple
 
 from .problem import Problem
 from .static_condensation_base import StaticCondensationBase
 
-# Add the python_port directory to sys.path to allow imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-python_port_dir = os.path.dirname(os.path.dirname(current_dir))
-if python_port_dir not in sys.path:
-    sys.path.insert(0, python_port_dir)
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# python_port_dir = os.path.dirname(os.path.dirname(current_dir))
+# if python_port_dir not in sys.path:
+#     sys.path.insert(0, python_port_dir)
     
 class StaticCondensationOOC(StaticCondensationBase):
     """
@@ -22,8 +21,17 @@ class StaticCondensationOOC(StaticCondensationBase):
     - omega: auxiliary variable (equation 2) 
     - v: auxiliary variable (equation 3)
     - phi: primary variable (equation 4)
-    
+
+    Flux polynomial orders:
+        - Equation 0 (u): P0 flux (1 DOF per element)
+        - Equation 1 (ω): P1 flux (2 DOFs per element)
+        - Equation 2 (v): P1 flux (2 DOFs per element)
+        - Equation 3 (φ): P1 flux (2 DOFs per element)
     """
+
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1, 1, 1]  # P0 for u, P1 for ω, v, φ
     
     def build_matrices(self):
         """
@@ -42,27 +50,30 @@ class StaticCondensationOOC(StaticCondensationBase):
         b = self.problem.parameters[5]       # coupling parameter
         c = self.problem.parameters[6]       # reaction parameter
         d = self.problem.parameters[7]       # coupling parameter
-        chi = self.problem.parameters[8]     # coupling parameter
         
         alpha = 1/nu
         beta = 1/mu
         
+        h = self.discretization.element_length
         
-        # **TODO: need to check that the lambda functions are correctly defined
+        # Get chi and dchi as callables from problem (set via set_chemotaxis)
+        self.chi_func = self.problem.chi
+        self.dchi_func = self.problem.dchi
+        
         # Get lambda function and its derivative
         self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
         self.dlambda_func = getattr(self.problem, 'dlambda_function', lambda x: np.zeros_like(x))
         
         # Get stabilization parameters
         tau = self.discretization.tau if hasattr(self.discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
-        tu = tau[0]    # tau for u
+        tu = tau[0]/h    # tau for u
         to = tau[1]    # tau for omega  
         tv = tau[2]    # tau for v
         tp = tau[3]    # tau for phi
         
         # Cache frequently used values
         dt = self.dt  
-        h = self.discretization.element_length
+       
     
         
         # Initialize sc_matrices storage
@@ -166,7 +177,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Matrices for j construction
         hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h # Checked
         
-        Q = -nu * beta * chi * np.block([
+        Q = -nu * beta * np.block([
             [Z, Z, Z, Z],
             [Z, Z, Z, Z],
             [M, Z, Z, Z]
@@ -277,6 +288,11 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Assemble bulk solution U = [u1; u2; u3; u4]
         U = np.concatenate([u1, u2, u3, u4])
         
+        # Step 5b: Compute average phi and evaluate chi
+        barphi = float(Av @ u4)
+        barchi = self.chi_func(barphi)
+        dbarchi = self.dchi_func(barphi)
+        
         # Compute Jacobian for Newton method
         # Initialize JAC following MATLAB logic
         JAC = np.zeros((8, 8))
@@ -302,10 +318,12 @@ class StaticCondensationOOC(StaticCondensationBase):
         tJ = D1 @ U - D2 @ hU
         dtJ = D1 @ JAC - D2
         
-        # Construction of j and dj
-        j = hB4 @ hU + tJ.T @ Q @ U
-        dj = hB4 - tJ.T @ Q @ JAC - U.T @ Q.T @ dtJ
-        # dj = R[0] * dj  # Restrict to u equation
+        # Construction of j and dj (Q is multiplied by barchi at runtime)
+        j = hB4 @ hU + barchi * tJ.T @ Q @ U
+        # WARNING: the formula for dbarphi_dhU needs to be checked against the theory
+        dbarphi_dhU = Av @ R[3] @ JAC                           # (1, 8)
+        dj = hB4 - barchi * tJ.T @ Q @ JAC - barchi * U.T @ Q.T @ dtJ \
+             - dbarchi * (tJ.T @ Q @ U) * dbarphi_dhU            # (1, 8)
         # Final flux jumps
         
         B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2

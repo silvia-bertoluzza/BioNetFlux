@@ -615,6 +615,127 @@ class LeanMatplotlibPlotter:
         os.makedirs(self.output_dir, exist_ok=True)
         print(f"✓ Output directory set to: {self.output_dir}")
     
+    def plot_geometry_with_indices(self, geometry, save_filename=None, show_plot=True):
+        """
+        Plot the geometry with domain indices labeled on each segment.
+        
+        Args:
+            geometry: DomainGeometry instance
+            save_filename: Optional filename to save the plot
+            show_plot: Whether to display the plot interactively
+        """
+        try:
+            import matplotlib.pyplot as plt
+            PLOTTING_AVAILABLE = True
+        except ImportError:
+            PLOTTING_AVAILABLE = False
+        
+        if not PLOTTING_AVAILABLE:
+            print("⚠️  Cannot plot geometry - matplotlib not available")
+            return
+        
+        print("Creating geometry plot with domain indices...")
+        
+        fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+        
+        # Plot each domain
+        for domain_id in range(geometry.num_domains()):
+            domain_info = geometry.get_domain(domain_id)
+            
+            # Extract coordinates
+            x_start, y_start = domain_info.extrema_start
+            x_end, y_end = domain_info.extrema_end
+            
+            # Use domain's display color or default to blue
+            color = domain_info.display_color if hasattr(domain_info, 'display_color') else 'blue'
+            linewidth = 2
+            
+            # Plot the segment
+            ax.plot([x_start, x_end], [y_start, y_end], 
+                   color=color, linewidth=linewidth, alpha=0.7)
+            
+            # Add domain index label at the midpoint
+            mid_x = (x_start + x_end) / 2
+            mid_y = (y_start + y_end) / 2
+            
+            # Offset text slightly to avoid overlap with line
+            if abs(x_end - x_start) > abs(y_end - y_start):  # Horizontal segment
+                text_offset_x = 0.0
+                text_offset_y = 0.05
+            else:  # Vertical segment
+                text_offset_x = 0.05
+                text_offset_y = 0.0
+            
+            ax.text(mid_x + text_offset_x, mid_y + text_offset_y, 
+                   str(domain_id), 
+                   fontsize=10, fontweight='bold',
+                   ha='center', va='center',
+                   bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        
+        # Add grid points
+        all_points = set()
+        for domain_id in range(geometry.num_domains()):
+            domain_info = geometry.get_domain(domain_id)
+            all_points.add(domain_info.extrema_start)
+            all_points.add(domain_info.extrema_end)
+        
+        # Plot grid points
+        for point in all_points:
+            ax.plot(point[0], point[1], 'ko', markersize=6, alpha=0.6)
+        
+        # Formatting
+        ax.set_xlabel('X coordinate', fontsize=12)
+        ax.set_ylabel('Y coordinate', fontsize=12)
+        ax.set_title(f'Grid Geometry: {geometry.name}\n{geometry.num_domains()} domains', 
+                    fontsize=14, fontweight='bold')
+        ax.grid(True, alpha=0.3)
+        ax.set_aspect('equal')
+        
+        # Create legend with domain colors
+        unique_colors = set()
+        for domain_id in range(geometry.num_domains()):
+            domain_info = geometry.get_domain(domain_id)
+            color = domain_info.display_color if hasattr(domain_info, 'display_color') else 'blue'
+            unique_colors.add(color)
+        
+        legend_elements = []
+        for color in unique_colors:
+            legend_elements.append(
+                plt.Line2D([0], [0], color=color, linewidth=2, label=f'{color.capitalize()} segments')
+            )
+        legend_elements.append(
+            plt.Line2D([0], [0], marker='o', color='black', linewidth=0, 
+                      markersize=6, label='Grid points')
+        )
+        ax.legend(handles=legend_elements, loc='upper right')
+        
+        # Add geometry summary as text
+        bounding_box = geometry.get_bounding_box()
+        summary_text = (f"Domains: {geometry.num_domains()}\n"
+                       f"X range: [{bounding_box['x_min']:.1f}, {bounding_box['x_max']:.1f}]\n"
+                       f"Y range: [{bounding_box['y_min']:.1f}, {bounding_box['y_max']:.1f}]")
+        
+        ax.text(0.02, 0.98, summary_text, transform=ax.transAxes, 
+               fontsize=10, verticalalignment='top',
+               bbox=dict(boxstyle='round,pad=0.5', facecolor='lightblue', alpha=0.8))
+        
+        plt.tight_layout()
+        
+        # Save if requested
+        save_path = self._get_save_path(save_filename)
+        if save_path:
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            print(f"✓ Geometry plot saved as: {save_path}")
+        
+        # Show if requested
+        if show_plot:
+            plt.show()
+        else:
+            plt.close()
+        
+        return fig, ax
+
+    
     def show_all(self):
         """Show all created plots."""
         plt.show()

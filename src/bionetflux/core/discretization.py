@@ -1,6 +1,29 @@
 import numpy as np
 from typing import List, Optional
 
+
+def compute_n_elements_from_h(domain_length: float, h: float) -> int:
+    """Compute the number of elements for a domain given a target mesh size.
+
+    The returned value is the **even** integer closest to ``domain_length / h``,
+    with a minimum of 4.  Being even guarantees that the midpoint of the
+    segment is a mesh node (useful for left/right mass splitting).
+
+    Args:
+        domain_length: Physical length of the domain (must be > 0).
+        h: Target element size (must be > 0).
+
+    Returns:
+        An even integer >= 4.
+    """
+    if domain_length <= 0.0:
+        raise ValueError(f"domain_length must be positive, got {domain_length}")
+    if h <= 0.0:
+        raise ValueError(f"h must be positive, got {h}")
+    n = 2 * round(domain_length / (2.0 * h))
+    return max(4, int(n))
+
+
 class Discretization:
     """
     Spatial discretization for a single domain using finite elements.
@@ -109,9 +132,6 @@ class GlobalDiscretization:
             'n_domains': self.n_domains,
             'total_elements': self.total_elements,
             'total_nodes': self.total_nodes,
-            'global_start': self.global_start,
-            'global_end': self.global_end,
-            'global_length': self.global_length,
             'time_info': self.get_time_info(),
             'spatial_discretizations': [disc.get_mesh_info() for disc in self.spatial_discretizations]
         }

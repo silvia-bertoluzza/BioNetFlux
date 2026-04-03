@@ -1,13 +1,12 @@
 import numpy as np
-import sys
-import os
 from typing import Dict, Tuple
 
-# Add the python_port directory to sys.path to allow imports
-current_dir = os.path.dirname(os.path.abspath(__file__))
-python_port_dir = os.path.dirname(os.path.dirname(current_dir))
-if python_port_dir not in sys.path:
-    sys.path.insert(0, python_port_dir)
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# python_port_dir = os.path.dirname(os.path.dirname(current_dir))
+# if python_port_dir not in sys.path:
+#     sys.path.insert(0, python_port_dir)
 
 from bionetflux.core.static_condensation_base import StaticCondensationBase
 
@@ -16,8 +15,16 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
     """
     Static condensation implementation for Keller-Segel problems.
     Equivalent to MATLAB scBlocks.m and StaticC.m for Keller-Segel model.
+
+    Flux polynomial orders:
+        - Equation 0 (u): P0 flux (1 DOF per element)
+        - Equation 1 (φ): P1 flux (2 DOFs per element)
     """
-  
+
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1]  # P0 for u, P1 for φ
+
     def build_matrices(self) -> Dict[str, np.ndarray]:
         """
         Build static condensation matrices for Keller-Segel model.
@@ -46,7 +53,7 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         eQUAD = self.elementary_matrices.get_matrix('QUAD')
         
         # Get stabilization parameters first
-        tu = self.discretization.tau[0]  # tau for u equation
+        tu = self.discretization.tau[0]/h  # tau for u equation
         tp = self.discretization.tau[1]  # tau for phi equation
         
         # Handle M matrix - eM might be diagonal elements
@@ -68,6 +75,8 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         IM = eIM / h
         Ntil = eNtil
         Nhat = eNhat
+        
+        
         
         # Build matrices following MATLAB scBlocks.m exactly
         normali = np.array([[-1], [1]])
@@ -221,7 +230,8 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         local_solution = B0 @ local_trace + G0
         
         # Step 2: Compute average phi for chemotaxis
-        phi_avg = float(Av @ local_solution)
+        # .item() converts single-element array to scalar
+        phi_avg = float((Av @ local_solution).item())
         
         # Get chi value at average phi
         chi_val = (self.problem.chi(phi_avg) if 

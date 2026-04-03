@@ -1,0 +1,1080 @@
+% filepath: /Users/bertoluzza/GIT/BioNetFlux/docs/latex/lean_matplotlib_plotter_detailed_api.tex
+% Lean Matplotlib Plotter Module Detailed API Documentation
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/latex/lean_matplotlib_plotter_detailed_api}
+
+\section{Matplotlib Plotter Module}
+\label{sec:lean_matplotlib_plotter_detailed_api}
+
+This section provides reference for the matplotlib plotter module (\texttt{lean\_matplotlib\_plotter.py}). The module provides visualization capabilities for multi-domain HDG solutions with support for both 2D curve plotting and 3D spatial visualization using matplotlib.
+
+\subsection{Module Overview}
+
+The lean matplotlib plotter module provides:
+\begin{itemize}
+	\item Multi-domain solution visualization with automatic coordinate mapping
+	\item Support for 2D curve plots showing solution evolution along parameter coordinates
+	\item 3D flat visualization displaying solutions as colored segments in physical space
+	\item Bird's eye view plots for overhead spatial visualization
+	\item Solution comparison capabilities for time evolution analysis
+	\item Automatic equation name detection and color scheme management
+	\item Flexible output directory management with backward compatibility
+	\item Comprehensive bounding box and mesh point visualization options
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+	import numpy as np
+	import matplotlib.pyplot as plt
+	from matplotlib.patches import Rectangle
+	from mpl_toolkits.mplot3d import Axes3D
+	from typing import List, Dict, Optional, Tuple
+	import matplotlib.colors as mcolors
+	import os
+\end{lstlisting}
+
+\subsection{LeanMatplotlibPlotter Class}
+\label{subsec:lean_matplotlib_plotter_class}
+
+Main class that provides matplotlib-based visualization for multi-domain HDG solutions with automatic coordinate mapping and flexible rendering options.
+
+\subsubsection{Class Definition and Purpose}
+
+\begin{lstlisting}[language=Python, caption=LeanMatplotlibPlotter Class Definition]
+	class LeanMatplotlibPlotter:
+	"""
+	Lean matplotlib-based visualization class for multi-domain solutions.
+	
+	Supports two visualization modes:
+	1. 2D curve mode: z = f(x) curves where z is solution, x is position
+	2. Flat 3D mode: thick segments in (x,y) plane with z shown via colormap
+	"""
+\end{lstlisting}
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=LeanMatplotlibPlotter Constructor]
+	def __init__(self, 
+	problems: List, 
+	discretizations: List,
+	equation_names: Optional[List[str]] = None,
+	figsize: Tuple[float, float] = (12, 8),
+	output_dir: Optional[str] = None)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{problems}: List of Problem instances containing domain definitions and equation specifications
+	\item \texttt{discretizations}: List of Discretization instances with spatial mesh information
+	\item \texttt{equation\_names}: Optional list of equation names for labeling (auto-detected if None)
+	\item \texttt{figsize}: Default figure size as (width, height) tuple (default: (12, 8))
+	\item \texttt{output\_dir}: Optional directory for saving plots (backward compatible, default: None)
+\end{itemize}
+
+\textbf{Side Effects:}
+\begin{itemize}
+	\item Sets all instance attributes from parameters
+	\item Computes number of domains (\texttt{self.ndom}) and equations (\texttt{self.neq})
+	\item Creates output directory if specified and doesn't exist
+	\item Auto-detects equation names based on number of equations if not provided
+	\item Initializes color schemes for equations and colormaps
+	\item Computes global coordinate mapping via \texttt{\_compute\_coordinates()}
+\end{itemize}
+
+\lstset{mathescape=true}
+
+\textbf{Equation Name Auto-Detection:}
+\begin{lstlisting}[language=Python, caption=Equation Name Auto-Detection Logic]
+	if equation_names is None:
+	if self.neq == 4:  # OrganOnChip
+	self.equation_names = ['u', '$\lst@stringstyle\omega$', 'v', '$\lst@stringstyle\varphi$']
+	elif self.neq == 2:  # Keller-Segel
+	self.equation_names = ['u', '$\lst@stringstyle\varphi$']
+	else:
+	self.equation_names = [f'Eq_{i+1}' for i in range(self.neq)]
+	else:
+	self.equation_names = equation_names
+\end{lstlisting}
+
+\textbf{Color Scheme Initialization:}
+\begin{lstlisting}[language=Python, caption=Color Schemes]
+	self.equation_colors = ['blue', 'red', 'green', 'purple', 'orange', 'brown']
+	self.equation_colormaps = ['viridis', 'plasma', 'inferno', 'cividis', 'magma', 'turbo']
+\end{lstlisting}
+
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Constructor Usage Examples]
+	# Basic initialization with auto-detection
+	plotter = LeanMatplotlibPlotter(problems, discretizations)
+	
+	# With custom equation names and output directory
+	plotter = LeanMatplotlibPlotter(
+	problems=problems,
+	discretizations=discretizations,
+	equation_names=['Density', 'Chemical'],
+	figsize=(15, 10),
+	output_dir="outputs/plots"
+	)
+	
+	# Keller-Segel specific setup
+	plotter = LeanMatplotlibPlotter(
+	problems=ks_problems,
+	discretizations=ks_discretizations,
+	equation_names=['u', '$\lst@stringstyle\phi$']  # Override auto-detection
+	)
+\end{lstlisting}
+
+\subsubsection{Core Instance Attributes}
+
+\begin{longtable}{|p{4cm}|p{5cm}|p{5cm}|}
+	\hline
+	\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+	\hline
+	\endhead
+	
+	\texttt{problems} & \texttt{List} & Problem instances for domain definitions \\
+	\hline
+	
+	\texttt{discretizations} & \texttt{List} & Discretization instances for mesh information \\
+	\hline
+	
+	\texttt{ndom} & \texttt{int} & Number of domains computed from problems list \\
+	\hline
+	
+	\texttt{neq} & \texttt{int} & Number of equations from first problem or default 2 \\
+	\hline
+	
+	\texttt{figsize} & \texttt{Tuple[float, float]} & Default figure size (width, height) \\
+	\hline
+	
+	\texttt{output\_dir} & \texttt{Optional[str]} & Directory for saving plots (None if not set) \\
+	\hline
+	
+	\texttt{equation\_names} & \texttt{List[str]} & Names for equations used in labels and legends \\
+	\hline
+	
+	\texttt{equation\_colors} & \texttt{List[str]} & Color names for equation plotting \\
+	\hline
+	
+	\texttt{equation\_colormaps} & \texttt{List[str]} & Colormap names for 3D/heatmap plotting \\
+	\hline
+	
+\end{longtable}
+
+\subsubsection{Computed Coordinate Attributes}
+
+\begin{longtable}{|p{4cm}|p{5cm}|p{5cm}|}
+	\hline
+	\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+	\hline
+	\endhead
+	
+	\texttt{all\_coords} & \texttt{np.ndarray} & Concatenated parameter coordinates across all domains \\
+	\hline
+	
+	\texttt{domain\_boundaries} & \texttt{List} & Legacy attribute for backward compatibility (not used) \\
+	\hline
+	
+	\texttt{domain\_info} & \texttt{List[Dict]} & Detailed information for each domain \\
+	\hline
+	
+	\texttt{bounding\_box} & \texttt{Dict} & Global bounding box in physical coordinates \\
+	\hline
+	
+	\texttt{x\_min, x\_max} & \texttt{float} & Parameter coordinate range for backward compatibility \\
+	\hline
+	
+\end{longtable}
+
+\subsubsection{Coordinate System and Mapping}
+
+\paragraph{\_compute\_coordinates()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Coordinate Computation Method]
+	def _compute_coordinates(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Compute global coordinate mapping and domain information for visualization
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Coordinate Computation Algorithm]
+	def _compute_coordinates(self):
+	"""Compute global coordinates across all domains."""
+	self.all_coords = []
+	self.domain_boundaries = []  # Keep for backward compatibility, but won't use
+	self.domain_info = []
+	
+	# Track bounding box
+	all_domain_starts = []
+	all_domain_ends = []
+	all_x_coords = []
+	all_y_coords = []
+	
+	for i, (discretization, problem) in enumerate(zip(self.discretizations, self.problems)):
+	# Use discretization.nodes directly (they already contain the full coordinates)
+	param_coords = discretization.nodes
+	self.all_coords.extend(param_coords.tolist())
+	
+	# Get domain extrema for 2D positioning
+	extrema_start = problem.extrema[0]  # (x1, y1)
+	extrema_end = problem.extrema[1]    # (x2, y2)
+	
+	# Track domain extents for bounding box
+	domain_end = problem.domain_start + problem.domain_length
+	all_domain_starts.append(problem.domain_start)
+	all_domain_ends.append(domain_end)
+	all_x_coords.extend([extrema_start[0], extrema_end[0]])
+	all_y_coords.extend([extrema_start[1], extrema_end[1]])
+	
+	# Store domain info for 2D/3D positioning using extrema
+	self.domain_info.append({
+		'start': problem.domain_start,
+		'end': domain_end,
+		'length': problem.domain_length,
+		'n_nodes': len(discretization.nodes),
+		'extrema_start': extrema_start,
+		'extrema_end': extrema_end,
+		'center_x': (extrema_start[0] + extrema_end[0]) / 2,
+		'center_y': (extrema_start[1] + extrema_end[1]) / 2,
+	})
+	
+	self.all_coords = np.array(self.all_coords)
+	
+	# Compute bounding box from extrema coordinates
+	self.bounding_box = {
+		'x_min': min(all_x_coords),
+		'x_max': max(all_x_coords),
+		'y_min': min(all_y_coords),
+		'y_max': max(all_y_coords),
+	}
+	
+	# Use parameter coordinate range for backward compatibility
+	self.x_min, self.x_max = min(all_domain_starts), max(all_domain_ends)
+\end{lstlisting}
+
+\textbf{Domain Information Structure:}
+\begin{lstlisting}[language=Python, caption=Domain Info Structure]
+	domain_info = {
+		'start': float,                    # Parameter coordinate start
+		'end': float,                      # Parameter coordinate end  
+		'length': float,                   # Domain length
+		'n_nodes': int,                    # Number of mesh nodes
+		'extrema_start': Tuple[float, float],  # Physical start coordinates (x, y)
+		'extrema_end': Tuple[float, float],    # Physical end coordinates (x, y)
+		'center_x': float,                 # Physical center x-coordinate
+		'center_y': float,                 # Physical center y-coordinate
+	}
+\end{lstlisting}
+
+\paragraph{\_map\_param\_to\_extrema()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Parameter to Physical Coordinate Mapping]
+	def _map_param_to_extrema(self, domain_idx: int, param_coords: np.ndarray) -> tuple
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{domain\_idx}: Index of the domain
+	\item \texttt{param\_coords}: 1D parameter coordinates to be mapped
+\end{itemize}
+
+\textbf{Returns:} \texttt{Tuple[np.ndarray, np.ndarray]} - (x\_coords, y\_coords) in physical space
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Coordinate Mapping Algorithm]
+	def _map_param_to_extrema(self, domain_idx: int, param_coords: np.ndarray) -> tuple:
+	"""Map parameter coordinates to 2D extrema coordinates for a domain."""
+	domain_info = self.domain_info[domain_idx]
+	extrema_start = domain_info['extrema_start']
+	extrema_end = domain_info['extrema_end']
+	
+	# Normalize parameter coordinates to [0, 1]
+	param_min, param_max = domain_info['start'], domain_info['end']
+	t = (param_coords - param_min) / (param_max - param_min)
+	
+	# Linear interpolation between extrema
+	x_coords = extrema_start[0] + t * (extrema_end[0] - extrema_start[0])
+	y_coords = extrema_start[1] + t * (extrema_end[1] - extrema_start[1])
+	
+	return x_coords, y_coords
+\end{lstlisting}
+
+\textbf{Purpose:} Maps 1D parameter coordinates to 2D physical space for spatial visualization
+
+\subsubsection{Solution Processing Methods}
+
+\paragraph{\_extract\_solutions()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Solution Extraction Method]
+	def _extract_solutions(self, trace_solutions: List[np.ndarray]) -> Dict[int, np.ndarray]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{trace\_solutions}: List of trace solution arrays for each domain
+\end{itemize}
+
+\textbf{Returns:} \texttt{Dict[int, np.ndarray]} - Solutions organized by equation index
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Solution Extraction Algorithm]
+	def _extract_solutions(self, trace_solutions: List[np.ndarray]) -> Dict[int, np.ndarray]:
+	"""Extract and concatenate solutions for each equation across domains."""
+	global_solutions = {eq_idx: [] for eq_idx in range(self.neq)}
+	
+	for domain_idx, trace in enumerate(trace_solutions):
+	n_nodes = self.domain_info[domain_idx]['n_nodes']
+	
+	for eq_idx in range(self.neq):
+	eq_start = eq_idx * n_nodes
+	eq_end = eq_start + n_nodes
+	eq_solution = trace[eq_start:eq_end]
+	global_solutions[eq_idx].extend(eq_solution.tolist())
+	
+	# Convert to numpy arrays
+	for eq_idx in range(self.neq):
+	global_solutions[eq_idx] = np.array(global_solutions[eq_idx])
+	
+	return global_solutions
+\end{lstlisting}
+
+\textbf{Purpose:} Reorganizes domain-based trace solutions into equation-based global arrays for plotting
+
+\paragraph{\_get\_save\_path()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Save Path Resolution Method]
+	def _get_save_path(self, filename: Optional[str]) -> Optional[str]
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{filename}: Filename or full path provided by user
+\end{itemize}
+
+\textbf{Returns:} \texttt{Optional[str]} - Full path for saving, or None if filename is None
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Save Path Resolution Algorithm]
+	def _get_save_path(self, filename: Optional[str]) -> Optional[str]:
+	"""Get the full save path, combining output_dir with filename if needed."""
+	if filename is None:
+	return None
+	
+	# If filename is already an absolute path, use it as-is (backward compatibility)
+	if os.path.isabs(filename):
+	return filename
+	
+	# If output_dir is set, combine it with filename
+	if self.output_dir is not None:
+	return os.path.join(self.output_dir, filename)
+	
+	# Otherwise, use filename as-is (current working directory)
+	return filename
+\end{lstlisting}
+
+\textbf{Purpose:} Provides flexible file path resolution supporting absolute paths, relative paths, and output directory management
+
+\subsubsection{2D Curve Plotting}
+
+\paragraph{plot\_2d\_curves()}\leavevmode
+\begin{lstlisting}[language=Python, caption=2D Curves Plotting Method]
+	def plot_2d_curves(self, 
+	trace_solutions: List[np.ndarray],
+	title: str = "2D Solution Curves",
+	show_bounding_box: bool = True,
+	show_mesh_points: bool = True,
+	save_filename: Optional[str] = None) -> plt.Figure
+\end{lstlisting}
+
+\begin{warningbox}
+	This method does not behave as it should. Do not use
+\end{warningbox}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{trace\_solutions}: List of trace solutions for each domain
+	\item \texttt{title}: Plot title (default: ``2D Solution Curves")
+	\item \texttt{show\_bounding\_box}: Whether to show domain boundaries (default: True)
+	\item \texttt{show\_mesh\_points}: Whether to show dots at mesh points (default: True)
+	\item \texttt{save\_filename}: Optional filename for saving (default: None)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib Figure object
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=2D Curves Plotting Algorithm]
+	# Create figure with subplots for each domain
+	fig, axes = plt.subplots(self.ndom, 1, figsize=(self.figsize[0], self.figsize[1] * self.ndom * 0.6))
+	if self.ndom == 1:
+	axes = [axes]
+	
+	# Process each domain separately
+	coord_start = 0
+	for domain_idx in range(self.ndom):
+	ax = axes[domain_idx]
+	domain_info = self.domain_info[domain_idx]
+	n_nodes = domain_info['n_nodes']
+	
+	# Get coordinates for this domain
+	coord_end = coord_start + n_nodes
+	domain_coords = self.all_coords[coord_start:coord_end]
+	
+	# Extract solutions for this domain
+	trace = trace_solutions[domain_idx]
+	domain_solutions = {}
+	for eq_idx in range(self.neq):
+	eq_start = eq_idx * n_nodes
+	eq_end = eq_start + n_nodes
+	eq_solution = trace[eq_start:eq_end]
+	domain_solutions[eq_idx] = eq_solution
+	
+	# Find solution range for this domain
+	all_domain_values = []
+	for eq_idx in range(self.neq):
+	all_domain_values.extend(domain_solutions[eq_idx])
+	z_min, z_max = np.min(all_domain_values), np.max(all_domain_values)
+	z_range = z_max - z_min
+	z_padding = z_range * 0.1 if z_range > 0 else 1.0
+	
+	# Plot each equation for this domain
+	for eq_idx in range(self.neq):
+	color = self.equation_colors[eq_idx % len(self.equation_colors)]
+	eq_name = self.equation_names[eq_idx]
+	
+	# Plot curve
+	ax.plot(domain_coords, domain_solutions[eq_idx], 
+	color=color, linewidth=2, label=eq_name, alpha=0.8)
+	
+	# Plot mesh points if requested
+	if show_mesh_points:
+	ax.scatter(domain_coords, domain_solutions[eq_idx], 
+	color=color, s=30, alpha=0.7, zorder=5)
+	
+	# Add domain boundaries and formatting...
+	coord_start = coord_end
+	
+	# Add main title and save
+	fig.suptitle(title, fontsize=14, fontweight='bold')
+	plt.tight_layout()
+	
+	save_path = self._get_save_path(save_filename)
+	if save_path:
+	plt.savefig(save_path, dpi=300, bbox_inches='tight')
+	print(f"✓ 2D curves saved as: {save_path}")
+	
+	return fig
+\end{lstlisting}
+
+\textbf{Features:}
+\begin{itemize}
+	\item Separate subplot for each domain
+	\item Automatic color assignment per equation
+	\item Optional mesh point visualization
+	\item Domain boundary markers
+	\item Automatic axis scaling with padding
+	\item Comprehensive legend and labeling
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=2D Curves Usage]
+	# Basic 2D plot
+	fig = plotter.plot_2d_curves(trace_solutions)
+	
+	# Customized plot with mesh points hidden
+	fig = plotter.plot_2d_curves(
+	trace_solutions,
+	title="Keller-Segel Solution Evolution",
+	show_mesh_points=False,
+	save_filename="ks_curves.png"
+	)
+	
+	# No domain boundaries shown
+	fig = plotter.plot_2d_curves(
+	trace_solutions,
+	show_bounding_box=False,
+	save_filename="clean_curves.pdf"
+	)
+\end{lstlisting}
+
+\subsubsection{3D Flat Visualization}
+
+\paragraph{plot\_flat\_3d()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Flat 3D Plotting Method]
+	def plot_flat_3d(self, 
+	trace_solutions: List[np.ndarray],
+	equation_idx: int = 0,
+	title: Optional[str] = None,
+	segment_width: float = 0.1,
+	save_filename: Optional[str] = None,
+	view_angle: Tuple[float, float] = (30, 45)) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{trace\_solutions}: List of trace solutions for each domain
+	\item \texttt{equation\_idx}: Which equation to visualize (default: 0)
+	\item \texttt{title}: Plot title (auto-generated if None)
+	\item \texttt{segment\_width}: Width of domain segments (default: 0.1, not currently used)
+	\item \texttt{save\_filename}: Optional filename for saving (default: None)
+	\item \texttt{view\_angle}: 3D view angles (elevation, azimuth) (default: (30, 45))
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib Figure object
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Flat 3D Plotting Algorithm]
+	# Extract solution for specified equation
+	solutions = self._extract_solutions(trace_solutions)
+	eq_solution = solutions[equation_idx]
+	eq_name = self.equation_names[equation_idx]
+	colormap = self.equation_colormaps[equation_idx % len(self.equation_colormaps)]
+	
+	# Create 3D plot
+	fig = plt.figure(figsize=self.figsize)
+	ax = fig.add_subplot(111, projection='3d')
+	
+	# Plot each domain as a thick segment
+	coord_start = 0
+	vmin, vmax = np.min(eq_solution), np.max(eq_solution)
+	
+	for domain_idx in range(self.ndom):
+	domain_info = self.domain_info[domain_idx]
+	n_nodes = domain_info['n_nodes']
+	
+	# Get coordinates and solution for this domain
+	coord_end = coord_start + n_nodes
+	param_coords = self.all_coords[coord_start:coord_end]
+	domain_solution = eq_solution[coord_start:coord_end]
+	coord_start = coord_end
+	
+	# Map parameter coordinates to 2D extrema coordinates
+	x_coords, y_coords = self._map_param_to_extrema(domain_idx, param_coords)
+	
+	# Plot the segment as colored line segments at z=0 with rounded ends
+	for i in range(len(param_coords) - 1):
+	x_seg = [x_coords[i], x_coords[i+1]]
+	y_seg = [y_coords[i], y_coords[i+1]]
+	z_seg = [0, 0]  # Flat segments at z=0
+	
+	# Color based on average solution value
+	color_val = (domain_solution[i] + domain_solution[i+1]) / 2
+	color = plt.cm.get_cmap(colormap)((color_val - vmin) / (vmax - vmin) if vmax > vmin else 0.5)
+	
+	# Use solid_capstyle='round' for rounded ends
+	ax.plot(x_seg, y_seg, z_seg, color=color, linewidth=8, alpha=0.8, solid_capstyle='round')
+	
+	# Add solution points above the segment
+	ax.scatter(x_coords, y_coords, domain_solution, 
+	c=domain_solution, cmap=colormap, s=50, 
+	vmin=vmin, vmax=vmax, alpha=0.9)
+	
+	# Connect flat segment to solution points with thin lines
+	for i in range(len(param_coords)):
+	ax.plot([x_coords[i], x_coords[i]], 
+	[y_coords[i], y_coords[i]], 
+	[0, domain_solution[i]], 
+	'k-', alpha=0.3, linewidth=0.5)
+	
+	# Add colorbar, formatting, and view angle setup...
+\end{lstlisting}
+
+\textbf{Features:}
+\begin{itemize}
+	\item Thick colored segments at z=0 representing domain geometry
+	\item Solution values displayed as scatter points above segments
+	\item Vertical connecting lines from geometry to solution
+	\item Colorbar for solution magnitude mapping
+	\item Configurable view angle
+	\item Automatic bounding box computation
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Flat 3D Usage]
+	# Basic 3D plot for first equation
+	fig = plotter.plot_flat_3d(trace_solutions, equation_idx=0)
+	
+	# Custom view angle and title for second equation  
+	fig = plotter.plot_flat_3d(
+	trace_solutions,
+	equation_idx=1,
+	title="Chemical Concentration Distribution",
+	view_angle=(45, 60),
+	save_filename="chemical_3d.png"
+	)
+	
+	# Side view for detailed analysis
+	fig = plotter.plot_flat_3d(
+	trace_solutions, 
+	equation_idx=0,
+	view_angle=(0, 0),  # Side view
+	save_filename="side_view.pdf"
+	)
+\end{lstlisting}
+
+\subsubsection{Bird's Eye View Visualization}
+
+\paragraph{plot\_birdview()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Bird's Eye View Plotting Method]
+	def plot_birdview(self, 
+	trace_solutions: List[np.ndarray],
+	equation_idx: int = 0,
+	title: Optional[str] = None,
+	segment_width: float = 0.1,
+	save_filename: Optional[str] = None,
+	show_colorbar: bool = True,
+	show_bounding_box: bool = True,
+	time: float = 0.0) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{trace\_solutions}: List of trace solutions for each domain
+	\item \texttt{equation\_idx}: Which equation to visualize (default: 0)
+	\item \texttt{title}: Plot title (auto-generated if None)
+	\item \texttt{segment\_width}: Width scaling factor for segments (default: 0.1)
+	\item \texttt{save\_filename}: Optional filename for saving (default: None)
+	\item \texttt{show\_colorbar}: Whether to show colorbar (default: True)
+	\item \texttt{show\_bounding\_box}: Whether to show bounding box (default: True)
+	\item \texttt{time}: Current time for title generation (default: 0.0)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib Figure object
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Bird's Eye View Algorithm]
+	# Extract solution for specified equation
+	solutions = self._extract_solutions(trace_solutions)
+	eq_solution = solutions[equation_idx]
+	eq_name = self.equation_names[equation_idx]
+	colormap = self.equation_colormaps[equation_idx % len(self.equation_colormaps)]
+	
+	# Create 2D plot
+	fig, ax = plt.subplots(1, 1, figsize=self.figsize)
+	
+	# Create colormap normalization
+	vmin, vmax = np.min(eq_solution), np.max(eq_solution)
+	if vmax > vmin:
+	norm = plt.Normalize(vmin=vmin, vmax=vmax)
+	else:
+	norm = plt.Normalize(vmin=vmin-1, vmax=vmin+1)
+	
+	# Plot each domain as thick colored segments
+	coord_start = 0
+	for domain_idx in range(self.ndom):
+	domain_info = self.domain_info[domain_idx]
+	n_nodes = domain_info['n_nodes']
+	
+	# Get coordinates and solution for this domain
+	coord_end = coord_start + n_nodes
+	param_coords = self.all_coords[coord_start:coord_end]
+	domain_solution = eq_solution[coord_start:coord_end]
+	coord_start = coord_end
+	
+	# Map parameter coordinates to 2D extrema coordinates
+	x_coords, y_coords = self._map_param_to_extrema(domain_idx, param_coords)
+	
+	# Plot the segment as colored line segments
+	for i in range(len(param_coords) - 1):
+	x_start, x_end = x_coords[i], x_coords[i+1]
+	y_start, y_end = y_coords[i], y_coords[i+1]
+	
+	# Color based on average solution value
+	color_val = (domain_solution[i] + domain_solution[i+1]) / 2
+	color = plt.cm.get_cmap(colormap)(norm(color_val))
+	
+	# Draw thick line segment
+	ax.plot([x_start, x_end], [y_start, y_end], 
+	color=color, linewidth=segment_width*100, alpha=0.8, solid_capstyle='round')
+	
+	# Add solution points as circles
+	ax.scatter(x_coords, y_coords, 
+	c=domain_solution, cmap=colormap, s=80, 
+	vmin=vmin, vmax=vmax, alpha=0.9, 
+	edgecolors='black', linewidth=0.5, zorder=5)
+	
+	# Add optional colorbar and bounding box...
+\end{lstlisting}
+
+\textbf{Title Generation:}
+\begin{lstlisting}[language=Python, caption=Automatic Title Generation]
+	# New title format: "Solution (name) at time t = ..."
+	if title is None:
+	title = f'Solution {eq_name} at time t = {time:.3f}'
+	ax.set_title(title, fontsize=14, fontweight='bold')
+\end{lstlisting}
+
+\textbf{Features:}
+\begin{itemize}
+	\item Overhead 2D view of domain geometry
+	\item Color-coded solution visualization
+	\item Thick line segments representing domain structure
+	\item Solution scatter points with black edges
+	\item Optional colorbar and bounding box
+	\item Time-aware title generation
+	\item Equal aspect ratio for accurate spatial representation
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Bird's Eye View Usage]
+	# Basic overhead view
+	fig = plotter.plot_birdview(trace_solutions, time=1.5)
+	
+	# Clean view without bounding box
+	fig = plotter.plot_birdview(
+	trace_solutions,
+	equation_idx=1,
+	show_bounding_box=False,
+	time=2.0,
+	save_filename="clean_overhead.png"
+	)
+	
+	# Custom segment width and no colorbar
+	fig = plotter.plot_birdview(
+	trace_solutions,
+	segment_width=0.2,
+	show_colorbar=False,
+	title="Custom Overhead View"
+	)
+\end{lstlisting}
+
+\subsubsection{Solution Comparison}
+
+\paragraph{plot\_comparison()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Solution Comparison Method]
+	def plot_comparison(self, 
+	initial_traces: List[np.ndarray],
+	final_traces: List[np.ndarray],
+	initial_time: float = 0.0,
+	final_time: float = 1.0,
+	save_filename: Optional[str] = None,
+	show_bounding_box: bool = True) -> plt.Figure
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{initial\_traces}: Initial trace solutions for comparison
+	\item \texttt{final\_traces}: Final trace solutions for comparison
+	\item \texttt{initial\_time}: Initial time value (default: 0.0)
+	\item \texttt{final\_time}: Final time value (default: 1.0)
+	\item \texttt{save\_filename}: Optional filename for saving (default: None)
+	\item \texttt{show\_bounding\_box}: Whether to show domain boundaries (default: True)
+\end{itemize}
+
+\textbf{Returns:} \texttt{plt.Figure} - Matplotlib Figure object
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Solution Comparison Algorithm]
+	# Extract solutions
+	initial_solutions = self._extract_solutions(initial_traces)
+	final_solutions = self._extract_solutions(final_traces)
+	
+	# Create figure with subplots
+	fig, axes = plt.subplots(self.neq, 1, figsize=(self.figsize[0], self.figsize[1] * self.neq * 0.7))
+	if self.neq == 1:
+	axes = [axes]
+	
+	for eq_idx in range(self.neq):
+	ax = axes[eq_idx]
+	color = self.equation_colors[eq_idx % len(self.equation_colors)]
+	eq_name = self.equation_names[eq_idx]
+	
+	# Plot initial and final
+	ax.plot(self.all_coords, initial_solutions[eq_idx], 
+	color=color, linewidth=2, linestyle='-', alpha=0.7,
+	label=f'{eq_name} (t={initial_time:.2f})')
+	
+	ax.plot(self.all_coords, final_solutions[eq_idx], 
+	color=color, linewidth=2, linestyle='--', alpha=0.9,
+	label=f'{eq_name} (t={final_time:.2f})')
+	
+	# Calculate change statistics
+	max_change = np.max(np.abs(final_solutions[eq_idx] - initial_solutions[eq_idx]))
+	initial_norm = np.linalg.norm(initial_solutions[eq_idx])
+	relative_change = max_change / (initial_norm + 1e-12)
+	
+	# Add statistics text
+	ax.text(0.02, 0.98, f'Max Δ: {max_change:.3e}\nRel Δ: {relative_change:.3e}',
+	transform=ax.transAxes, verticalalignment='top', fontsize=10,
+	bbox=dict(boxstyle='round', facecolor='lightcyan', alpha=0.8))
+	
+	# Formatting...
+	
+	fig.suptitle(f'Solution Evolution: t = {initial_time:.2f} → {final_time:.2f}',
+	fontsize=14, fontweight='bold')
+\end{lstlisting}
+
+\textbf{Statistical Analysis:}
+\begin{itemize}
+	\item Maximum absolute change computation
+	\item Relative change calculation
+	\item Statistics text box overlay
+	\item Visual differentiation via line styles
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Comparison Usage]
+	# Compare initial vs final solutions
+	fig = plotter.plot_comparison(
+	initial_traces, final_traces,
+	initial_time=0.0, final_time=2.5,
+	save_filename="evolution_comparison.png"
+	)
+	
+	# Custom time points
+	fig = plotter.plot_comparison(
+	trace_t1, trace_t2,
+	initial_time=0.5, final_time=1.0,
+	show_bounding_box=False
+	)
+\end{lstlisting}
+
+\subsubsection{Utility Methods}
+
+\paragraph{set\_output\_dir()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Set Output Directory Method]
+	def set_output_dir(self, output_dir: str)
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+	\item \texttt{output\_dir}: Directory path for saving plots
+\end{itemize}
+
+\textbf{Side Effects:}
+\begin{itemize}
+	\item Sets \texttt{self.output\_dir} to specified path
+	\item Creates directory if it doesn't exist
+	\item Prints confirmation message
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Set Output Directory Usage]
+	# Change output directory
+	plotter.set_output_dir("new_outputs/results")
+	
+	# Create nested directory structure
+	plotter.set_output_dir("analysis/run_001/plots")
+\end{lstlisting}
+
+\paragraph{show\_all()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Show All Plots Method]
+	def show_all(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Display all created plots using \texttt{plt.show()}
+
+\paragraph{close\_all()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Close All Plots Method]
+	def close_all(self)
+\end{lstlisting}
+
+\textbf{Purpose:} Close all matplotlib figures using \texttt{plt.close('all')}
+
+\subsection{Complete Usage Examples}
+\label{subsec:complete_plotter_examples}
+
+\subsubsection{Comprehensive Visualization Workflow}
+
+\begin{lstlisting}[language=Python, caption=Complete Visualization Workflow]
+	from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+	import numpy as np
+	
+	def comprehensive_visualization_example(problems, discretizations, trace_solutions):
+	"""Complete example of visualization workflow."""
+	
+	# Step 1: Initialize plotter with custom settings
+	plotter = LeanMatplotlibPlotter(
+	problems=problems,
+	discretizations=discretizations,
+	equation_names=['Density', 'Chemical'],
+	figsize=(15, 10),
+	output_dir="analysis/visualization"
+	)
+	
+	print(f"Initialized plotter for {plotter.ndom} domains, {plotter.neq} equations")
+	print(f"Equation names: {plotter.equation_names}")
+	print(f"Bounding box: {plotter.bounding_box}")
+	
+	# Step 2: Create 2D curve visualization
+	print("\nCreating 2D curve plots...")
+	curves_fig = plotter.plot_2d_curves(
+	trace_solutions=trace_solutions,
+	title="Multi-Domain Solution Evolution",
+	show_bounding_box=True,
+	show_mesh_points=True,
+	save_filename="solution_curves.png"
+	)
+	
+	# Step 3: Create 3D visualization for each equation
+	for eq_idx in range(plotter.neq):
+	eq_name = plotter.equation_names[eq_idx]
+	print(f"\nCreating 3D visualization for {eq_name}...")
+	
+	# Flat 3D view
+	flat3d_fig = plotter.plot_flat_3d(
+	trace_solutions=trace_solutions,
+	equation_idx=eq_idx,
+	title=f"{eq_name} Spatial Distribution",
+	view_angle=(30, 45),
+	save_filename=f"{eq_name.lower()}_flat3d.png"
+	)
+	
+	# Bird's eye view
+	birdview_fig = plotter.plot_birdview(
+	trace_solutions=trace_solutions,
+	equation_idx=eq_idx,
+	time=1.5,
+	show_colorbar=True,
+	show_bounding_box=True,
+	save_filename=f"{eq_name.lower()}_overhead.png"
+	)
+	
+	# Step 4: Time evolution comparison (if multiple time points available)
+	if hasattr(trace_solutions, '__len__') and len(trace_solutions) > 1:
+	print("\nCreating time evolution comparison...")
+	comparison_fig = plotter.plot_comparison(
+	initial_traces=trace_solutions,  # Initial state
+	final_traces=trace_solutions,    # Final state (same for demo)
+	initial_time=0.0,
+	final_time=2.0,
+	save_filename="time_evolution.png"
+	)
+	
+	# Step 5: Display all plots
+	print(f"\nDisplaying all generated plots...")
+	plotter.show_all()
+	
+	return plotter
+	
+	# Usage
+	plotter = comprehensive_visualization_example(problems, discretizations, trace_solutions)
+\end{lstlisting}
+
+\subsubsection{Keller-Segel Specific Visualization}
+
+\begin{lstlisting}[language=Python, caption=Keller-Segel Visualization Example]
+	def keller_segel_visualization(problems, discretizations, trace_solutions_time_series):
+	"""Specialized visualization for Keller-Segel system."""
+	
+	# Initialize with Keller-Segel specific settings
+	plotter = LeanMatplotlibPlotter(
+	problems=problems,
+	discretizations=discretizations,
+	equation_names=['Cell Density u', 'Chemical φ'],
+	figsize=(12, 8),
+	output_dir="keller_segel_results"
+	)
+	
+	# Time series analysis
+	time_points = [0.0, 0.5, 1.0, 1.5, 2.0]
+	
+	for i, (time, trace_solutions) in enumerate(zip(time_points, trace_solutions_time_series)):
+	print(f"\nProcessing time point t = {time:.1f}")
+	
+	# Bird's eye view for both equations
+	for eq_idx, eq_name in enumerate(['cell_density', 'chemical']):
+	plotter.plot_birdview(
+	trace_solutions=trace_solutions,
+	equation_idx=eq_idx,
+	time=time,
+	save_filename=f"{eq_name}_t{time:03.1f}.png"
+	)
+	
+	# 2D curves every 0.5 time units
+	if i % 2 == 0:
+	plotter.plot_2d_curves(
+	trace_solutions=trace_solutions,
+	title=f"Keller-Segel Solutions at t = {time:.1f}",
+	save_filename=f"curves_t{time:03.1f}.png"
+	)
+	
+	# Create evolution comparison
+	plotter.plot_comparison(
+	initial_traces=trace_solutions_time_series[0],
+	final_traces=trace_solutions_time_series[-1],
+	initial_time=time_points[0],
+	final_time=time_points[-1],
+	save_filename="ks_evolution.png"
+	)
+	
+	print(f"✓ Keller-Segel visualization complete")
+	return plotter
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+\label{subsec:plotter_method_summary}
+
+\begin{longtable}{|p{5cm}|p{4cm}|p{5cm}|}
+	\hline
+	\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+	\hline
+	\endhead
+	
+	\texttt{\_\_init\_\_} & \texttt{None} & Initialize plotter with problems and discretizations \\
+	\hline
+	
+	\texttt{\_compute\_coordinates} & \texttt{None} & Compute global coordinate mapping and domain info \\
+	\hline
+	
+	\texttt{\_map\_param\_to\_extrema} & \texttt{Tuple} & Map parameter coords to physical space \\
+	\hline
+	
+	\texttt{\_extract\_solutions} & \texttt{Dict} & Reorganize solutions by equation index \\
+	\hline
+	
+	\texttt{\_get\_save\_path} & \texttt{Optional[str]} & Resolve file paths with output directory \\
+	\hline
+	
+	\texttt{plot\_2d\_curves} & \texttt{plt.Figure} & Create 2D curve plots for all equations \\
+	\hline
+	
+	\texttt{plot\_flat\_3d} & \texttt{plt.Figure} & Create 3D visualization with flat segments \\
+	\hline
+	
+	\texttt{plot\_birdview} & \texttt{plt.Figure} & Create overhead 2D spatial visualization \\
+	\hline
+	
+	\texttt{plot\_comparison} & \texttt{plt.Figure} & Compare solutions at different times \\
+	\hline
+	
+	\texttt{set\_output\_dir} & \texttt{None} & Set directory for saving plots \\
+	\hline
+	
+	\texttt{show\_all} & \texttt{None} & Display all created plots \\
+	\hline
+	
+	\texttt{close\_all} & \texttt{None} & Close all matplotlib figures \\
+	\hline
+	
+\end{longtable}
+
+\subsection{Design Features and Architecture}
+
+\begin{itemize}
+	\item \textbf{Multi-Domain Support}: Seamless handling of multiple computational domains with automatic coordinate mapping
+	\item \textbf{Flexible Coordinate Systems}: Supports both parameter coordinates and physical space mapping via problem extrema
+	\item \textbf{Automatic Styling}: Intelligent color scheme and equation name detection based on problem type
+	\item \textbf{Output Management}: Flexible file saving with directory management and backward compatibility
+	\item \textbf{Multiple View Modes}: 2D curves, 3D spatial, and overhead visualizations for comprehensive analysis
+	\item \textbf{Statistical Analysis}: Built-in change detection and statistical reporting for solution evolution
+	\item \textbf{Matplotlib Integration}: Full matplotlib Figure objects returned for additional customization
+	\item \textbf{Bounding Box Management}: Automatic spatial extent computation and optional visualization
+	\item \textbf{Memory Efficiency}: Solution extraction and reorganization optimized for large datasets
+	\item \textbf{Time-Aware Visualization}: Built-in support for time-dependent solution visualization and comparison
+\end{itemize}
+
+This documentation provides a complete reference for the lean matplotlib plotter module, emphasizing its role as a comprehensive visualization system for multi-domain HDG solutions with support for multiple coordinate systems, automatic styling, and flexible output management.
+
+\begin{todobox}
+	\begin{itemize}
+		\item Change the name of the class to {\tt MatplotlibPlotter}
+		\item Move {\tt equation\_names} inside the Problem class, and rename it to {\tt field\_names} or {\tt unknown\_names}
+		\item The equation name auto detection defaults should maybe depend on the problem name and not on the number of equation? But see above.
+		\item Should we give some control of the plotting colors to the user? How?
+		\item The method {\tt plot\_2d\_curves} should handle single domains, multiple equations
+		\item If plotting all domains together, automatic axis scaling with padding yield an unnatural behavious
+		\item Choose better default titles for the different plots
+		\item in {\tt plot\_flat\_3d} use {\tt segment\_width}
+		\end{itemize}
+\end{todobox}
+% End of lean matplotlib plotter module detailed API documentation

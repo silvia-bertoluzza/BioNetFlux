@@ -1,0 +1,165 @@
+% ================================================================
+% SECTION 9: STATIC CONDENSATION
+% ================================================================
+\section{Static Condensation}
+\label{sec:static_condensation}
+
+\begin{center}
+\code{bionetflux.core.static\_condensation\_base} ~~\textbar~~
+\code{bionetflux.core.static\_condensation\_factory} \\
+\code{bionetflux.core.static\_condensation\_keller\_segel} ~~\textbar~~
+\code{bionetflux.core.static\_condensation\_ooc}
+\end{center}
+
+Static condensation eliminates the interior (bulk and flux) unknowns
+element-by-element, reducing the global system to trace unknowns only.
+The module uses an ABC $\to$ Factory $\to$ Concrete-class hierarchy.
+
+% ------------------------------------------------------------------
+\subsection{StaticCondensationBase (ABC)}
+\label{sec:sc_base}
+
+\begin{lstlisting}[language=Python, caption={Base class constructor}]
+class StaticCondensationBase(ABC):
+    def __init__(self, problem: Problem,
+                 global_disc: GlobalDiscretization,
+                 elementary_matrices: Any, ipb: int = 0):
+\end{lstlisting}
+
+\noindent Stored attributes:
+
+\begin{longtable}{p{5cm}p{9.5cm}}
+\toprule
+\textbf{Attribute} & \textbf{Description} \\
+\midrule
+\code{problem} & Reference to the \code{Problem} object \\
+\code{discretization} & \code{global\_disc.spatial\_discretizations[ipb]} \\
+\code{elementary\_matrices} & Shared \code{ElementaryMatrices} instance \\
+\code{sc\_matrices} & Dictionary filled by \code{build\_matrices()} \\
+\code{dt} & Time step, sourced from \code{global\_disc.dt} \\
+\code{tau} & Stabilization vector from \code{discretization.tau} \\
+\code{flux\_orders} & Empty list---must be set by the subclass \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{Abstract Methods}
+
+Every concrete subclass must implement:
+
+\begin{lstlisting}[language=Python, caption={Abstract interface}]
+@abstractmethod
+def build_matrices(self) -> Dict[str, np.ndarray]: ...
+
+@abstractmethod
+def static_condensation(self, local_trace: np.ndarray,
+                        local_source: np.ndarray,
+                        **kwargs) -> Tuple[np.ndarray, np.ndarray,
+                                           np.ndarray, np.ndarray]:
+    """Returns (local_solution, flux, flux_trace, jacobian)."""
+
+@abstractmethod
+def assemble_forcing_term(self, *args, **kwargs) -> np.ndarray: ...
+\end{lstlisting}
+
+\subsubsection{Flux-Order Machinery}
+
+\begin{structurebox}{Flux orders and DOF counts}
+\code{flux\_orders} is a list of length $n_\mathrm{eq}$.  Entry $k$:
+\begin{itemize}
+  \item \textbf{0} $\Rightarrow$ P0 flux $\Rightarrow$ 1 DOF per element.
+  \item \textbf{1} $\Rightarrow$ P1 flux $\Rightarrow$ 2 DOFs per element.
+\end{itemize}
+The base class provides:
+\end{structurebox}
+
+\begin{longtable}{p{7cm}p{7.5cm}}
+\toprule
+\textbf{Property / Method} & \textbf{Description} \\
+\midrule
+\code{flux\_dofs\_per\_element -> List[int]} & \code{[order + 1 for order in flux\_orders]} \\
+\code{total\_flux\_dofs\_per\_element -> int} & Sum of the above \\
+\code{\_validate\_flux\_orders()} & Checks length = \code{neq} and values $\in \{0,1\}$ \\
+\bottomrule
+\end{longtable}
+
+\subsubsection{update\_dt}
+
+\begin{lstlisting}[language=Python, caption={Adaptive time-step update}]
+def update_dt(self) -> None:
+    """Re-read dt from GlobalDiscretization and rebuild matrices."""
+    new_dt = self._global_disc.dt
+    self.dt = new_dt
+    self.build_matrices()
+\end{lstlisting}
+
+Called by \code{AdaptiveTimeStepper} after adjusting the global $\Delta t$.
+
+% ------------------------------------------------------------------
+\subsection{StaticCondensationFactory}
+
+\begin{lstlisting}[language=Python, caption={Factory class}]
+class StaticCondensationFactory:
+    _implementations = {
+        "keller_segel": KellerSegelStaticCondensation,
+        "organ_on_chip": StaticCondensationOOC,
+    }
+
+    @classmethod
+    def create(cls, problem, global_disc, elementary_matrices,
+               i: int = 0) -> StaticCondensationBase: ...
+
+    @classmethod
+    def register_implementation(cls, problem_type: str,
+                                implementation_class): ...
+
+    @classmethod
+    def get_available_types(cls) -> list: ...
+\end{lstlisting}
+
+The factory dispatches on \code{problem.type} (a string).  New problem types
+can be registered at runtime via \code{register\_implementation}.
+
+% ------------------------------------------------------------------
+\subsection{KellerSegelStaticCondensation}
+\label{sec:sc_ks}
+
+\begin{lstlisting}[language=Python, caption={Keller-Segel condensation}]
+class KellerSegelStaticCondensation(StaticCondensationBase):
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1]   # P0 for u, P1 for phi
+\end{lstlisting}
+
+\noindent The two-equation KS system:
+\begin{itemize}
+  \item Equation 0 ($u$): P0 flux (1 DOF per element).
+  \item Equation 1 ($\varphi$): P1 flux (2 DOFs per element).
+\end{itemize}
+
+\code{build\_matrices()} extracts parameters $\mu$, $\nu$, $a$, $b$ from
+\code{problem.parameters[0:4]} and computes HDG element matrices using
+the elementary matrices \code{M}, \code{D}, \code{T}, \code{IM}, \code{Mb}, \code{Gb}, \code{Ntil}, \code{Nhat}, \code{QUAD}.
+\code{static\_condensation(local\_trace, local\_source)} returns
+\code{(local\_solution, flux, flux\_trace, jacobian)} for one element.
+
+% ------------------------------------------------------------------
+\subsection{StaticCondensationOOC}
+\label{sec:sc_ooc}
+
+\begin{lstlisting}[language=Python, caption={Organ-on-Chip condensation}]
+class StaticCondensationOOC(StaticCondensationBase):
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1, 1, 1]  # P0 for u, P1 for w, v, phi
+\end{lstlisting}
+
+\noindent The four-equation OoC system:
+\begin{itemize}
+  \item Equation 0 ($u$):  P0 flux (1 DOF per element).
+  \item Equation 1 ($\omega$): P1 flux (2 DOFs per element).
+  \item Equation 2 ($v$):  P1 flux (2 DOFs per element).
+  \item Equation 3 ($\varphi$): P1 flux (2 DOFs per element).
+\end{itemize}
+
+\code{build\_matrices()} extracts nine parameters $\nu, \mu, \epsilon, \sigma, a, b, c, d, \chi$ from
+\code{problem.parameters[0:9]}.  The internal structure mirrors the Keller-Segel implementation scaled to four equations.

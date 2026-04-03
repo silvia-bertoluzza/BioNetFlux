@@ -15,8 +15,8 @@ import os
 import pytest
 import numpy as np
 
-# Add the python_port directory to path for absolute imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
+# sys.path hack — commented out, use pip install -e . instead
+# sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from bionetflux.core.discretization import Discretization, GlobalDiscretization
 from bionetflux.utils.elementary_matrices import ElementaryMatrices

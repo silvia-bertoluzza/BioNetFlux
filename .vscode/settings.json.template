@@ -1,0 +1,25 @@
+{
+    "python.testing.pytestArgs": [
+        "tests",
+        "-v",
+        "--tb=short"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true,
+    "python.testing.autoTestDiscoverOnSaveEnabled": true,
+    "python.analysis.extraPaths": ["./src"],
+    "python.testing.cwd": "${workspaceFolder}",
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true
+    },
+    "testing.automaticallyOpenPeekView": "never",
+    "testing.openTesting": "openOnTestStart",
+    "testing.alwaysRevealTestOnStateChange": true,
+    "testing.followRunningTest": true,
+    "testing.autoRun.mode": "all",
+    "python.testing.runAllTestsOnStartup": true,
+    "testing.automaticallyOpenTestResults": "openOnTestStart",
+    "pythonTestExplorer.testFramework": "pytest",
+    "testExplorer.useNativeTesting": true
+}

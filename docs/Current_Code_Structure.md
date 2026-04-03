@@ -1,286 +1,270 @@
 # BioNetFlux Current Code Structure
 
-*Generated documentation of the actual codebase structure and components*
+*Accurate documentation of the actual codebase structure and components (updated 2026-04-03)*
 
 ## Directory Tree
 
 ```
 BioNetFlux/
-├── 📁 code/                           # Main source code directory
-│   ├── 📁 ooc1d/                      # Core framework package
-│   │   ├── 📄 __init__.py             # Package initialization
-│   │   │
-│   │   ├── 📁 core/                   # Core mathematical components
-│   │   │   ├── 📄 __init__.py
-│   │   │   ├── 📄 problem.py          # ✅ Problem definition class
-│   │   │   ├── 📄 discretization.py  # Finite element discretization
-│   │   │   ├── 📄 constraints.py     # Boundary/interface constraints
-│   │   │   ├── 📄 static_condensation_ooc.py  # Static condensation
-│   │   │   └── 📄 bulk_data.py        # Bulk solution management
-│   │   │
-│   │   ├── 📁 geometry/               # ✅ Geometry management module
-│   │   │   ├── 📄 __init__.py         # ✅ Exports DomainGeometry, DomainInfo
-│   │   │   └── 📄 domain_geometry.py  # ✅ Multi-domain geometry class
-│   │   │
-│   │   ├── 📁 problems/               # Problem definition library
-│   │   │   ├── 📄 __init__.py
-│   │   │   ├── 📄 ooc_test_problem.py        # Basic OoC 4-equation system
-│   │   │   ├── 📄 KS_traveling_wave.py       # Keller-Segel analytical solution
-│   │   │   ├── 📄 T_junction.py              # ✅ T-junction network
-│   │   │   ├── 📄 KS_with_geometry.py        # ✅ KS with DomainGeometry
-│   │   │   ├── 📄 KS_grid_geometry.py        # ✅ KS on grid network
-│   │   │   └── 📄 OoC_grid_geometry.py       # ✅ OoC on grid network
-│   │   │
-│   │   ├── 📁 solver/                 # Numerical solver components
-│   │   │   ├── 📄 __init__.py
-│   │   │   ├── 📄 global_assembler.py        # Global system assembly
-│   │   │   ├── 📄 newton_solver.py           # Newton-Raphson solver
-│   │   │   └── 📄 time_integrator.py         # Time stepping methods
-│   │   │
-│   │   └── 📁 visualization/          # ✅ Plotting and visualization
-│   │       ├── 📄 __init__.py
-│   │       └── 📄 lean_matplotlib_plotter.py # ✅ Multi-mode plotter
+├── src/                               # Main source code directory
+│   ├── setup_solver.py                # Backward-compatible shim (re-exports from bionetflux)
 │   │
-│   ├── 📄 setup_solver.py             # Main solver setup interface
-│   ├── 📄 test_evolution+plotting.py  # ✅ Main test/demo script
-│   ├── 📄 test_geometry.py            # ✅ Geometry module tests
-│   └── 📄 test_problem.py             # ✅ Problem module tests
+│   ├── bionetflux/                    # Core framework package (v1.0.0)
+│   │   ├── __init__.py                # Package init — exports Problem, DomainGeometry, etc.
+│   │   ├── setup_solver.py            # SolverSetup, quick_setup(), create_solver_setup()
+│   │   │
+│   │   ├── core/                      # Core mathematical components (14 files)
+│   │   │   ├── problem.py             # Problem base class
+│   │   │   ├── discretization.py      # Discretization, GlobalDiscretization
+│   │   │   ├── constraints.py         # Constraint, ConstraintType, ConstraintManager
+│   │   │   ├── bulk_data.py           # BulkData container
+│   │   │   ├── lean_bulk_data_manager.py    # BulkDataManager (memory-efficient)
+│   │   │   ├── lean_global_assembly.py      # GlobalAssembler
+│   │   │   ├── flux_jump.py                 # Flux computation at interfaces
+│   │   │   ├── domain_data.py               # DomainData container
+│   │   │   ├── boundary_override.py         # BC overrides from TOML config
+│   │   │   ├── minimal_error_evaluator.py   # L2 error computation
+│   │   │   ├── static_condensation_base.py  # Abstract base for SC
+│   │   │   ├── static_condensation_factory.py # Factory: creates KS or OoC SC
+│   │   │   ├── static_condensation_keller_segel.py  # KS: P0 flux for u, P1 for phi
+│   │   │   └── static_condensation_ooc.py   # OoC: 4-equation system
+│   │   │
+│   │   ├── geometry/                  # Geometry management
+│   │   │   ├── domain_geometry.py     # DomainGeometry, DomainInfo, ConnectionInfo,
+│   │   │   │                          #   build_grid_geometry(), build_arc_sequence_geometry(),
+│   │   │   │                          #   create_maze_geometry()
+│   │   │   ├── maze_1_data/           # CSV data for maze geometries
+│   │   │   ├── maze_2_data/
+│   │   │   ├── maze_3_data/
+│   │   │   └── maze_4_data/
+│   │   │
+│   │   ├── problems/                  # Problem definitions (7 files)
+│   │   │   ├── ooc_problem.py              # Organ-on-Chip 4-equation system
+│   │   │   ├── ooc_config_manager.py       # OoC TOML configuration manager
+│   │   │   ├── ks_problem.py               # Keller-Segel 2-equation system
+│   │   │   ├── ks_config_manager.py        # KS TOML configuration manager
+│   │   │   ├── custom_problem_template.py  # Template for user-defined problems
+│   │   │   ├── test_problem.py             # Single-domain test problem
+│   │   │   └── test_problem2.py            # Single-domain test variant
+│   │   │
+│   │   ├── time_integration/          # Time stepping and nonlinear solvers
+│   │   │   ├── time_stepper.py        # TimeStepper, AdaptiveTimeStepper, TimeStepResult
+│   │   │   └── newton_solver.py       # NewtonSolver, NewtonResult
+│   │   │
+│   │   ├── utils/                     # Utility modules
+│   │   │   ├── config_manager.py          # BaseConfigManager, TOML loading
+│   │   │   ├── elementary_matrices.py     # Reference element matrices (SymPy)
+│   │   │   └── mesh_mapping.py            # Coordinate transformations
+│   │   │
+│   │   ├── visualization/             # Plotting
+│   │   │   └── lean_matplotlib_plotter.py # LeanMatplotlibPlotter
+│   │   │
+│   │   └── analysis/                  # Post-processing
+│   │       └── error_evaluation.py    # ErrorEvaluator, L2 error, convergence
+│   │
+├── config/                            # TOML configuration files
+│   ├── ks_parameters.toml
+│   ├── ooc_parameters.toml
+│   ├── ooc_maze3_parameters.toml
+│   └── ooc_maze4_parameters.toml
 │
-├── 📁 examples/                       # Example applications
-│   └── 📄 keller_segel_example.py     # ✅ Basic KS setup example
+├── tests/                             # Pytest test suite (21 files)
+│   ├── conftest.py
+│   ├── test_core_smoke.py
+│   ├── test_problem.py
+│   ├── test_geometry.py
+│   ├── test_bulk_data.py
+│   ├── test_lean_bulk_data_manager.py
+│   ├── test_lean_global_assembly.py
+│   ├── test_lean_setup.py
+│   ├── test_static_condensation_setup.py
+│   ├── test_flux_orders.py
+│   ├── test_flux_error.py
+│   ├── test_constraint_override.py
+│   ├── test_boundary_overrides.py
+│   ├── test_domain_flux_jump.py
+│   ├── test_compute_n_elements_from_h.py
+│   ├── test_robin_jacobian.py
+│   ├── test_mass_monitoring.py
+│   ├── test_adaptive_time_stepping.py
+│   ├── test_maze_geometry.py
+│   └── test_sample.py
 │
-├── 📁 docs/                           # ✅ Documentation
-│   ├── 📄 BioNetFlux_Documentation.md     # ✅ Main documentation (Markdown)
-│   ├── 📄 BioNetFlux_Documentation.tex    # ✅ Main documentation (LaTeX)
-│   ├── 📄 Mathematical_Background.md      # ✅ Mathematical theory (Markdown)
-│   ├── 📄 Mathematical_Background.tex     # ✅ Mathematical theory (LaTeX)
-│   ├── 📄 Code_Structure_Schematic.md     # ✅ Code structure diagram
-│   ├── 📄 Current_Code_Structure.md       # ✅ This file
-│   ├── 📄 compile_documentation.sh        # ✅ LaTeX compilation script
-│   └── 📄 README_latex.md                 # ✅ LaTeX compilation guide
+├── examples/                          # Example applications (5 scripts)
+│   ├── evolution_example_ks.py
+│   ├── evolution_example_ks_verbose.py
+│   ├── evolution_example_ooc.py
+│   ├── evolution_maze_ooc.py
+│   ├── evolution+error_example.py
+│   └── README_evolution_examples.md
 │
-├── 📁 Logos/                          # Brand assets
-│   ├── 🖼️ BioNetFlux.png              # Main logo
-│   └── 🖼️ Barra.png                   # Institution bar
-│
-├── 📄 README.md                       # ✅ Project overview
-└── 📄 .gitignore                      # ✅ Git ignore rules
-
-✅ = Confirmed implemented/updated
+├── docs/                              # Documentation
+├── Logos/                             # Brand assets
+├── pyproject.toml                     # Project metadata (Python >= 3.11, MIT license)
+├── pytest.ini                         # Pytest configuration
+├── README.md                          # Project overview
+└── requirements.txt                   # Dependencies
 ```
 
-## Current Implementation Status
+## Implemented Components
 
-### ✅ Fully Implemented Components
+### Core Framework (`bionetflux.core`)
 
-#### Core Framework (`ooc1d/core/`)
+**`problem.py`** — Problem base class
+- Problem definition with validation, self-testing, dynamic function setting
+- Key methods: `set_chemotaxis()`, `set_force()`, `set_solution()`, `set_initial_condition()`, `set_extrema()`, `validate_problem()`, `test_functions()`, `run_self_test()`
+- Factory method: `Problem.create_test_problems()`
 
-**`problem.py`** - Enhanced Problem class
-- ✅ Basic problem definition with validation
-- ✅ Self-testing capabilities (`validate_problem()`, `test_functions()`)
-- ✅ Dynamic function setting (`set_function()`)
-- ✅ Factory method for test problems (`create_test_problems()`)
-- ✅ Comprehensive self-test suite (`run_self_test()`)
-- ✅ Support for multiple problem types (KS, OoC, generic)
+**`discretization.py`** — Spatial discretization
+- `Discretization`: single-domain FEM mesh (nodes, elements, connectivity)
+- `GlobalDiscretization`: multi-domain coordination + time parameters
+- Helper: `compute_n_elements_from_h()`
 
-#### Geometry System (`ooc1d/geometry/`)
+**`constraints.py`** — Boundary and interface conditions
+- `ConstraintType` enum: DIRICHLET, NEUMANN, ROBIN, TRACE_CONTINUITY, KEDEM_KATCHALSKY
+- `Constraint` dataclass: per-constraint data
+- `ConstraintManager`: add/manage constraints, map to discretizations
 
-**`domain_geometry.py`** - Multi-domain network management
-- ✅ `DomainGeometry` class for network definition
-- ✅ `DomainInfo` dataclass for domain properties
-- ✅ Proper segment-segment intersection detection (fixed)
-- ✅ Connectivity analysis (`get_connectivity_info()`)
-- ✅ Parameter space management (`suggest_parameter_spacing()`)
-- ✅ Comprehensive validation (`validate_geometry()`)
-- ✅ Factory method for test geometries (`create_test_geometries()`)
-- ✅ Self-testing capabilities (`run_self_test()`)
+**`lean_global_assembly.py`** — Global system assembly
+- `GlobalAssembler`: assembles system from all domains
+- Factory method: `GlobalAssembler.from_framework_objects()`
 
-#### Visualization System (`ooc1d/visualization/`)
+**`lean_bulk_data_manager.py`** — Memory-efficient bulk data coordination (`BulkDataManager`)
 
-**`lean_matplotlib_plotter.py`** - Multi-mode plotting
-- ✅ 2D curve plots (separate subplot per domain)
-- ✅ Flat 3D view with rounded segment ends
-- ✅ Bird's eye view without domain labels
-- ✅ Comparison plots (initial vs final)
-- ✅ Automatic equation name detection
-- ✅ Flexible save/display options
+**`flux_jump.py`** — Flux computation at domain interfaces (`domain_flux_jump()`)
 
-#### Problem Library (`ooc1d/problems/`)
+**`domain_data.py`** — Lightweight per-domain data container (`DomainData`)
 
-**Current Problem Definitions:**
-- ✅ `T_junction.py` - Two-domain T-junction with Kedem-Katchalsky constraints
-- ✅ `KS_with_geometry.py` - Keller-Segel using DomainGeometry class
-- ✅ `KS_grid_geometry.py` - KS on complex grid network (2 verticals + 4 horizontals)
-- ✅ `OoC_grid_geometry.py` - Organ-on-chip on same grid with species-specific permeabilities
+**`boundary_override.py`** — BC overrides loaded from TOML config files
 
-### ✅ Testing Framework
+**`minimal_error_evaluator.py`** — L2 error evaluation with Legendre quadrature (`MinimalErrorEvaluator`)
 
-**Comprehensive Test Suite:**
-- ✅ `test_problem.py` - Problem class validation (moved to code/ directory)
-- ✅ `test_geometry.py` - Geometry module validation
-- ✅ `test_evolution+plotting.py` - Full pipeline integration test
-- ✅ Self-testing built into core classes
-- ✅ Performance benchmarking
-- ✅ Error handling validation
+**`static_condensation_base.py`** — Abstract base class for static condensation
 
-### ✅ Documentation System
+**`static_condensation_factory.py`** — Factory pattern: creates KS or OoC implementations (`StaticCondensationFactory`)
 
-**Complete Documentation:**
-- ✅ Markdown documentation with API reference
-- ✅ LaTeX documentation with mathematical background
-- ✅ Mathematical theory for KS and OoC models
-- ✅ Compilation scripts and guides
-- ✅ Usage examples and tutorials
+**`static_condensation_keller_segel.py`** — KS static condensation (P0 for u, P1 for phi)
 
-### ✅ Examples and Tutorials
+**`static_condensation_ooc.py`** — OoC static condensation (4-equation system)
 
-**`examples/keller_segel_example.py`**
-- ✅ Basic Keller-Segel problem setup
-- ✅ Demonstrates core Problem class usage
-- ✅ Shows function setting patterns
+### Geometry (`bionetflux.geometry`)
 
-## Key Features and Capabilities
+**`domain_geometry.py`** — Multi-domain network geometry
+- `DomainInfo` dataclass: domain coordinates, parameter space, display properties
+- `ConnectionInfo` dataclass: connections between domains or boundaries
+- `DomainGeometry` class: geometry container with connectivity analysis, validation
+- Factory functions: `build_grid_geometry()`, `build_arc_sequence_geometry()`, `create_maze_geometry()`
+- Maze data directories: CSV files for predefined maze topologies
 
-### 🏗️ Architecture Features
+### Problems (`bionetflux.problems`)
 
-| Feature | Status | Description |
-|---------|--------|-------------|
-| **Multi-domain support** | ✅ Complete | Complex network geometries |
-| **Geometry management** | ✅ Complete | DomainGeometry class with validation |
-| **Problem validation** | ✅ Complete | Built-in validation and testing |
-| **Visualization modes** | ✅ Complete | 2D curves, 3D flat, bird's eye view |
-| **Interface constraints** | ✅ Complete | Neumann, continuity, Kedem-Katchalsky |
-| **Self-testing** | ✅ Complete | All modules include self-validation |
+| File | Description |
+|------|-------------|
+| `ooc_problem.py` | Organ-on-Chip 4-equation system |
+| `ooc_config_manager.py` | OoC TOML configuration manager |
+| `ks_problem.py` | Keller-Segel 2-equation chemotaxis |
+| `ks_config_manager.py` | KS TOML configuration manager |
+| `custom_problem_template.py` | Template for user-defined problems |
+| `test_problem.py` | Single-domain test problem |
+| `test_problem2.py` | Single-domain test variant |
 
-### 🧮 Mathematical Models
+### Time Integration (`bionetflux.time_integration`)
 
-| Model Type | Implementation | Features |
-|------------|---------------|----------|
-| **Keller-Segel** | ✅ Complete | Chemotaxis, analytical solutions |
-| **Organ-on-Chip** | ✅ Complete | 4-equation system, species transport |
-| **Generic PDEs** | ✅ Complete | Flexible equation systems |
+**`time_stepper.py`**
+- `TimeStepper`: coordinates single time step (implicit Euler + Newton)
+- `AdaptiveTimeStepper`: adaptive dt control
+- `TimeStepResult` dataclass: convergence info, residual history
 
-### 🗺️ Network Topologies
+**`newton_solver.py`**
+- `NewtonSolver`: Newton-Raphson iteration with optional line search and damping
+- `NewtonResult` dataclass: convergence, iteration count, residuals
 
-| Topology | Status | Description |
-|----------|--------|-------------|
-| **Linear chains** | ✅ Complete | Sequential domain connections |
-| **T-junctions** | ✅ Complete | Three-way intersections |
-| **Grid networks** | ✅ Complete | Complex rectangular grids |
-| **Star networks** | ✅ Complete | Radial configurations |
-| **Branching networks** | ✅ Complete | Tree-like structures |
+### Visualization (`bionetflux.visualization`)
 
-### 📊 Visualization Capabilities
+**`lean_matplotlib_plotter.py`** — Multi-mode plotting
+- 2D curve plots (one subplot per domain)
+- Flat 3D view (network segments with solution heights)
+- Bird's eye view (top-down color-coded network)
+- Comparison plots (initial vs final)
+- Geometry with indices overlay
 
-| Plot Type | Status | Use Case |
-|-----------|--------|----------|
-| **Domain profiles** | ✅ Complete | Solution vs position per domain |
-| **Network 3D view** | ✅ Complete | Topology with solution heights |
-| **Bird's eye view** | ✅ Complete | Network overview with color coding |
-| **Time evolution** | ✅ Complete | Initial vs final comparisons |
+### Utils (`bionetflux.utils`)
 
-## Current Usage Workflow
+- `config_manager.py` — `BaseConfigManager`, TOML file loading (`load_toml_config()`)
+- `elementary_matrices.py` — HDG reference element matrices via SymPy (`ElementaryMatrices`)
+- `mesh_mapping.py` — Coordinate transformations (`parametric_to_physical_mesh()`)
 
-### 1. Problem Definition
-```python
-from bionetflux.problems import KS_grid_geometry
-problems, global_disc, constraints, name = KS_grid_geometry.create_global_framework()
-```
+### Analysis (`bionetflux.analysis`)
 
-### 2. Solver Setup
+- `error_evaluation.py` — `ErrorEvaluator` class: L2 error computation, convergence rates
+
+## Usage Workflow
+
+### 1. Problem setup
 ```python
 from setup_solver import quick_setup
-setup = quick_setup("ooc1d.problems.KS_grid_geometry", validate=True)
+from bionetflux.geometry.domain_geometry import build_grid_geometry
+
+geometry = build_grid_geometry(N=5, length=500.0)
+setup = quick_setup(
+    problem_module="bionetflux.problems.ooc_problem",
+    validate=True,
+    config_file="config/ooc_parameters.toml",
+    geometry=geometry
+)
 ```
 
-### 3. Initial Conditions
+### 2. Time evolution
 ```python
-trace_solutions, multipliers = setup.create_initial_conditions()
+from bionetflux.time_integration import TimeStepper
+
+time_stepper = TimeStepper(setup, verbose=True)
+current_solution, current_bulk_data = time_stepper.initialize_solution()
+
+result = time_stepper.advance_time_step(
+    current_solution=current_solution,
+    current_bulk_data=current_bulk_data,
+    current_time=0.0,
+    dt=0.01
+)
 ```
 
-### 4. Visualization
+### 3. Visualization
 ```python
-from bionetflux.visualization import LeanMatplotlibPlotter
-plotter = LeanMatplotlibPlotter(problems, discretizations)
-plotter.plot_2d_curves(trace_solutions)
+from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+
+plotter = LeanMatplotlibPlotter(
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations
+)
+plotter.plot_2d_curves(trace_solutions, title="Solution Profiles")
 plotter.plot_birdview(trace_solutions, equation_idx=0, time=0.0)
-```
-
-### 5. Time Evolution
-```python
-# Newton iteration loop with global assembler
-# (Full implementation in test_evolution+plotting.py)
 ```
 
 ## File Dependencies
 
 ```
-📄 test_evolution+plotting.py
-├── setup_solver.py
-├── ooc1d.visualization.lean_matplotlib_plotter
-└── ooc1d.problems.* (configurable)
+setup_solver.py (shim)
+└── bionetflux.setup_solver
+    ├── bionetflux.core.discretization
+    ├── bionetflux.core.constraints
+    ├── bionetflux.core.lean_global_assembly
+    ├── bionetflux.core.lean_bulk_data_manager
+    ├── bionetflux.core.static_condensation_factory
+    ├── bionetflux.utils.elementary_matrices
+    └── bionetflux.geometry.domain_geometry
 
-📄 setup_solver.py
-├── ooc1d.core.problem
-├── ooc1d.core.discretization
-├── ooc1d.core.constraints
-├── ooc1d.solver.global_assembler
-└── ooc1d.core.bulk_data
+bionetflux.problems.*
+├── bionetflux.core.problem
+├── bionetflux.core.discretization
+├── bionetflux.core.constraints
+└── bionetflux.geometry.domain_geometry
 
-📁 ooc1d.problems.*
-├── ooc1d.core.problem
-├── ooc1d.geometry.domain_geometry
-├── ooc1d.core.discretization
-└── ooc1d.core.constraints
+bionetflux.time_integration.time_stepper
+├── bionetflux.time_integration.newton_solver
+├── bionetflux.core.lean_global_assembly
+└── bionetflux.core.lean_bulk_data_manager
 
-📄 test_geometry.py
-└── ooc1d.geometry.domain_geometry
-
-📄 test_problem.py
-└── ooc1d.core.problem
+bionetflux.visualization.lean_matplotlib_plotter
+└── (operates on problems + discretizations)
 ```
-
-## Recent Enhancements
-
-### Geometry Module Improvements
-- ✅ Fixed segment intersection detection (was only checking endpoints)
-- ✅ Added comprehensive validation with warnings vs errors
-- ✅ Improved connectivity analysis with component detection
-- ✅ Added factory methods for standard test geometries
-
-### Problem Class Enhancements
-- ✅ Added comprehensive validation and function testing
-- ✅ Implemented self-testing capabilities
-- ✅ Added support for dynamic function setting
-- ✅ Enhanced error handling and edge case management
-
-### Visualization Improvements
-- ✅ Separated domains into individual subplots for 2D curves
-- ✅ Added rounded ends to 3D flat view segments
-- ✅ Removed domain labels from bird's eye view
-- ✅ Updated title format to include time information
-
-### Testing Framework
-- ✅ Comprehensive test suites for all major components
-- ✅ Performance benchmarking capabilities
-- ✅ Built-in self-validation for core classes
-- ✅ Error handling and edge case testing
-
-## Integration Points
-
-### Problem → Geometry
-- Problems use `DomainGeometry` to define network topology
-- Extrema coordinates set from geometry for visualization
-- Parameter spaces managed through geometry validation
-
-### Solver → Visualization  
-- `LeanMatplotlibPlotter` reads domain information from problems
-- Trace solutions passed directly from solver to plotter
-- Multiple visualization modes for different analysis needs
-
-### Testing → All Modules
-- Each major component includes self-testing capabilities
-- Dedicated test scripts for integration testing
-- Performance monitoring and validation
-
-This structure represents a mature, well-tested framework with comprehensive documentation, multiple problem types, flexible geometry management, and powerful visualization capabilities.

@@ -1,0 +1,803 @@
+% Newton Solver Module Detailed API Documentation
+% To be included in master LaTeX document
+%
+% Usage: \input{docs/newton_solver_module_api}
+
+\section{Newton Solver Module Detailed API Reference}
+\label{sec:newton_solver_module_api}
+
+This section provides an exact reference for the Newton solver module (\texttt{newton\_solver.py}). The module provides BioNetFlux-specific Newton iteration for nonlinear systems in time stepping, integrating directly with the global assembler structure and static condensation framework.
+
+\subsection{Module Overview}
+
+The Newton solver module provides:
+\begin{itemize}
+    \item BioNetFlux-specific Newton iteration using global assembler integration
+    \item Multiple solver variants: standard Newton, line search Newton, and damped Newton
+    \item Comprehensive convergence monitoring and performance tracking
+    \item Direct integration with BioNetFlux static condensation and assembly systems
+    \item Detailed result containers with convergence history and timing information
+    \item Robust error handling and condition number monitoring
+\end{itemize}
+
+\subsection{Module Imports and Dependencies}
+
+\begin{lstlisting}[language=Python, caption=Module Dependencies]
+from dataclasses import dataclass
+from typing import List, Optional
+import numpy as np
+import time
+\end{lstlisting}
+
+\subsection{NewtonResult Class}
+\label{subsec:newton_result_class}
+
+Dataclass container for storing comprehensive Newton iteration results and convergence information.
+
+\subsubsection{Class Definition}
+
+\begin{lstlisting}[language=Python, caption=NewtonResult Class Definition]
+@dataclass
+class NewtonResult:
+    """Result container for Newton iteration."""
+    
+    converged: bool
+    iterations: int
+    final_solution: np.ndarray
+    final_residual_norm: float
+    residual_history: List[float]
+    step_norms: List[float]
+    jacobian_condition: Optional[float] = None
+    computation_time: float = 0.0
+\end{lstlisting}
+
+\subsubsection{Attributes}
+
+\begin{longtable}{|p{4.5cm}|p{3cm}|p{6.5cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{converged} & \texttt{bool} & Whether Newton iteration converged to tolerance \\
+\hline
+
+\texttt{iterations} & \texttt{int} & Number of Newton iterations performed \\
+\hline
+
+\texttt{final\_solution} & \texttt{np.ndarray} & Final Newton iterate (solution or best attempt) \\
+\hline
+
+\texttt{final\_residual\_norm} & \texttt{float} & $\ell$2 norm of residual at final iteration \\
+\hline
+
+\texttt{residual\_history} & \texttt{List[float]} & Residual norm at each Newton iteration \\
+\hline
+
+\texttt{step\_norms} & \texttt{List[float]} & $\ell$2 norm of Newton step at each iteration \\
+\hline
+
+\texttt{jacobian\_condition} & \texttt{Optional[float]} & Condition number of final Jacobian (if computed) \\
+\hline
+
+\texttt{computation\_time} & \texttt{float} & Total wall-clock time for Newton solve (seconds) \\
+\hline
+
+\end{longtable}
+
+\subsubsection{String Representation}
+
+\paragraph{\_\_str\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=NewtonResult String Representation]
+def __str__(self) -> str:
+    status = "CONVERGED" if self.converged else "FAILED"
+    return (f"NewtonResult({status}, {self.iterations} iterations, "
+            f"||R||={self.final_residual_norm:.6e})")
+\end{lstlisting}
+
+\textbf{Example Output:}
+\begin{lstlisting}[language=Python, caption=Example NewtonResult String Output]
+NewtonResult(CONVERGED, 5 iterations, ||R||=1.234567e-11)
+NewtonResult(FAILED, 20 iterations, ||R||=2.345678e-05)
+\end{lstlisting}
+
+\subsection{NewtonSolver Class}
+\label{subsec:newton_solver_class}
+
+Main class providing BioNetFlux-specific Newton iteration for nonlinear systems. This solver is designed specifically for BioNetFlux time stepping, using the global assembler structure and static condensation framework.
+
+\subsubsection{Class Definition}
+
+\begin{lstlisting}[language=Python, caption=NewtonSolver Class Definition]
+class NewtonSolver:
+    """
+    BioNetFlux-specific Newton solver for nonlinear systems.
+    
+    This solver is designed specifically for BioNetFlux time stepping,
+    using the global assembler structure and static condensation framework.
+    """
+\end{lstlisting}
+
+\subsubsection{Constructor}
+
+\paragraph{\_\_init\_\_()}\leavevmode
+\begin{lstlisting}[language=Python, caption=NewtonSolver Constructor]
+def __init__(self, tolerance: float = 1e-10, max_iterations: int = 20,
+             verbose: bool = False):
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{tolerance}: Convergence tolerance for residual norm (default: 1e-10)
+    \item \texttt{max\_iterations}: Maximum number of Newton iterations (default: 20)
+    \item \texttt{verbose}: Whether to print iteration progress (default: False)
+\end{itemize}
+
+\textbf{Side Effects:}
+\begin{itemize}
+    \item Sets instance tolerance and maximum iterations
+    \item Sets verbosity flag for progress reporting
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=NewtonSolver Constructor Usage]
+# Default Newton solver
+newton_solver = NewtonSolver()
+
+# High precision solver
+newton_solver = NewtonSolver(tolerance=1e-12, max_iterations=25, verbose=True)
+
+# Fast solver with relaxed tolerance
+newton_solver = NewtonSolver(tolerance=1e-8, max_iterations=15, verbose=False)
+\end{lstlisting}
+
+\subsubsection{Core Attributes}
+
+\begin{longtable}{|p{4cm}|p{3cm}|p{7cm}|}
+\hline
+\textbf{Attribute} & \textbf{Type} & \textbf{Description} \\
+\hline
+\endhead
+
+\texttt{tolerance} & \texttt{float} & Convergence tolerance for residual norm \\
+\hline
+
+\texttt{max\_iterations} & \texttt{int} & Maximum allowed Newton iterations \\
+\hline
+
+\texttt{verbose} & \texttt{bool} & Flag controlling progress output verbosity \\
+\hline
+
+\end{longtable}
+
+\subsubsection{Standard Newton Method}
+
+\paragraph{solve()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Standard Newton Solve Method]
+def solve(self, 
+          initial_guess: np.ndarray,
+          global_assembler,
+          forcing_terms: List[np.ndarray],
+          static_condensations: List,
+          current_time: float,
+          tolerance: Optional[float] = None,
+          max_iterations: Optional[int] = None) -> NewtonResult:
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{initial\_guess}: Starting point for Newton iteration
+    \item \texttt{global\_assembler}: BioNetFlux GlobalAssembler instance
+    \item \texttt{forcing\_terms}: List of forcing term arrays for each domain
+    \item \texttt{static\_condensations}: List of StaticCondensation instances
+    \item \texttt{current\_time}: Current time for evaluation
+    \item \texttt{tolerance}: Override default convergence tolerance (optional)
+    \item \texttt{max\_iterations}: Override default max iterations (optional)
+\end{itemize}
+
+\textbf{Returns:} \texttt{NewtonResult} - Comprehensive Newton solve results
+
+\textbf{Algorithm:}
+\begin{lstlisting}[language=Python, caption=Standard Newton Algorithm]
+start_time = time.time()
+
+# Use instance defaults or override
+tol = tolerance if tolerance is not None else self.tolerance
+max_iter = max_iterations if max_iterations is not None else self.max_iterations
+
+# Initialize iteration variables
+newton_solution = initial_guess.copy()
+residual_history = []
+step_norms = []
+jacobian_condition = None
+
+
+for iteration in range(max_iter):
+    # Evaluate residual and Jacobian using BioNetFlux global assembler
+    try:
+        current_res, current_jac = global_assembler.assemble_residual_and_jacobian(
+            global_solution=newton_solution,
+            forcing_terms=forcing_terms,
+            static_condensations=static_condensations,
+            time=current_time
+        )
+    except Exception as e:
+        return NewtonResult(
+            converged=False,
+            .
+            .
+        )
+    
+    # Compute residual norm
+    residual_norm = np.linalg.norm(current_residual)
+    residual_history.append(residual_norm)
+    
+    # Check for convergence
+    if residual_norm <= tol:
+        return NewtonResult(
+            converged=True,
+            iterations=iteration + 1,
+            final_solution=newton_solution,
+            final_residual_norm=residual_norm,
+            residual_history=residual_history,
+            step_norms=step_norms,
+            jacobian_condition=jacobian_condition,
+            computation_time=time.time() - start_time
+        )
+    
+    # Check Jacobian condition number
+    try:
+        jacobian_condition = np.linalg.cond(current_jacobian)
+        if jacobian_condition > 1e12:
+    except Exception:
+    
+    # Solve linear system: J * delta_x = -R
+    try:
+        delta_x = np.linalg.solve(current_jacobian, -current_residual)
+    except np.linalg.LinAlgError as e:
+        return NewtonResult(
+            converged=False,
+           .
+           .
+        )
+    
+    # Store step norm and update solution
+    step_norm = np.linalg.norm(delta_x)
+    step_norms.append(step_norm)
+    newton_solution += delta_x
+    
+
+# Maximum iterations reached
+final_residual_norm = residual_history[-1] if residual_history else np.inf
+
+return NewtonResult(
+    converged=False,
+   .
+   .
+)
+\end{lstlisting}
+
+\textbf{Process Flow:}
+\begin{enumerate}
+    \item Initialize Newton iteration with given initial guess
+    \item For each iteration:
+    \begin{enumerate}
+        \item Evaluate residual and Jacobian using BioNetFlux global assembler
+        \item Check convergence based on residual norm
+        \item Compute Jacobian condition number for monitoring
+        \item Solve linear system $J \delta x = -R$
+        \item Update solution: $x_{k+1} = x_k + \delta x$
+        \item Record convergence history
+    \end{enumerate}
+    \item Return comprehensive Newton result with convergence information
+\end{enumerate}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Standard Newton Usage]
+# Setup Newton solver
+newton_solver = NewtonSolver(tolerance=1e-10, max_iterations=20, verbose=True)
+
+# Solve nonlinear system
+newton_result = newton_solver.solve(
+    initial_guess=current_solution,
+    global_assembler=setup.global_assembler,
+    forcing_terms=forcing_terms,
+    static_condensations=setup.static_condensations,
+    current_time=new_time
+)
+
+# Handle result
+if newton_result.converged:
+    print(f"Newton converged: {newton_result}")
+    updated_solution = newton_result.final_solution
+else:
+    print(f"Newton failed: {newton_result}")
+    print(f"Final residual: {newton_result.final_residual_norm:.2e}")
+\end{lstlisting}
+
+\subsubsection{Line Search Newton Method}
+
+\paragraph{solve\_with\_line\_search()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Line Search Newton Method]
+def solve_with_line_search(self, 
+                          initial_guess: np.ndarray,
+                          global_assembler,
+                          forcing_terms: List[np.ndarray],
+                          static_condensations: List,
+                          current_time: float,
+                          alpha_init: float = 1.0,
+                          alpha_min: float = 1e-4) -> NewtonResult:
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{initial\_guess}: Starting point
+    \item \texttt{global\_assembler}: BioNetFlux GlobalAssembler instance
+    \item \texttt{forcing\_terms}: List of forcing term arrays for each domain
+    \item \texttt{static\_condensations}: List of StaticCondensation instances
+    \item \texttt{current\_time}: Current time for evaluation
+    \item \texttt{alpha\_init}: Initial step size (1.0 = full Newton step, default: 1.0)
+    \item \texttt{alpha\_min}: Minimum step size before giving up (default: 1e-4)
+\end{itemize}
+
+\textbf{Returns:} \texttt{NewtonResult} - Newton solve results with line search information
+
+\textbf{Purpose:} More robust Newton solver that can handle cases where full Newton steps lead to divergence by using backtracking line search.
+
+\textbf{Line Search Algorithm:}
+\begin{lstlisting}[language=Python, caption=Line Search Algorithm]
+# Compute Newton direction
+newton_direction = np.linalg.solve(current_jacobian, -current_residual)
+
+# Line search
+alpha = alpha_init
+newton_solution_new = None
+residual_new_norm = np.inf
+
+line_search_attempts = 0
+max_line_search_attempts = 10
+
+while alpha >= alpha_min and line_search_attempts < max_line_search_attempts:
+    line_search_attempts += 1
+    solution_candidate = newton_solution + alpha * newton_direction
+    
+    try:
+        # Evaluate residual at candidate point
+        residual_candidate, _ = global_assembler.assemble_residual_and_jacobian(
+            global_solution=solution_candidate,
+            forcing_terms=forcing_terms,
+            static_condensations=static_condensations,
+            time=current_time
+        )
+        residual_candidate_norm = np.linalg.norm(residual_candidate)
+        
+        # Accept if residual decreased (simple Armijo condition)
+        if residual_candidate_norm < residual_norm:
+            newton_solution_new = solution_candidate
+            residual_new_norm = residual_candidate_norm
+            break
+            
+    except Exception:
+        pass  # Try smaller step
+    
+    alpha *= 0.5  # Backtrack
+
+if newton_solution_new is None:
+    if self.verbose:
+        print(f"    ✗ Line search failed at iteration {iteration} after {line_search_attempts} attempts")
+    break
+
+step_norms.append(alpha * np.linalg.norm(newton_direction))
+newton_solution = newton_solution_new
+
+if self.verbose:
+    print(f"      Line search: ||R|| {residual_norm:.6e} → {residual_new_norm:.6e}, α = {alpha:.3f}")
+\end{lstlisting}
+
+\textbf{Line Search Strategy:}
+\begin{itemize}
+    \item Start with full Newton step ($\alpha = 1.0$)
+    \item Evaluate residual at candidate point
+    \item Accept step if residual norm decreases
+    \item Otherwise, halve step size and retry
+    \item Continue until step accepted or minimum step size reached
+\end{itemize}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Line Search Newton Usage]
+# Use line search for difficult problems
+newton_result = newton_solver.solve_with_line_search(
+    initial_guess=current_solution,
+    global_assembler=setup.global_assembler,
+    forcing_terms=forcing_terms,
+    static_condensations=setup.static_condensations,
+    current_time=new_time,
+    alpha_init=1.0,
+    alpha_min=1e-4
+)
+
+if newton_result.converged:
+    print(f"Line search Newton converged: {newton_result}")
+else:
+    print(f"Line search Newton failed: {newton_result}")
+\end{lstlisting}
+
+\subsubsection{Damped Newton Method}
+
+\paragraph{solve\_with\_damping()}\leavevmode
+\begin{lstlisting}[language=Python, caption=Damped Newton Method]
+def solve_with_damping(self,
+                      initial_guess: np.ndarray,
+                      global_assembler,
+                      forcing_terms: List[np.ndarray],
+                      static_condensations: List,
+                      current_time: float,
+                      damping_factor: float = 0.8) -> NewtonResult:
+\end{lstlisting}
+
+\textbf{Parameters:}
+\begin{itemize}
+    \item \texttt{initial\_guess}: Starting point
+    \item \texttt{global\_assembler}: BioNetFlux GlobalAssembler instance
+    \item \texttt{forcing\_terms}: List of forcing term arrays for each domain
+    \item \texttt{static\_condensations}: List of StaticCondensation instances
+    \item \texttt{current\_time}: Current time for evaluation
+    \item \texttt{damping\_factor}: Fixed damping factor (0 < damping\_factor ≤ 1, default: 0.8)
+\end{itemize}
+
+\textbf{Returns:} \texttt{NewtonResult} - Newton solve results with damped steps
+
+\textbf{Raises:} \texttt{ValueError} if damping\_factor not in valid range
+
+\textbf{Purpose:} Newton solver with fixed damping that can help with convergence for ill-conditioned problems by using smaller, more conservative steps.
+
+\textbf{Damping Algorithm:}
+\begin{lstlisting}[language=Python, caption=Damping Algorithm]
+# Solve linear system with damping
+try:
+    jacobian_condition = np.linalg.cond(current_jacobian)
+    delta_x = np.linalg.solve(current_jacobian, -current_residual)
+    damped_delta_x = damping_factor * delta_x
+except np.linalg.LinAlgError as e:
+    if self.verbose:
+        print(f"    ✗ Singular Jacobian at iteration {iteration}: {e}")
+    break
+
+step_norms.append(np.linalg.norm(damped_delta_x))
+newton_solution += damped_delta_x
+
+if self.verbose:
+    print(f"    Iteration {iteration}: ||R|| = {residual_norm:.6e}, "
+          f"cond(J) = {jacobian_condition:.2e}, ||δx|| = {step_norms[-1]:.6e}")
+\end{lstlisting}
+
+\textbf{Usage:}
+\begin{lstlisting}[language=Python, caption=Damped Newton Usage]
+# Conservative damped Newton for stability
+newton_result = newton_solver.solve_with_damping(
+    initial_guess=current_solution,
+    global_assembler=setup.global_assembler,
+    forcing_terms=forcing_terms,
+    static_condensations=setup.static_condensations,
+    current_time=new_time,
+    damping_factor=0.5  # More conservative damping
+)
+
+if newton_result.converged:
+    print(f"Damped Newton converged: {newton_result}")
+else:
+    print(f"Damped Newton failed: {newton_result}")
+\end{lstlisting}
+
+\subsection{Integration with BioNetFlux Components}
+
+The Newton solver module integrates directly with BioNetFlux components through the solve method interface, which relies on the {\tt compute\_residual\_and\_jacobian} method of the module {\tt GlobalAssembler} to compute residual and jacobian :
+
+\subsubsection{Global Assembler Integration}
+
+\begin{lstlisting}[language=Python, caption=Global Assembler Integration]
+# Direct call to BioNetFlux global assembler
+current_residual, current_jacobian = global_assembler.assemble_residual_and_jacobian(
+    global_solution=newton_solution,
+    forcing_terms=forcing_terms,
+    static_condensations=static_condensations,
+    time=current_time
+)
+\end{lstlisting}
+
+\textbf{Key Integration Points:}
+\begin{itemize}
+    \item \textbf{Global Solution Vector}: Newton operates on global DOF vector including traces and multipliers, the structure of which (particularly in relation with the correspondence with the different arcs and equations) is handled by the global assembler
+    \item \textbf{Forcing Terms}: Forcing terms are not vectors with the same structure as the global solution vectors, but bulk data type dual objects. These are computed by BulkDataManager and static condensation
+    \item \textbf{Static Condensations}: Integrates with problem-specific static condensation implementations
+    \item \textbf{Time Dependence}: Supports time-dependent problems through time parameter
+\end{itemize}
+
+\subsubsection{TimeStepper Integration}
+
+\begin{lstlisting}[language=Python, caption=TimeStepper Integration Example]
+# Newton solver used within TimeStepper
+class TimeStepper:
+    def __init__(self, setup, newton_solver=None, verbose=True):
+        self.newton_solver = newton_solver or NewtonSolver(verbose=verbose)
+    
+    def advance_time_step(self, current_solution, current_bulk_data, 
+                         current_time, dt):
+        # ... compute forcing terms ...
+        
+        # Call Newton solver
+        newton_result = self.newton_solver.solve(
+            initial_guess=current_solution,
+            global_assembler=self.global_assembler,
+            forcing_terms=forcing_terms,
+            static_condensations=self.static_condensations,
+            current_time=new_time
+        )
+        
+        # Use Newton result in time step result
+        return TimeStepResult(
+            converged=newton_result.converged,
+            iterations=newton_result.iterations,
+            final_residual_norm=newton_result.final_residual_norm,
+            updated_solution=newton_result.final_solution,
+            # ... other fields ...
+        )
+\end{lstlisting}
+
+\subsection{Complete Usage Examples}
+
+\subsubsection{Comparative Newton Methods Example}
+
+\begin{lstlisting}[language=Python, caption=Comparative Newton Methods Example]
+def compare_newton_methods(setup, global_solution, forcing_terms, current_time):
+    """Compare different Newton solver methods on the same problem."""
+    
+    print("Comparing Newton solver methods...")
+    
+    # Standard Newton
+    newton_standard = NewtonSolver(tolerance=1e-10, max_iterations=20, verbose=True)
+    
+    print("\n1. Standard Newton Method:")
+    result_standard = newton_standard.solve(
+        initial_guess=global_solution,
+        global_assembler=setup.global_assembler,
+        forcing_terms=forcing_terms,
+        static_condensations=setup.static_condensations,
+        current_time=current_time
+    )
+    print(f"Result: {result_standard}")
+    
+    # Line search Newton
+    print("\n2. Line Search Newton Method:")
+    result_line_search = newton_standard.solve_with_line_search(
+        initial_guess=global_solution,
+        global_assembler=setup.global_assembler,
+        forcing_terms=forcing_terms,
+        static_condensations=setup.static_condensations,
+        current_time=current_time,
+        alpha_init=1.0,
+        alpha_min=1e-4
+    )
+    print(f"Result: {result_line_search}")
+    
+    # Damped Newton
+    print("\n3. Damped Newton Method (damping=0.8):")
+    result_damped = newton_standard.solve_with_damping(
+        initial_guess=global_solution,
+        global_assembler=setup.global_assembler,
+        forcing_terms=forcing_terms,
+        static_condensations=setup.static_condensations,
+        current_time=current_time,
+        damping_factor=0.8
+    )
+    print(f"Result: {result_damped}")
+    
+    # Performance comparison
+    methods = ["Standard", "Line Search", "Damped"]
+    results = [result_standard, result_line_search, result_damped]
+    
+    print(f"\n{'Method':<12} {'Converged':<10} {'Iterations':<11} {'Time (s)':<8} {'Final ||R||'}")
+    print("-" * 60)
+    for method, result in zip(methods, results):
+        status = "✓" if result.converged else "✗"
+        print(f"{method:<12} {status:<10} {result.iterations:<11} "
+              f"{result.computation_time:<8.4f} {result.final_residual_norm:.2e}")
+    
+    return results
+
+# Usage
+results = compare_newton_methods(setup, global_solution, forcing_terms, current_time)
+\end{lstlisting}
+
+\subsubsection{Newton Convergence Analysis}
+
+\begin{lstlisting}[language=Python, caption=Newton Convergence Analysis Example]
+def analyze_newton_convergence(newton_result: NewtonResult):
+    """Detailed analysis of Newton convergence behavior."""
+    
+    print(f"Newton Convergence Analysis")
+    print(f"{'=' * 40}")
+    
+    # Basic information
+    print(f"Convergence Status: {'CONVERGED' if newton_result.converged else 'FAILED'}")
+    print(f"Iterations: {newton_result.iterations}")
+    print(f"Final Residual Norm: {newton_result.final_residual_norm:.6e}")
+    print(f"Computation Time: {newton_result.computation_time:.4f} seconds")
+    
+    if newton_result.jacobian_condition is not None:
+        print(f"Final Jacobian Condition: {newton_result.jacobian_condition:.2e}")
+        if newton_result.jacobian_condition > 1e12:
+            print("  ⚠️ Warning: Jacobian is poorly conditioned")
+    
+    # Convergence rate analysis
+    if len(newton_result.residual_history) > 1:
+        print(f"\nResidual Evolution:")
+        for i, residual in enumerate(newton_result.residual_history):
+            print(f"  Iteration {i}: ||R|| = {residual:.6e}")
+        
+        # Estimate convergence rate
+        if len(newton_result.residual_history) >= 3:
+            # Compute reduction factors
+            reductions = []
+            for i in range(1, len(newton_result.residual_history)):
+                if newton_result.residual_history[i-1] > 0:
+                    reduction = (newton_result.residual_history[i] / 
+                               newton_result.residual_history[i-1])
+                    reductions.append(reduction)
+            
+            if reductions:
+                avg_reduction = np.mean(reductions)
+                print(f"\nConvergence Rate Analysis:")
+                print(f"  Average reduction factor: {avg_reduction:.3f}")
+                print(f"  Estimated convergence rate: {np.log(avg_reduction):.3f}")
+                
+                if avg_reduction < 0.1:
+                    print("  ✓ Excellent convergence rate")
+                elif avg_reduction < 0.5:
+                    print("  ✓ Good convergence rate")
+                elif avg_reduction < 0.9:
+                    print("  ⚠️ Slow convergence rate")
+                else:
+                    print("  ✗ Poor convergence rate")
+    
+    # Step size analysis
+    if newton_result.step_norms:
+        print(f"\nNewton Step Analysis:")
+        print(f"  Max step norm: {max(newton_result.step_norms):.6e}")
+        print(f"  Min step norm: {min(newton_result.step_norms):.6e}")
+        print(f"  Average step norm: {np.mean(newton_result.step_norms):.6e}")
+        
+        # Check for step size progression
+        if len(newton_result.step_norms) > 1:
+            step_decreasing = all(newton_result.step_norms[i] <= newton_result.step_norms[i-1] 
+                                for i in range(1, len(newton_result.step_norms)))
+            if step_decreasing:
+                print("  ✓ Step sizes decreasing (good convergence behavior)")
+            else:
+                print("  ⚠️ Step sizes not consistently decreasing")
+    
+    return {
+        'converged': newton_result.converged,
+        'iterations': newton_result.iterations,
+        'final_residual': newton_result.final_residual_norm,
+        'computation_time': newton_result.computation_time,
+        'convergence_rate': np.mean(reductions) if 'reductions' in locals() and reductions else None,
+        'jacobian_condition': newton_result.jacobian_condition
+    }
+
+# Usage
+newton_result = newton_solver.solve(...)
+analysis = analyze_newton_convergence(newton_result)
+\end{lstlisting}
+
+\subsubsection{Adaptive Newton Strategy}
+
+\begin{lstlisting}[language=Python, caption=Adaptive Newton Strategy Example]
+class AdaptiveNewtonSolver:
+    """Adaptive Newton solver that chooses method based on problem characteristics."""
+    
+    def __init__(self, base_solver: NewtonSolver):
+        self.base_solver = base_solver
+    
+    def solve_adaptive(self, initial_guess, global_assembler, forcing_terms,
+                      static_condensations, current_time):
+        """
+        Adaptive Newton solve that tries different methods based on convergence.
+        """
+        print("Adaptive Newton Strategy:")
+        
+        # Try standard Newton first
+        print("  Attempting standard Newton...")
+        result = self.base_solver.solve(
+            initial_guess, global_assembler, forcing_terms,
+            static_condensations, current_time
+        )
+        
+        if result.converged:
+            print("  ✓ Standard Newton converged")
+            return result
+        
+        # Check why it failed
+        if (result.jacobian_condition is not None and 
+            result.jacobian_condition > 1e10):
+            print("  ⚠️ Poorly conditioned Jacobian, trying damped Newton...")
+            result = self.base_solver.solve_with_damping(
+                initial_guess, global_assembler, forcing_terms,
+                static_condensations, current_time, damping_factor=0.5
+            )
+            
+            if result.converged:
+                print("  ✓ Damped Newton converged")
+                return result
+        
+        # If residual is not decreasing well, try line search
+        print("  ⚠️ Standard methods failed, trying line search...")
+        result = self.base_solver.solve_with_line_search(
+            initial_guess, global_assembler, forcing_terms,
+            static_condensations, current_time
+        )
+        
+        if result.converged:
+            print("  ✓ Line search Newton converged")
+        else:
+            print("  ✗ All Newton methods failed")
+        
+        return result
+
+# Usage
+base_newton = NewtonSolver(tolerance=1e-10, max_iterations=25, verbose=True)
+adaptive_newton = AdaptiveNewtonSolver(base_newton)
+
+result = adaptive_newton.solve_adaptive(
+    initial_guess, global_assembler, forcing_terms,
+    static_condensations, current_time
+)
+\end{lstlisting}
+
+\subsection{Method Summary Table}
+
+\begin{longtable}{|p{5.5cm}|p{4cm}|p{4.5cm}|}
+\hline
+\textbf{Method} & \textbf{Returns} & \textbf{Purpose} \\
+\hline
+\endhead
+
+\texttt{\_\_init\_\_} & \texttt{None} & Initialize Newton solver with parameters \\
+\hline
+
+\texttt{solve} & \texttt{NewtonResult} & Standard Newton iteration \\
+\hline
+
+\texttt{solve\_with\_line\_search} & \texttt{NewtonResult} & Newton with backtracking line search \\
+\hline
+
+\texttt{solve\_with\_damping} & \texttt{NewtonResult} & Newton with fixed damping factor \\
+\hline
+
+\end{longtable}
+
+\subsection{Key Features and Design Principles}
+
+\begin{itemize}
+    \item \textbf{BioNetFlux Integration}: Designed specifically for BioNetFlux global assembler and static condensation
+    \item \textbf{Multiple Solver Variants}: Standard, line search, and damped Newton methods
+    \item \textbf{Comprehensive Monitoring}: Detailed convergence history and performance tracking
+    \item \textbf{Robust Error Handling}: Graceful handling of singular Jacobians and assembly failures
+    \item \textbf{Condition Number Monitoring}: Automatic Jacobian conditioning analysis
+    \item \textbf{Flexible Parameters}: Override-able tolerance and iteration limits
+    \item \textbf{Verbose Reporting}: Detailed progress information for debugging
+    \item \textbf{Performance Tracking}: Built-in timing for performance analysis
+    \item \textbf{Result Consistency}: Comprehensive NewtonResult container for all solver variants
+    \item \textbf{Time-Dependent Support}: Direct integration with time-stepping frameworks
+\end{itemize}
+
+This documentation provides an exact reference for the Newton solver module, emphasizing its role as the core nonlinear solver for BioNetFlux time integration and its specialized design for the BioNetFlux architecture.
+
+\
+
+\begin{todobox}
+	Design a more general solver module that can call the newton solver but also other non linear solvers, particularly Picard method.
+\end{todobox}
+
+
+% End of Newton solver module detailed API documentation

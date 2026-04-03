@@ -1,0 +1,72 @@
+% ================================================================
+% SECTION 19: TEST SUITE
+% ================================================================
+\section{Test Suite}
+\label{sec:test_suite}
+
+Tests live in the \code{tests/} directory and are driven by \textbf{pytest}.
+The configuration in \code{pytest.ini} defines three custom markers:
+\code{slow}, \code{integration}, and \code{unit}.
+
+\begin{lstlisting}[caption={Running the test suite}]
+# From the repository root:
+pip install -e .         # editable install (one-time)
+pytest                   # run all tests
+pytest -m "not slow"     # skip slow tests
+pytest tests/test_geometry.py -v   # single file, verbose
+\end{lstlisting}
+
+% ------------------------------------------------------------------
+\subsection{Shared Fixtures}
+
+\code{tests/conftest.py} provides the shared fixture:
+
+\begin{lstlisting}[language=Python, caption={Shared pytest fixture}]
+@pytest.fixture
+def elementary_matrices():
+    """Provide an ElementaryMatrices instance (nodal basis)."""
+    return ElementaryMatrices(orthonormal_basis=False)
+\end{lstlisting}
+
+% ------------------------------------------------------------------
+\subsection{Test File Catalogue}
+
+\begin{longtable}{p{7cm}p{7.5cm}}
+\toprule
+\textbf{File} & \textbf{Scope} \\
+\midrule
+\code{test\_geometry.py} & \code{DomainGeometry}: add/validate domains and connections, arc/grid/labyrinth/maze builders \\
+\code{test\_maze\_geometry.py} & \code{create\_maze\_geometry}: structure, connectivity, boundary point map \\
+\code{test\_problem.py} & \code{Problem} construction, setter validation, callable attributes \\
+\code{test\_constraint\_override.py} & Constraint replacement logic \\
+\code{test\_boundary\_overrides.py} & \code{apply\_boundary\_overrides} from TOML dicts \\
+\code{test\_compute\_n\_elements\_from\_h.py} & Even-integer rounding, minimum of 4 \\
+\code{test\_bulk\_data.py} & \code{BulkData} shapes, set\_data polymorphism, self-test \\
+\code{test\_lean\_bulk\_data\_manager.py} & \code{BulkDataManager} factory, forcing terms, mass conservation \\
+\code{test\_static\_condensation\_setup.py} & Factory dispatch, matrix build, flux orders \\
+\code{test\_flux\_orders.py} & \code{flux\_dofs\_per\_element}, \code{total\_flux\_dofs\_per\_element} \\
+\code{test\_domain\_flux\_jump.py} & \code{domain\_flux\_jump} output shapes and mock objects \\
+\code{test\_lean\_global\_assembly.py} & \code{GlobalAssembler} DOF structure, residual/Jacobian assembly \\
+\code{test\_lean\_setup.py} & \code{SolverSetup} end-to-end, \code{quick\_setup}, round-trip \\
+\code{test\_flux\_error.py} & \code{MinimalErrorEvaluator.compute\_flux\_error} \\
+\code{test\_robin\_jacobian.py} & Robin-BC Jacobian entries \\
+\code{test\_adaptive\_time\_stepping.py} & \code{AdaptiveTimeStepper} step-size control \\
+\code{test\_mass\_monitoring.py} & Conservation check across time steps \\
+\code{test\_core\_smoke.py} & Quick import and sanity smoke tests \\
+\code{test\_sample.py} & Minimal placeholder test \\
+\bottomrule
+\end{longtable}
+
+% ------------------------------------------------------------------
+\subsection{Built-in Self-Tests}
+
+Several classes contain a \code{test() -> bool} method that can be called
+independently of pytest:
+
+\begin{itemize}
+  \item \code{BulkData.test()}: shape, NaN, trace matrix, round-trip.
+  \item \code{BulkDataManager.test(problems, discretizations, static\_condensations)}: 9 sub-tests.
+  \item \code{GlobalAssembler.test(problems, discretizations, static\_condensations)}: DOF structure and assembly.
+  \item \code{MinimalErrorEvaluator.test()}: mock-based error computation.
+  \item \code{test\_domain\_flux\_jump(verbose=True)}: standalone function in \code{flux\_jump.py}.
+\end{itemize}

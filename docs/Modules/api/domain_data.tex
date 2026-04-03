@@ -1,0 +1,252 @@
+
+
+\section{Domain Data Module}
+\label{sec:domain_data_module}
+
+The \texttt{domain\_data} module provides a lightweight container for storing essential domain-specific information extracted from framework objects. This module implements a simple data storage pattern that avoids holding references to full problem and discretization objects, instead extracting and storing only the essential data needed for bulk operations in the HDG method.
+
+\subsection{Overview}
+
+The \texttt{DomainData} class serves as a simple data container that encapsulates extracted domain-specific information. The primary design goal is to minimize memory usage by storing only essential extracted data rather than maintaining references to complete framework objects. This approach enables efficient bulk operations while reducing memory overhead.
+
+\subsection{Class Definition}
+
+\subsubsection{DomainData Class}
+
+The \texttt{DomainData} class is implemented as a simple container class with manual initialization:
+
+\begin{lstlisting}[language=Python, caption=DomainData Class Definition]
+	class DomainData:
+	"""
+	Lightweight container storing only essential extracted data for a domain.
+	
+	This avoids storing full problem/discretization objects and extracts
+	only what's needed for bulk operations.
+	"""
+\end{lstlisting}
+
+\subsubsection{Constructor}
+
+The class provides a single constructor that accepts all required data:
+
+\begin{lstlisting}[language=Python, caption=Constructor Signature]
+	def __init__(self,
+	neq: int,
+	n_elements: int,
+	nodes: np.ndarray,
+	element_length: float,
+	mass_matrix: np.ndarray,
+	trace_matrix: np.ndarray,
+	initial_conditions: List[Optional[Callable]],
+	forcing_functions: List[Optional[Callable]]):
+\end{lstlisting}
+
+\subsubsection{Constructor Parameters}
+
+\begin{itemize}
+	\item \textbf{neq} (\texttt{int}): Number of coupled equations in the system
+	\item \textbf{n\_elements} (\texttt{int}): Total number of finite elements in the domain
+	\item \textbf{nodes} (\texttt{np.ndarray}): Array containing node coordinates
+	\item \textbf{element\_length} (\texttt{float}): Length of individual elements (assuming uniform discretization)
+	\item \textbf{mass\_matrix} (\texttt{np.ndarray}): 2×2 mass matrix extracted from static condensation
+	\item \textbf{trace\_matrix} (\texttt{np.ndarray}): Trace matrix extracted from static condensation  
+	\item \textbf{initial\_conditions} (\texttt{List[Optional[Callable]]}): List of initial condition functions for each equation
+	\item \textbf{forcing\_functions} (\texttt{List[Optional[Callable]]}): List of forcing functions for each equation
+\end{itemize}
+
+\subsection{Instance Attributes}
+
+After initialization, the \texttt{DomainData} object stores the following attributes:
+
+\subsubsection{Discretization Parameters}
+\begin{itemize}
+	\item \textbf{self.neq}: Number of equations (copied from input)
+	\item \textbf{self.n\_elements}: Number of elements (copied from input)  
+	\item \textbf{self.nodes}: Node coordinates array (deep copied via \texttt{nodes.copy()})
+	\item \textbf{self.element\_length}: Element length (copied from input)
+\end{itemize}
+
+\subsubsection{Matrix Data}
+\begin{itemize}
+	\item \textbf{self.mass\_matrix}: Mass matrix (deep copied via \texttt{mass\_matrix.copy()})
+	\item \textbf{self.trace\_matrix}: Trace matrix (deep copied via \texttt{trace\_matrix.copy()})
+\end{itemize}
+
+\subsubsection{Function Lists}
+\begin{itemize}
+	\item \textbf{self.initial\_conditions}: Initial condition functions (shallow copied via \texttt{initial\_conditions.copy()})
+	\item \textbf{self.forcing\_functions}: Forcing functions (shallow copied via \texttt{forcing\_functions.copy()})
+\end{itemize}
+
+\subsection{Methods}
+
+The \texttt{DomainData} class provides minimal functionality with only essential methods:
+
+\subsubsection{String Representation}
+
+\begin{lstlisting}[language=Python, caption=String Representation Method]
+	def __str__(self) -> str:
+	return (f"DomainData(neq={self.neq}, n_elements={self.n_elements}, "
+	f"element_length={self.element_length})")
+\end{lstlisting}
+
+This method provides a concise string representation showing the key discretization parameters: number of equations, number of elements, and element length.
+
+\subsection{Data Management Strategy}
+
+\subsubsection{Memory Management}
+
+The class implements a careful data copying strategy:
+
+\begin{itemize}
+	\item \textbf{Deep Copy for Arrays}: Numerical arrays (\texttt{nodes}, \texttt{mass\_matrix}, \texttt{trace\_matrix}) are deep copied using \texttt{.copy()} to prevent unintended modifications
+	\item \textbf{Shallow Copy for Function Lists}: Function lists are shallow copied, meaning the list structure is copied but the function objects themselves are shared references
+	\item \textbf{Direct Copy for Scalars}: Scalar values (\texttt{neq}, \texttt{n\_elements}, \texttt{element\_length}) are directly assigned
+\end{itemize}
+
+\subsubsection{Data Extraction Pattern}
+
+The \texttt{DomainData} class follows an extraction pattern where essential data is pulled from complex framework objects and stored in a simplified container. This approach provides:
+
+\begin{itemize}
+	\item \textbf{Reduced Memory Footprint}: Avoids storing references to large framework objects
+	\item \textbf{Simplified Access}: Direct attribute access without method calls
+	\item \textbf{Data Independence}: Extracted data remains valid even if source objects are modified or destroyed
+\end{itemize}
+
+\subsection{Usage Patterns}
+
+\subsubsection{Typical Construction}
+
+\texttt{DomainData} objects are typically created by extraction methods rather than direct construction:
+
+\begin{lstlisting}[language=Python, caption=Typical Usage Pattern]
+	# Usually created by extraction utilities, not directly
+	domain_data = DomainData(
+	neq=problem.neq,
+	n_elements=discretization.n_elements, 
+	nodes=discretization.nodes,
+	element_length=discretization.element_length,
+	mass_matrix=static_condensation_matrices['M'],
+	trace_matrix=static_condensation_matrices['T'],
+	initial_conditions=[problem.u0[i] for i in range(problem.neq)],
+	forcing_functions=[problem.force[i] for i in range(problem.neq)]
+	)
+\end{lstlisting}
+
+\subsubsection{Data Access}
+
+Once created, data is accessed through simple attribute access:
+
+\begin{lstlisting}[language=Python, caption=Data Access Pattern]
+	# Direct attribute access
+	num_equations = domain_data.neq
+	num_elements = domain_data.n_elements
+	node_coordinates = domain_data.nodes
+	mass_matrix = domain_data.mass_matrix
+	
+	# Function access
+	if domain_data.initial_conditions[0] is not None:
+	initial_value = domain_data.initial_conditions[0](x=0.5, t=0.0)
+\end{lstlisting}
+
+\subsection{Integration Context}
+
+While the \texttt{DomainData} class itself is simple, it serves as a foundational component in the larger framework:
+
+\subsubsection{Framework Integration}
+
+The class is primarily used by other components such as:
+
+\begin{itemize}
+	\item \textbf{BulkDataManager}: Uses \texttt{DomainData} objects to store extracted domain information
+	\item \textbf{Static Condensation}: Accesses matrices stored in \texttt{DomainData}
+	\item \textbf{Time Integration}: Uses initial conditions and forcing functions
+\end{itemize}
+
+\subsubsection{Collection Processing}
+
+\texttt{DomainData} objects are typically processed in collections for multi-domain problems:
+
+\begin{lstlisting}[language=Python, caption=Collection Processing]
+	# Typical usage in collections
+	domain_data_list = [...]  # List of DomainData objects
+	
+	for i, domain_data in enumerate(domain_data_list):
+	print(f"Domain {i}: {domain_data}")  # Uses __str__ method
+	
+	# Process domain-specific data
+	process_domain_matrices(domain_data.mass_matrix, domain_data.trace_matrix)
+	evaluate_initial_conditions(domain_data.initial_conditions, t=0.0)
+\end{lstlisting}
+
+\subsection{Design Characteristics}
+
+\subsubsection{Simplicity}
+
+The \texttt{DomainData} class embodies a minimalist design philosophy:
+
+\begin{itemize}
+	\item \textbf{No Methods}: Apart from \texttt{\_\_str\_\_}, the class contains no computational methods
+	\item \textbf{Direct Storage}: All data is stored as instance attributes
+	\item \textbf{No Inheritance}: Simple class with no base classes or complex hierarchies
+	\item \textbf{No Properties}: Direct attribute access without getter/setter methods
+\end{itemize}
+
+\subsubsection{Data Integrity}
+
+While the class doesn't enforce immutability, it provides data integrity through copying:
+
+\begin{itemize}
+	\item \textbf{Independent Arrays}: Numerical arrays are independent of source objects
+	\item \textbf{Safe Modification}: Changes to source objects don't affect stored data
+	\item \textbf{Controlled Access}: Data access requires explicit attribute references
+\end{itemize}
+
+\subsection{Limitations and Considerations}
+
+\subsubsection{Mutability}
+
+The class does not enforce immutability, meaning stored data can be modified after creation:
+
+\begin{lstlisting}[language=Python, caption=Mutability Consideration]
+	domain_data = DomainData(...)
+	
+	# These modifications are possible but not recommended
+	domain_data.neq = 5  # Modifies equation count
+	domain_data.mass_matrix[0, 0] = 1.0  # Modifies matrix element
+\end{lstlisting}
+
+\subsubsection{Type Safety}
+
+The class provides type hints but no runtime type checking:
+
+\begin{itemize}
+	\item \textbf{Documentation}: Type hints serve as documentation
+	\item \textbf{Static Analysis}: Enables static analysis tools to detect type issues
+	\item \textbf{Runtime Safety}: No runtime validation of input types or values
+\end{itemize}
+
+\subsection{Summary}
+
+The \texttt{domain\_data} module provides a straightforward, lightweight container for domain-specific data extraction. Key characteristics include:
+
+\begin{itemize}
+	\item \textbf{Minimal Design}: Simple class with direct attribute storage
+	\item \textbf{Memory Efficiency}: Stores only essential extracted data
+	\item \textbf{Data Independence}: Copied data remains valid regardless of source object state
+	\item \textbf{Framework Integration}: Serves as foundational component for bulk operations
+	\item \textbf{Type Documentation}: Comprehensive type hints for all parameters and attributes
+\end{itemize}
+
+This module represents a clean implementation of the data extraction pattern, providing the essential functionality needed for efficient bulk operations in the HDG framework while maintaining simplicity and clarity in its interface and implementation.
+
+\begin{todobox}
+	\begin{itemize}
+		\item Evaluate the possibility of transforming the class in a {\tt @dataclass} object
+		\item Merge file with {\tt BulkDataManager}
+	\end{itemize}
+\end{todobox}
+
+
+

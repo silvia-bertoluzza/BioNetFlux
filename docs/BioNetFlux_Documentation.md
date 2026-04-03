@@ -1,6 +1,6 @@
 # BioNetFlux Documentation
 
-![BioNetFlux Logo](../assets/bionetflux_logo.png)
+![BioNetFlux Logo](../Logos/BioNetFlux.png)
 
 ---
 
@@ -10,7 +10,14 @@
 
 ---
 
-![Barra Bar](../assets/barra_bar.png)
+**Acknowledgements** The development of *BioNetFlux* was carried out with the
+support of the Italian Ministry of Research, under the complementary action NRRP "D34Health
+- Digital Driven Diagnostics, prognostics and therapeutics for sustainable Health care" (Grant
+#PNC0000001). An AI language model (Claude)
+was used to assist in translating and extending an existing MATLAB implementation—originally
+written entirely by the author—into Python. The resulting Python code was reviewed, corrected,
+and fully validated by the author to ensure mathematical and numerical consistency with the
+MATLAB version.
 
 ---
 
@@ -22,10 +29,11 @@
 4. [Getting Started](#getting-started)
 5. [Creating New Problems](#creating-new-problems)
 6. [Geometry Module Guide](#geometry-module-guide)
-7. [Visualization System](#visualization-system)
-8. [Example Applications](#example-applications)
-9. [API Reference](#api-reference)
-10. [Troubleshooting](#troubleshooting)
+7. [Time Integration](#time-integration)
+8. [Visualization System](#visualization-system)
+9. [Example Applications](#example-applications)
+10. [API Reference](#api-reference)
+11. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -41,10 +49,12 @@ BioNetFlux is a computational framework designed for simulating biological trans
 
 - **Multi-Domain Support**: Handle complex network topologies with arbitrary domain connections
 - **Geometry Management**: Intuitive geometry definition using the `DomainGeometry` class
-- **Flexible Constraints**: Support for Neumann, Dirichlet, and Kedem-Katchalsky junction conditions
-- **Advanced Visualization**: 2D curve plots, 3D flat views, and bird's eye network visualization
-- **Time Evolution**: Implicit time stepping with Newton-Raphson nonlinear solver
-- **Static Condensation**: Efficient element-level solution elimination
+- **Flexible Constraints**: Support for Neumann, Dirichlet, Robin, trace-continuity, and Kedem-Katchalsky junction conditions
+- **Advanced Visualization**: 2D curve plots, 3D flat views, and bird’s eye network visualization
+- **Time Evolution**: Implicit Euler time stepping with Newton-Raphson nonlinear solver
+- **Adaptive Time Stepping**: Automatic time step control based on Newton convergence
+- **Static Condensation**: Efficient element-level solution elimination via factory pattern
+- **TOML Configuration**: Problem parameters managed through TOML config files
 
 ---
 
@@ -52,32 +62,40 @@ BioNetFlux is a computational framework designed for simulating biological trans
 
 ```
 BioNetFlux/
-├── code/
-│   ├── ooc1d/
-│   │   ├── core/           # Core mathematical components
-│   │   ├── geometry/       # Geometry management
-│   │   ├── problems/       # Problem definitions
-│   │   ├── solver/         # Numerical solvers
-│   │   └── visualization/  # Plotting and visualization
-│   ├── setup_solver.py    # Main setup interface
-│   └── test_*.py          # Example test files
-└── docs/                  # Documentation
+├── src/
+│   ├── setup_solver.py              # Backward-compatible shim
+│   └── bionetflux/                  # Core framework package (v1.0.0)
+│       ├── __init__.py              # Public exports
+│       ├── setup_solver.py          # SolverSetup, quick_setup(), create_solver_setup()
+│       ├── core/                    # Core mathematical components (14 files)
+│       ├── geometry/                # Network geometry + maze data
+│       ├── problems/                # Problem definitions (7 files)
+│       ├── time_integration/        # TimeStepper, NewtonSolver
+│       ├── utils/                   # Config, elementary matrices, mesh mapping
+│       ├── visualization/           # LeanMatplotlibPlotter
+│       └── analysis/                # Error evaluation
+├── config/                              # TOML parameter files
+├── tests/                               # Pytest test suite (21 files)
+├── examples/                            # Example scripts (5 files)
+└── docs/                                # Documentation
 ```
 
 ### Core Components
 
-1. **Problem Definition**: Physical parameters, equations, and boundary conditions
-2. **Geometry Management**: Domain layout and network topology
-3. **Discretization**: Finite element spatial discretization
-4. **Constraint System**: Interface conditions and boundary constraints
-5. **Time Evolution**: Implicit time stepping with Newton solver
-6. **Visualization**: Multi-mode plotting system
+1. **Problem Definition** (`core/problem.py`): Physical parameters, equations, and boundary conditions
+2. **Geometry Management** (`geometry/domain_geometry.py`): Domain layout and network topology
+3. **Discretization** (`core/discretization.py`): Finite element spatial discretization
+4. **Constraint System** (`core/constraints.py`): Interface conditions and boundary constraints
+5. **Global Assembly** (`core/lean_global_assembly.py`): Global system assembly via `GlobalAssembler`
+6. **Static Condensation** (`core/static_condensation_*.py`): Element-level solution elimination
+7. **Time Integration** (`time_integration/`): `TimeStepper` + `NewtonSolver`
+8. **Visualization** (`visualization/lean_matplotlib_plotter.py`): Multi-mode plotting system
 
 ---
 
 ## Module Documentation
 
-### Core Module (`ooc1d.core`)
+### Core Module (`bionetflux.core`)
 
 #### Problem Class (`problem.py`)
 
@@ -85,65 +103,113 @@ The `Problem` class encapsulates the physics of a single domain:
 
 ```python
 class Problem:
-    def __init__(self, neq, domain_start, domain_length, parameters, 
-                 problem_type, name):
-        # Physical domain definition
-        # Equation parameters
-        # Problem identification
+    def __init__(self, neq=2, domain_start=0.0, domain_length=1.0,
+                 parameters=None, problem_type="keller_segel",
+                 name="unnamed_problem"):
+        # Physical domain definition, equation parameters, problem identification
 ```
 
 **Key Methods:**
-- `set_chemotaxis(chi, dchi)`: Define chemotaxis functions
+- `set_chemotaxis(chi, dchi)`: Define chemotaxis sensitivity function and its derivative
 - `set_force(eq_idx, force_func)`: Set source terms
-- `set_solution(eq_idx, sol_func)`: Set analytical solutions
-- `set_initial_condition(eq_idx, ic_func)`: Define initial conditions
-- `set_extrema(start_point, end_point)`: Set 2D spatial coordinates
+- `set_solution(eq_idx, sol_func)`: Set analytical solutions (for error computation)
+- `set_flux_solution(eq_idx, flux_func)`: Set analytical flux solution
+- `set_initial_condition(eq_idx, u0_func)`: Define initial conditions
+- `set_boundary_flux(eq_idx, left_flux, right_flux)`: Set boundary flux functions
+- `set_extrema(point1, point2)`: Set 2D spatial coordinates for visualization
+- `validate_problem(verbose)`: Validate problem configuration for consistency
 
 #### Discretization Classes (`discretization.py`)
 
 ```python
 class Discretization:
-    # Single domain spatial discretization
-    # Finite element nodes and connectivity
-    
+    def __init__(self, n_elements, domain_start=0.0, domain_length=1.0,
+                 stab_constant=1.0):
+        # Single domain spatial discretization with finite element nodes
+
 class GlobalDiscretization:
-    # Multi-domain discretization management
-    # Time stepping parameters
+    def __init__(self, spatial_discretizations):
+        # Multi-domain discretization management + time parameters
+    def set_time_parameters(self, dt, T):
+        # Set global time discretization parameters
 ```
+
+**Utility Function:**
+- `compute_n_elements_from_h(domain_length, h)`: Compute number of elements from target mesh size (guaranteed even, min 4)
 
 #### Constraint Management (`constraints.py`)
 
 ```python
+class ConstraintType(Enum):
+    DIRICHLET = "dirichlet"
+    NEUMANN = "neumann"
+    ROBIN = "robin"
+    TRACE_CONTINUITY = "trace_continuity"
+    KEDEM_KATCHALSKY = "kedem_katchalsky"
+
 class ConstraintManager:
-    # Interface and boundary condition management
-    def add_neumann(eq_idx, domain_idx, coordinate, flux_func)
-    def add_trace_continuity(eq_idx, dom1_idx, dom2_idx, coord1, coord2)
-    def add_kedem_katchalsky(eq_idx, dom1_idx, dom2_idx, coord1, coord2, perm)
+    def add_dirichlet(eq_idx, domain_idx, position, data_function=None)
+    def add_neumann(eq_idx, domain_idx, position, data_function=None)
+    def add_robin(eq_idx, domain_idx, position, alpha, beta, data_function=None)
+    def add_trace_continuity(eq_idx, dom1_idx, dom2_idx, pos1, pos2)
+    def add_kedem_katchalsky(eq_idx, dom1_idx, dom2_idx, pos1, pos2, permeability)
+    # Also: find_constraints(), replace_constraint(), make_*() factory methods
 ```
 
-### Geometry Module (`ooc1d.geometry`)
+#### Global Assembly (`lean_global_assembly.py`)
+
+```python
+class GlobalAssembler:
+    @classmethod
+    def from_framework_objects(cls, problems, global_discretization,
+                              static_condensations, constraint_manager=None)
+    def assemble_residual_and_jacobian(global_solution, forcing_terms,
+                                     static_condensations, time)
+    def compute_forcing_terms(bulk_data_list, problems, discretizations, time, dt)
+```
+
+#### Static Condensation (`static_condensation_factory.py`)
+
+```python
+class StaticCondensationFactory:
+    @classmethod
+    def create(cls, problem, global_disc, elementary_matrices, i=0)
+        # Creates KellerSegelStaticCondensation or StaticCondensationOOC
+        # based on problem.problem_type
+    @classmethod
+    def register_implementation(cls, problem_type, implementation_class)
+```
+
+### Geometry Module (`bionetflux.geometry`)
 
 #### DomainGeometry Class (`domain_geometry.py`)
 
-The geometry module provides intuitive tools for defining complex network topologies:
+The geometry module provides tools for defining complex network topologies:
 
 ```python
 class DomainGeometry:
     def __init__(self, name="unnamed_geometry"):
         # Initialize empty geometry
-    
-    def add_domain(self, extrema_start, extrema_end, domain_start=None, 
-                   domain_length=None, name=None, **metadata):
-        # Add a domain segment to the network
-        
-    def get_domain(self, domain_id):
-        # Retrieve domain information
-        
-    def get_bounding_box(self):
-        # Calculate network bounding box
+
+    def add_domain(self, extrema_start, extrema_end, domain_start=None,
+                   domain_length=None, name=None, display_color="blue", **metadata):
+        # Add a domain segment; returns domain_id
+
+    def add_connection(self, domain1_id, domain2_id, parameter1, parameter2=0.0, **metadata):
+        # Add connection between domains
+
+    def add_exterior_boundary(self, domain_id, parameter, **metadata):
+        # Convenience method for exterior boundary
+
+    def get_domain(self, domain_id) -> DomainInfo
+    def num_domains() -> int
+    def num_connections() -> int
+    def get_bounding_box() -> dict
+    def validate_geometry(verbose=False) -> bool
+    def summary() -> str
 ```
 
-**Domain Information Structure:**
+**Data Structures:**
 ```python
 @dataclass
 class DomainInfo:
@@ -153,26 +219,73 @@ class DomainInfo:
     domain_start: float                 # Parameter space
     domain_length: float
     name: str
+    display_color: str
+    metadata: Dict[str, Any]
+
+@dataclass
+class ConnectionInfo:
+    domain1_id: int
+    domain2_id: int
+    parameter1: float
+    parameter2: float
     metadata: Dict[str, Any]
 ```
 
-### Solver Module (`ooc1d.solver`)
+**Factory Functions:**
+- `build_grid_geometry(Nx, Ny, ...)`: Create rectangular grid network
+- `build_arc_sequence_geometry(N, start, length)`: Create sequential arc geometry
+- `create_maze_geometry(maze_name)`: Load predefined maze topology from CSV data
 
-#### Setup Interface (`setup_solver.py`)
+### Time Integration Module (`bionetflux.time_integration`)
+
+#### TimeStepper (`time_stepper.py`)
 
 ```python
-def quick_setup(problem_module, validate=True):
-    # Automatic problem setup from module
-    # Returns configured solver setup
-    
-class SolverSetup:
-    # Complete solver configuration
-    def create_initial_conditions()
-    def create_global_solution_vector()
-    def extract_domain_solutions()
+class TimeStepper:
+    def __init__(self, setup, newton_solver=None, verbose=True)
+    def initialize_solution() -> Tuple[np.ndarray, List]
+    def advance_time_step(current_solution, current_bulk_data,
+                         current_time, dt) -> TimeStepResult
+    def advance_multiple_steps(initial_solution, initial_bulk_data,
+                              start_time, dt, n_steps) -> List[TimeStepResult]
+    def get_adaptive_stepper(dt_min, dt_max, safety_factor) -> AdaptiveTimeStepper
+
+class AdaptiveTimeStepper(TimeStepper):
+    def advance_time_step_adaptive(current_solution, current_bulk_data,
+                                  current_time, dt_suggested) -> Tuple[TimeStepResult, float]
+
+@dataclass
+class TimeStepResult:
+    converged: bool
+    iterations: int
+    final_residual_norm: float
+    updated_solution: np.ndarray
+    updated_bulk_data: List
+    computation_time: float
+    residual_history: Optional[List[float]]
 ```
 
-### Visualization Module (`ooc1d.visualization`)
+#### NewtonSolver (`newton_solver.py`)
+
+```python
+class NewtonSolver:
+    def __init__(self, tolerance=1e-10, max_iterations=20, verbose=False)
+    def solve(initial_guess, global_assembler, forcing_terms,
+             static_condensations, current_time) -> NewtonResult
+    def solve_with_line_search(initial_guess, global_assembler, forcing_terms,
+                              static_condensations, current_time) -> NewtonResult
+
+@dataclass
+class NewtonResult:
+    converged: bool
+    iterations: int
+    final_solution: np.ndarray
+    final_residual_norm: float
+    residual_history: List[float]
+    step_norms: List[float]
+```
+
+### Visualization Module (`bionetflux.visualization`)
 
 #### LeanMatplotlibPlotter (`lean_matplotlib_plotter.py`)
 
@@ -180,14 +293,38 @@ Three complementary visualization modes:
 
 1. **2D Curve Plots**: Traditional solution vs. position plots (separate subplot per domain)
 2. **Flat 3D View**: Network segments with solution-colored scatter points above
-3. **Bird's Eye View**: Top-down network view with color-coded segments
+3. **Bird’s Eye View**: Top-down network view with color-coded segments
 
 ```python
 class LeanMatplotlibPlotter:
-    def plot_2d_curves(trace_solutions, title, show_mesh_points, save_filename)
-    def plot_flat_3d(trace_solutions, equation_idx, view_angle, save_filename)
-    def plot_birdview(trace_solutions, equation_idx, time, save_filename)
+    def __init__(self, problems, discretizations, equation_names=None,
+                 figsize=(12, 8), output_dir=None)
+    def plot_2d_curves(trace_solutions, title="2D Solution Curves",
+                      show_bounding_box=True, show_mesh_points=True,
+                      save_filename=None) -> plt.Figure
+    def plot_flat_3d(trace_solutions, equation_idx=0, title=None,
+                    segment_width=0.1, save_filename=None,
+                    view_angle=(30, 45)) -> plt.Figure
+    def plot_birdview(trace_solutions, equation_idx=0, time=0.0,
+                     save_filename=None) -> plt.Figure
+    def plot_comparison(initial_traces, final_traces, initial_time=0.0,
+                       final_time=1.0, save_filename=None) -> plt.Figure
 ```
+
+### Analysis Module (`bionetflux.analysis`)
+
+```python
+class ErrorEvaluator:
+    # L2 error computation between numerical and analytical solutions
+```
+
+### Utilities Module (`bionetflux.utils`)
+
+| Component | Purpose |
+|-----------|---------|
+| `config_manager.py` | `BaseConfigManager` — TOML file loading and parameter management |
+| `elementary_matrices.py` | `ElementaryMatrices` — Reference element matrices (SymPy) |
+| `mesh_mapping.py` | Coordinate transformations between reference and physical elements |
 
 ---
 
@@ -201,33 +338,57 @@ git clone <repository-url>
 cd BioNetFlux
 ```
 
-2. Set up Python path:
-```python
-import sys
-sys.path.insert(0, '/path/to/BioNetFlux/code')
+2. Install in development mode:
+```bash
+pip install -e .
 ```
 
 ### Basic Usage
 
 ```python
-from setup_solver import quick_setup
-from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+from bionetflux import quick_setup, LeanMatplotlibPlotter
+from bionetflux.time_integration import TimeStepper
 
-# Load a problem
-setup = quick_setup("ooc1d.problems.my_problem", validate=True)
+# Set up a problem with geometry and config
+setup = quick_setup(
+    problem_module="bionetflux.problems.ks_problem",
+    validate=True,
+    config_file="config/ks_parameters.toml",
+    geometry=geometry  # optional DomainGeometry instance
+)
 
-# Create initial conditions
-trace_solutions, multipliers = setup.create_initial_conditions()
+# Initialize time stepper and solution
+time_stepper = TimeStepper(setup, verbose=True)
+current_solution, current_bulk_data = time_stepper.initialize_solution()
 
-# Initialize visualization
+# Time evolution
+dt = setup.global_discretization.dt
+T = setup.global_discretization.T
+current_time = 0.0
+
+while current_time < T - dt / 2:
+    result = time_stepper.advance_time_step(
+        current_solution=current_solution,
+        current_bulk_data=current_bulk_data,
+        current_time=current_time,
+        dt=dt
+    )
+    if result.converged:
+        current_solution = result.updated_solution
+        current_bulk_data = result.updated_bulk_data
+        current_time += dt
+    else:
+        print(f"Newton failed at t={current_time}")
+        break
+
+# Visualize results
+final_traces, final_multipliers = setup.extract_domain_solutions(current_solution)
 plotter = LeanMatplotlibPlotter(
     problems=setup.problems,
     discretizations=setup.global_discretization.spatial_discretizations
 )
-
-# Plot initial conditions
-plotter.plot_2d_curves(trace_solutions, title="Initial Conditions")
-plotter.plot_birdview(trace_solutions, equation_idx=0, time=0.0)
+plotter.plot_2d_curves(final_traces, title="Final Solution")
+plotter.plot_birdview(final_traces, equation_idx=0, time=current_time)
 ```
 
 ---
@@ -236,55 +397,69 @@ plotter.plot_birdview(trace_solutions, equation_idx=0, time=0.0)
 
 ### Problem Structure Template
 
-Create a new file in `ooc1d/problems/` following this structure:
+Create a new file in `bionetflux/problems/` following this structure
+(see `custom_problem_template.py` for a complete starting point):
 
 ```python
-# File: ooc1d/problems/my_new_problem.py
+# File: bionetflux/problems/my_new_problem.py
 import numpy as np
 from ..core.problem import Problem
-from ..core.discretization import Discretization, GlobalDiscretization
+from ..core.discretization import Discretization, GlobalDiscretization, compute_n_elements_from_h
 from ..core.constraints import ConstraintManager
-from ..geometry import DomainGeometry
+from ..geometry.domain_geometry import DomainGeometry
 
-def create_global_framework():
+def create_global_framework(geometry=None, config_file=None):
     """
     Create a new multi-domain problem.
-    Returns: problems, global_discretization, constraint_manager, problem_name
+    Returns: (problems, global_discretization, constraint_manager, problem_name)
     """
     # 1. Global parameters
     neq = 2  # Number of equations
     T = 1.0  # Final time
     dt = 0.1  # Time step
     problem_name = "My New Problem"
-    
+
     # 2. Physical parameters
     parameters = np.array([param1, param2, param3, param4])
-    
-    # 3. Define functions (chemotaxis, sources, solutions, etc.)
+
+    # 3. Define functions (chemotaxis, sources, initial conditions)
     def chi(x): return np.ones_like(x)
     def dchi(x): return np.zeros_like(x)
     def source_u(s, t): return 0.0 * s
-    def source_phi(s, t): return 0.0 * s
     def initial_u(s, t=0.0): return np.ones_like(s)
-    def initial_phi(s, t=0.0): return np.zeros_like(s)
-    
-    # 4. Create geometry
-    geometry = DomainGeometry("my_geometry")
-    # Add domains using geometry.add_domain(...)
-    
-    # 5. Create problems from geometry
+
+    # 4. Create or use provided geometry
+    if geometry is None:
+        geometry = DomainGeometry("my_geometry")
+        geometry.add_domain(extrema_start=(0, 0), extrema_end=(1, 0), name="seg_0")
+        geometry.add_domain(extrema_start=(1, 0), extrema_end=(2, 0), name="seg_1")
+
+    # 5. Create problems and discretizations from geometry
     problems = []
     discretizations = []
     for domain_id in range(geometry.num_domains()):
         domain_info = geometry.get_domain(domain_id)
-        # Create Problem and Discretization objects
-    
+        h = 0.1  # target element size
+        n_elem = compute_n_elements_from_h(domain_info.domain_length, h)
+        prob = Problem(neq=neq, domain_start=domain_info.domain_start,
+                       domain_length=domain_info.domain_length,
+                       parameters=parameters, problem_type="keller_segel",
+                       name=f"domain_{domain_id}")
+        prob.set_chemotaxis(chi, dchi)
+        prob.set_initial_condition(0, initial_u)
+        prob.set_extrema(domain_info.extrema_start, domain_info.extrema_end)
+        problems.append(prob)
+        discretizations.append(Discretization(n_elem, domain_info.domain_start,
+                                              domain_info.domain_length))
+
     # 6. Set up constraints
     constraint_manager = ConstraintManager()
-    # Add boundary and interface constraints
-    
+    # Add boundary/interface constraints...
+
     # 7. Return framework components
-    return problems, global_discretization, constraint_manager, problem_name
+    global_disc = GlobalDiscretization(discretizations)
+    global_disc.set_time_parameters(dt=dt, T=T)
+    return problems, global_disc, constraint_manager, problem_name
 ```
 
 ### Keller-Segel Problems
@@ -313,19 +488,16 @@ for problem in problems:
 For microfluidic systems, focus on:
 
 ```python
-# Multi-compartment setup
-compartments = ["inlet", "cell_chamber", "outlet", "waste"]
-
+# Multi-compartment setup with 4 equations
 # Different parameters per compartment
 parameters_list = [
-    np.array([D1, v1, k1, 0.0]),  # Inlet: high flow
+    np.array([D1, v1, k1, 0.0]),   # Inlet: high flow
     np.array([D2, v2, k2, k_cell]),  # Cell chamber: cell interaction
-    np.array([D3, v3, k3, 0.0]),  # Outlet: medium flow
-    np.array([D4, v4, k4, 0.0])   # Waste: low flow
+    np.array([D3, v3, k3, 0.0]),   # Outlet: medium flow
 ]
 
-# Junction conditions with permeabilities
-permeabilities = [0.8, 1.0, 0.9]  # Between compartments
+# Junction conditions with permeabilities (Kedem-Katchalsky)
+constraint_manager.add_kedem_katchalsky(eq_idx, dom1, dom2, pos1, pos2, permeability)
 ```
 
 ---
@@ -337,7 +509,6 @@ permeabilities = [0.8, 1.0, 0.9]  # Between compartments
 ```python
 geometry = DomainGeometry("linear_chain")
 
-# Add sequential domains
 geometry.add_domain(
     extrema_start=(0.0, 0.0),
     extrema_end=(1.0, 0.0),
@@ -371,53 +542,117 @@ geometry.add_domain(
 )
 ```
 
-### Grid Network
+### Grid Network (Using Factory)
 
 ```python
-geometry = DomainGeometry("grid_network")
+from bionetflux.geometry.domain_geometry import build_grid_geometry
 
-# Vertical segments
-for i, x_pos in enumerate([-0.5, 0.5]):
-    geometry.add_domain(
-        extrema_start=(x_pos, 0.0),
-        extrema_end=(x_pos, 1.0),
-        name=f"vertical_{i}"
-    )
-
-# Horizontal connectors
-for i, y_pos in enumerate([0.2, 0.4, 0.6, 0.8]):
-    geometry.add_domain(
-        extrema_start=(-0.5, y_pos),
-        extrema_end=(0.5, y_pos),
-        name=f"horizontal_{i}"
-    )
+geometry = build_grid_geometry(Nx=3, Ny=3)
 ```
 
-### Complex Branching Network
+### Arc Sequence (Using Factory)
+
+```python
+from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry
+
+geometry = build_arc_sequence_geometry(N=2, start=1.5, length=2.0)
+```
+
+### Maze Geometry (Using Factory)
+
+```python
+from bionetflux.geometry.domain_geometry import create_maze_geometry
+
+geometry = create_maze_geometry("maze3")  # loads from maze_3_data/
+```
+
+### Custom Complex Network
 
 ```python
 geometry = DomainGeometry("branching_network")
 
 # Main trunk
-geometry.add_domain(
+d0 = geometry.add_domain(
     extrema_start=(0.0, 0.0),
     extrema_end=(0.0, 2.0),
     name="trunk"
 )
 
-# Branches at different levels
-branch_angles = [30, 60, 120, 150]  # degrees
-for i, angle in enumerate(branch_angles):
-    angle_rad = np.radians(angle)
-    length = 1.0
-    end_x = length * np.cos(angle_rad)
-    end_y = 1.0 + length * np.sin(angle_rad)
-    
-    geometry.add_domain(
-        extrema_start=(0.0, 1.0),
-        extrema_end=(end_x, end_y),
-        name=f"branch_{i}"
-    )
+# Branch
+d1 = geometry.add_domain(
+    extrema_start=(0.0, 1.0),
+    extrema_end=(1.0, 1.5),
+    name="branch"
+)
+
+# Connect trunk and branch at the junction point
+geometry.add_connection(d0, d1, parameter1=0.5, parameter2=0.0)
+
+# Add exterior boundaries
+geometry.add_exterior_boundary(d0, parameter=0.0)  # trunk start
+geometry.add_exterior_boundary(d0, parameter=1.0)  # trunk end
+geometry.add_exterior_boundary(d1, parameter=1.0)  # branch end
+
+# Validate
+geometry.validate_geometry(verbose=True)
+```
+
+---
+
+## Time Integration
+
+### TimeStepper Usage
+
+The `TimeStepper` class coordinates the implicit Euler time advancement with Newton iteration:
+
+```python
+from bionetflux.time_integration import TimeStepper
+
+# Create time stepper from solver setup
+time_stepper = TimeStepper(setup, verbose=True)
+
+# Initialize solution at t=0
+current_solution, current_bulk_data = time_stepper.initialize_solution()
+
+# Advance a single time step
+result = time_stepper.advance_time_step(
+    current_solution=current_solution,
+    current_bulk_data=current_bulk_data,
+    current_time=0.0,
+    dt=0.01
+)
+
+if result.converged:
+    print(f"Newton converged in {result.iterations} iterations")
+    current_solution = result.updated_solution
+    current_bulk_data = result.updated_bulk_data
+```
+
+### Adaptive Time Stepping
+
+```python
+# Create adaptive time stepper
+adaptive_stepper = time_stepper.get_adaptive_stepper(
+    dt_min=1e-6, dt_max=1.0, safety_factor=0.8
+)
+
+# Advance with adaptive dt control
+result, next_dt = adaptive_stepper.advance_time_step_adaptive(
+    current_solution, current_bulk_data, current_time, dt_suggested=0.01
+)
+```
+
+### Multiple Steps
+
+```python
+results = time_stepper.advance_multiple_steps(
+    initial_solution=current_solution,
+    initial_bulk_data=current_bulk_data,
+    start_time=0.0,
+    dt=0.01,
+    n_steps=100,
+    stop_on_failure=True
+)
 ```
 
 ---
@@ -485,124 +720,99 @@ Features:
 
 ## Example Applications
 
-### Example 1: Simple Keller-Segel Chain
+The `examples/` directory contains five example scripts:
 
-```python
-# File: examples/simple_keller_segel.py
-import sys
-sys.path.insert(0, '../code')
+| Script | Description |
+|--------|-------------|
+| `evolution_example_ks.py` | Keller-Segel time evolution with error analysis |
+| `evolution_example_ks_verbose.py` | Verbose version with detailed Newton output |
+| `evolution_example_ooc.py` | Organ-on-Chip time evolution |
+| `evolution_maze_ooc.py` | OoC simulation on maze geometry |
+| `evolution+error_example.py` | Time evolution with error computation |
 
-from setup_solver import quick_setup
-from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+### Running an Example
 
-def main():
-    # Setup problem
-    setup = quick_setup("ooc1d.problems.KS_with_geometry", validate=True)
-    
-    # Get initial conditions
-    trace_solutions, multipliers = setup.create_initial_conditions()
-    
-    # Initialize plotter
-    plotter = LeanMatplotlibPlotter(
-        problems=setup.problems,
-        discretizations=setup.global_discretization.spatial_discretizations
-    )
-    
-    # Plot initial state
-    plotter.plot_2d_curves(trace_solutions, title="Initial State")
-    plotter.plot_birdview(trace_solutions, equation_idx=0, time=0.0)
-    
-    # Time evolution
-    dt = setup.global_discretization.dt
-    T = 0.5
-    current_time = 0.0
-    global_solution = setup.create_global_solution_vector(trace_solutions, multipliers)
-    
-    while current_time < T:
-        # Newton iteration (simplified)
-        current_time += dt
-        # ... solver steps ...
-        
-        # Extract solutions
-        final_traces, _ = setup.extract_domain_solutions(global_solution)
-        
-        # Visualize
-        plotter.plot_birdview(final_traces, equation_idx=0, time=current_time)
-    
-    plotter.show_all()
+```bash
+cd BioNetFlux
+pip install -e .
+python examples/evolution_example_ks.py
 
-if __name__ == "__main__":
-    main()
+# With a TOML config file:
+python examples/evolution_example_ks.py --config config/ks_parameters.toml
 ```
 
-### Example 2: Complex Grid Network
+### Example Pattern
+
+All examples follow this pattern:
 
 ```python
-# File: examples/grid_network_example.py
-import sys
-sys.path.insert(0, '../code')
-
 from setup_solver import quick_setup
-from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
+from bionetflux.time_integration import TimeStepper
+from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry
+from bionetflux.core.minimal_error_evaluator import MinimalErrorEvaluator
 
-def main():
-    # Load complex grid problem
-    setup = quick_setup("ooc1d.problems.KS_grid_geometry", validate=True)
-    
-    print(f"Problem: {setup.get_problem_info()['problem_name']}")
-    print(f"Domains: {setup.get_problem_info()['num_domains']}")
-    
-    # Initial conditions
-    trace_solutions, multipliers = setup.create_initial_conditions()
-    
-    # Visualization
-    plotter = LeanMatplotlibPlotter(
-        problems=setup.problems,
-        discretizations=setup.global_discretization.spatial_discretizations,
-        figsize=(15, 10)
-    )
-    
-    # Multiple views of initial state
-    plotter.plot_2d_curves(
-        trace_solutions, 
-        title="Grid Network - Domain Profiles",
-        save_filename="grid_profiles.png"
-    )
-    
-    for eq_idx in range(2):  # Both equations
-        plotter.plot_flat_3d(
-            trace_solutions,
-            equation_idx=eq_idx,
-            title=f"Grid Network - {plotter.equation_names[eq_idx]} (3D)",
-            save_filename=f"grid_3d_eq{eq_idx}.png"
-        )
-        
-        plotter.plot_birdview(
-            trace_solutions,
-            equation_idx=eq_idx,
-            time=0.0,
-            save_filename=f"grid_birdview_eq{eq_idx}.png"
-        )
-    
-    plotter.show_all()
+# 1. Build geometry
+geometry = build_arc_sequence_geometry(N=2, start=1.5, length=2.0)
 
-if __name__ == "__main__":
-    main()
+# 2. Set up solver
+setup = quick_setup(
+    problem_module="bionetflux.problems.ks_problem",
+    validate=True,
+    config_file="config/ks_parameters.toml",
+    geometry=geometry
+)
+
+# 3. Initialize time stepper
+time_stepper = TimeStepper(setup, verbose=True)
+current_solution, current_bulk_data = time_stepper.initialize_solution()
+
+# 4. Time evolution loop
+dt = setup.global_discretization.dt
+T = setup.global_discretization.T
+current_time = 0.0
+
+while current_time < T - dt / 2:
+    result = time_stepper.advance_time_step(
+        current_solution, current_bulk_data, current_time, dt
+    )
+    if result.converged:
+        current_solution = result.updated_solution
+        current_bulk_data = result.updated_bulk_data
+        current_time += dt
+    else:
+        break
+
+# 5. Error analysis
+error_evaluator = MinimalErrorEvaluator()
+final_traces, _ = setup.extract_domain_solutions(current_solution)
+trace_errors = error_evaluator.compute_trace_error(
+    trace_solutions=final_traces,
+    problems=setup.problems,
+    discretizations=setup.global_discretization.spatial_discretizations,
+    time=current_time
+)
 ```
 
 ---
 
 ## API Reference
 
-### Quick Setup Function
+### Setup Functions
 
 ```python
-setup_solver.quick_setup(problem_module: str, validate: bool = True) -> SolverSetup
+bionetflux.setup_solver.quick_setup(
+    problem_module: str = "bionetflux.problems.test_problem2",
+    validate: bool = True,
+    config_file: Optional[str] = None,
+    geometry: Optional[DomainGeometry] = None
+) -> SolverSetup
 ```
 
 **Parameters:**
-- `problem_module`: Import path to problem definition (e.g., "ooc1d.problems.my_problem")
+- `problem_module`: Import path to problem definition (e.g., `"bionetflux.problems.ks_problem"`)
 - `validate`: Whether to validate setup after creation
+- `config_file`: Optional TOML configuration file path
+- `geometry`: Optional pre-built `DomainGeometry` instance
 
 **Returns:** Configured `SolverSetup` object
 
@@ -610,46 +820,66 @@ setup_solver.quick_setup(problem_module: str, validate: bool = True) -> SolverSe
 
 ```python
 class SolverSetup:
+    def __init__(self, problem_module="bionetflux.problems.ooc_problem",
+                 config_file=None, geometry=None)
+    def initialize()
     def get_problem_info() -> Dict[str, Any]
     def create_initial_conditions() -> Tuple[List[np.ndarray], np.ndarray]
     def create_global_solution_vector(traces, multipliers) -> np.ndarray
     def extract_domain_solutions(global_solution) -> Tuple[List[np.ndarray], np.ndarray]
+    def validate_setup(verbose=False) -> bool
+    def compute_geometry_from_problems(geometry_name=None) -> DomainGeometry
+
+    # Lazy-loaded properties:
+    @property elementary_matrices -> ElementaryMatrices
+    @property static_condensations -> List
+    @property global_assembler -> GlobalAssembler
+    @property bulk_data_manager -> BulkDataManager
 ```
 
 ### DomainGeometry Class
 
 ```python
 class DomainGeometry:
-    def add_domain(extrema_start: Tuple[float, float],
-                   extrema_end: Tuple[float, float],
-                   domain_start: float = None,
-                   domain_length: float = None,
-                   name: str = None,
+    def add_domain(extrema_start, extrema_end, domain_start=None,
+                   domain_length=None, name=None, display_color="blue",
                    **metadata) -> int
-    
-    def get_domain(domain_id: int) -> DomainInfo
-    def get_bounding_box() -> Dict[str, float]
+    def add_connection(domain1_id, domain2_id, parameter1, parameter2=0.0,
+                      **metadata) -> int
+    def add_exterior_boundary(domain_id, parameter, **metadata) -> int
+    def add_periodic_boundary(domain_id, parameter, **metadata) -> int
+    def add_symmetry_boundary(domain_id, parameter, **metadata) -> int
+    def get_domain(domain_id) -> DomainInfo
+    def get_all_domains() -> List[DomainInfo]
+    def find_domain_by_name(name) -> Optional[int]
+    def remove_domain(domain_id)
+    def get_connection(connection_id) -> ConnectionInfo
+    def get_boundary_connections() -> List[ConnectionInfo]
+    def get_interior_connections() -> List[ConnectionInfo]
     def num_domains() -> int
+    def num_connections() -> int
+    def get_bounding_box() -> Dict[str, float]
+    def total_length() -> float
     def summary() -> str
+    def validate_geometry(verbose=False) -> bool
 ```
 
 ### LeanMatplotlibPlotter Class
 
 ```python
 class LeanMatplotlibPlotter:
-    def __init__(problems, discretizations, equation_names=None, figsize=(12,8))
-    
-    def plot_2d_curves(trace_solutions, title, show_mesh_points=True,
-                       save_filename=None) -> plt.Figure
-    
-    def plot_flat_3d(trace_solutions, equation_idx=0, view_angle=(30,45),
-                     save_filename=None) -> plt.Figure
-    
-    def plot_birdview(trace_solutions, equation_idx=0, time=0.0,
+    def __init__(self, problems, discretizations, equation_names=None,
+                 figsize=(12, 8), output_dir=None)
+    def plot_2d_curves(trace_solutions, title="2D Solution Curves",
+                      show_bounding_box=True, show_mesh_points=True,
                       save_filename=None) -> plt.Figure
-    
+    def plot_flat_3d(trace_solutions, equation_idx=0, title=None,
+                    segment_width=0.1, save_filename=None,
+                    view_angle=(30, 45)) -> plt.Figure
+    def plot_birdview(trace_solutions, equation_idx=0, time=0.0,
+                     save_filename=None) -> plt.Figure
     def plot_comparison(initial_traces, final_traces, initial_time=0.0,
-                        final_time=1.0, save_filename=None) -> plt.Figure
+                       final_time=1.0, save_filename=None) -> plt.Figure
 ```
 
 ---
@@ -658,68 +888,15 @@ class LeanMatplotlibPlotter:
 
 ### Common Issues
 
-**1. Import Errors**
-```python
-# Ensure correct path setup
-import sys
-sys.path.insert(0, '/path/to/BioNetFlux/code')
-```
+1. **Import errors**: Make sure you installed with `pip install -e .` from the project root. The package is `bionetflux`, not `ooc1d`.
 
-**2. Geometry Validation**
-```python
-# Check geometry before problem creation
-geometry = DomainGeometry("test")
-# ... add domains ...
-print(geometry.summary())  # Verify domain layout
-print(geometry.get_bounding_box())  # Check coordinates
-```
+2. **Newton solver not converging**: Try reducing `dt`, checking initial conditions, or using `solve_with_line_search()` via the `NewtonSolver`.
 
-**3. Constraint Setup**
-```python
-# Verify constraint mapping
-constraint_manager.map_to_discretizations(discretizations)
-print(f"Total constraints: {constraint_manager.n_multipliers}")
-```
+3. **Config compatibility error**: Ensure the TOML config file's `problem_type` matches the problem module (e.g., `"keller_segel"` for `ks_problem`, `"ooc"` for `ooc_problem`).
 
-**4. Solution Convergence**
-```python
-# Monitor Newton iteration
-newton_tolerance = 1e-10
-max_newton_iterations = 20
+4. **Geometry validation failure**: Call `geometry.validate_geometry(verbose=True)` to see detailed diagnostics.
 
-# Check residual norms during iteration
-if residual_norm > newton_tolerance:
-    print(f"Convergence issue: residual = {residual_norm:.2e}")
-```
+5. **Static condensation type error**: The `StaticCondensationFactory` selects implementation by `problem.problem_type`. Supported types: `"keller_segel"`, `"ooc"`. Register custom types with `StaticCondensationFactory.register_implementation()`.
 
-### Performance Optimization
+6. **Backward compatibility**: The shim at `src/setup_solver.py` re-exports `SolverSetup`, `create_solver_setup`, and `quick_setup` from `bionetflux.setup_solver`, so old `from setup_solver import quick_setup` imports still work.
 
-1. **Mesh Resolution**: Balance accuracy vs. computational cost
-2. **Time Step Size**: Use adaptive time stepping for stability
-3. **Newton Tolerance**: Adjust based on problem requirements
-4. **Domain Decomposition**: Optimize domain sizes for load balancing
-
-### Debugging Tips
-
-1. **Visualization**: Use all three plot types to understand solution behavior
-2. **Parameter Validation**: Check physical parameter ranges
-3. **Constraint Verification**: Ensure proper interface connectivity
-4. **Solution Monitoring**: Track solution norms and residuals
-
----
-
-## Contact and Support
-
-For questions, issues, or contributions:
-
-- **Repository**: [BioNetFlux GitHub]
-- **Documentation**: See `docs/` directory
-- **Examples**: See `examples/` directory
-- **Issues**: Submit via GitHub Issues
-
----
-
-**BioNetFlux Development Team**
-*Multi-Domain Biological Network Flow Simulation Framework*
-
----
