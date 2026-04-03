@@ -46,7 +46,6 @@ This document summarizes the major modifications made to the BioNetFlux project 
 - Metadata storage (problem index, type, equation count)
 
 #### **Enhanced Documentation**
-*Location: `docs/setup_solver_detailed_api.tex`*
 - Comprehensive API reference with geometry management section
 - Usage examples for geometry-first workflow
 - Method signatures and algorithms documented
@@ -198,7 +197,6 @@ plotter.plot_geometry_with_indices(geometry)       # Visualize
 - `src/setup_solver.py` - Added geometry support
 - `src/bionetflux/problems/ooc_problem.py` - Geometry-first architecture  
 - `src/bionetflux/visualization/lean_matplotlib_plotter.py` - Geometry plotting
-- `docs/setup_solver_detailed_api.tex` - Enhanced documentation
 
 ### **Enhanced Features:**
 - Comprehensive geometry management system

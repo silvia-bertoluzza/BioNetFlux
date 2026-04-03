@@ -1,13 +1,22 @@
 # BioNetFlux Proposed Clean Code Structure
 
+> **STATUS NOTE (2026-04-03):** The foundational migration described here — renaming
+> `code/` → `src/` and `ooc1d/` → `bionetflux/` — has been **completed**. The codebase
+> now lives at `src/bionetflux/` with all imports using `bionetflux.*`. Tests are in
+> `tests/`, examples in `examples/`.
+>
+> The remaining proposals below (hierarchical `models/` directory, `solvers/` rename,
+> expanded test organization, `networks/` subpackage, animation/export utilities, etc.)
+> are **still aspirational** and have not been implemented.
+
 *A cleaner, more organized structure for improved maintainability and development workflow*
 
 ## Proposed Directory Organization
 
 ```
 BioNetFlux/
-├── 📁 src/                            # Source code (renamed from 'code/')
-│   ├── 📁 bionetflux/                 # Main package (renamed from 'ooc1d/')
+├── 📁 src/                            # ✅ DONE (was 'code/')
+│   ├── 📁 bionetflux/                 # ✅ DONE (was 'ooc1d/')
 │   │   ├── 📄 __init__.py             # Package initialization with version
 │   │   │
 │   │   ├── 📁 core/                   # Core mathematical framework
