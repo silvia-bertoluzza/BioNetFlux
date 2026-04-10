@@ -1182,9 +1182,8 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
         horizontal_domain_info = geometry.get_domain(domain_idx)
         intersection_y = horizontal_domain_info.extrema_start[1]  # y-coordinate at S1 end
         
-        # Map to S1 parameter space: S1 spans y ∈ [-1, 1], param ∈ [0, domain_length]
-        # s1_param = (intersection_y + 1.0) / 2.0 * geometry.get_domain(0).domain_length
-        s1_param = (intersection_y + 1.0 * length) / 2.0
+        # Map to S1 parameter space: S1 spans y ∈ [-length, length], param ∈ [0, domain_length]
+        s1_param = (intersection_y + length) / (2.0 * length) * geometry.get_domain(0).domain_length
         
         # Add connection between horizontal connector start and S1
         geometry.add_connection(
@@ -1204,8 +1203,8 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
         horizontal_domain_info = geometry.get_domain(domain_idx)
         intersection_y = horizontal_domain_info.extrema_start[1]  # y-coordinate at S4 end
         
-        # Map to S4 parameter space: S4 spans y ∈ [-1, 1], param ∈ [0, domain_length]
-        s4_param = (intersection_y + length * 1.0) / 2.0
+        # Map to S4 parameter space: S4 spans y ∈ [-length, length], param ∈ [0, domain_length]
+        s4_param = (intersection_y + length) / (2.0 * length) * geometry.get_domain(3).domain_length
         
         # Add connection between horizontal connector start and S4
         geometry.add_connection(
@@ -1224,9 +1223,9 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
         horizontal_domain_info = geometry.get_domain(domain_idx)
         intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S2 end
         
-        # Map to S2 parameter space: S2 spans y ∈ [-1, -0.1], param ∈ [0, domain_length]
+        # Map to S2 parameter space: S2 spans y ∈ [-length, -0.1*length], param ∈ [0, domain_length]
         s2_y_start, s2_y_end = -1.0 * length, -0.1 * length
-        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) 
+        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) * geometry.get_domain(1).domain_length
         # Add connection between horizontal connector end and S2
         geometry.add_connection(
             domain1_id=domain_idx,  # S1->S2 connector
@@ -1242,7 +1241,7 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
         
         # Map to S2 parameter space
         s2_y_start, s2_y_end = -1.0 * length, -0.1 * length
-        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) 
+        s2_param = (intersection_y - s2_y_start) / (s2_y_end - s2_y_start) * geometry.get_domain(1).domain_length
         # Add connection between horizontal connector end and S2
         geometry.add_connection(
             domain1_id=domain_idx,  # S4->S2 connector
@@ -1260,9 +1259,9 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
         horizontal_domain_info = geometry.get_domain(domain_idx)
         intersection_y = horizontal_domain_info.extrema_end[1]  # y-coordinate at S3 end
         
-        # Map to S3 parameter space: S3 spans y ∈ [0.1, 1.0], param ∈ [0, domain_length]
+        # Map to S3 parameter space: S3 spans y ∈ [0.1*length, length], param ∈ [0, domain_length]
         s3_y_start, s3_y_end = 0.1 * length, 1.0 * length
-        s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) 
+        s3_param = (intersection_y - s3_y_start) / (s3_y_end - s3_y_start) * geometry.get_domain(2).domain_length
         # Add connection between horizontal connector end and S3
         geometry.add_connection(
             domain1_id=domain_idx,  # S1->S3 connector

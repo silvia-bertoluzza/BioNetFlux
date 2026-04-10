@@ -289,7 +289,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         U = np.concatenate([u1, u2, u3, u4])
         
         # Step 5b: Compute average phi and evaluate chi
-        barphi = float(Av @ u4)
+        barphi = (Av @ u4).item()
         barchi = self.chi_func(barphi)
         dbarchi = self.dchi_func(barphi)
         
