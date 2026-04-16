@@ -293,8 +293,10 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # Chemotaxis sensitivity function: chi(x) = k1 / (k2 + x)^2
     # and its derivative: dchi(x) = -2 * k1 / (k2 + x)^3
     # Constructed from TOML parameters k1, k2
-    chi_func = lambda x: k1 / (k2 + x)**2
-    dchi_func = lambda x: -2.0 * k1 / (k2 + x)**3
+    # The chemotactic function is rescaled by viscority, as it was implemented in a rescaled version in the code
+    # Later it would be better to rescale nu in the static condensation module.
+    chi_func = lambda x: k1 / (nu * (k2 + x)**2)
+    dchi_func = lambda x: -2.0 * k1 / (nu * (k2 + x)**3)
     
     lambda_func = lambda omega: m1 / (m2 + omega)  # Tumor suppression function 
     dlambda_func = lambda omega: -m1 / (m2 + omega)**2  # Derivative of tumor suppression function
