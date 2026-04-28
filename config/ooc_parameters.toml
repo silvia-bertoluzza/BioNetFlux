@@ -7,7 +7,7 @@ neq = 4
 problem_type = "ooc"  # Config validation type (NOT the same as StaticCondensation problem_type)
 
 [time_parameters]
-T = 3600.0   # Final time
+T = 1800.0   # Final time
 dt = 64.0  # Time step
 
 [physical_parameters.viscosity]
@@ -27,7 +27,7 @@ d = 0.1       # alpha_omega: production rate of omega
 # Chemotaxis: chi(x) = k1 / (k2 + x)^2
 [physical_parameters.chemotaxis]
 type = "receptor_saturation"  # Type of chemotaxis function
-k1 = 3.9e-9     # cellular drift velocity
+k1 = 3.9e-1     # cellular drift velocity
 k2 = 5.0e-6     # receptor dissociation constant
 
 # Tumor suppression: lambda(x) = m1 / (m2 + x)

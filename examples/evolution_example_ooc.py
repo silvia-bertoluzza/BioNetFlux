@@ -346,7 +346,7 @@ def run_evolution_with_adaptive_time_stepper(
 
     print("Step 1: Setting up solver...")
 
-    geometry = build_grid_geometry(N=5, length=500.0)
+    geometry = build_grid_geometry(N=3, length=500.0)
 
     try:
         setup = quick_setup(
