@@ -72,7 +72,21 @@ class OoCConfigManager(BaseConfigManager):
                 'v': 'zeros',      # Default: zero force
                 'phi': 'zeros',    # Default: zero force
             },
-            
+
+            'exact_solutions': {
+                'u': 'none',       # Default: no exact solution
+                'omega': 'none',   # Default: no exact solution
+                'v': 'none',       # Default: no exact solution
+                'phi': 'none',     # Default: no exact solution
+            },
+
+            'exact_solution_derivatives': {
+                'u': 'none',       # Default: no exact derivative
+                'omega': 'none',   # Default: no exact derivative
+                'v': 'none',       # Default: no exact derivative
+                'phi': 'none',     # Default: no exact derivative
+            },
+
             # Boundary condition overrides (per-point, per-equation)
             # Keys: "<point_name>_<equation_name>"
             # Values: { type = "dirichlet|neumann|robin", data = "func_name", ... }
@@ -134,6 +148,33 @@ class OoCConfigManager(BaseConfigManager):
         self.validator.add_rule('discretization.n_elements', 
                               {'type': int, 'min': 1})
     
+    def _resolve_optional_function_dict(self, func_dict: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve a dict of function specs, mapping the special string 'none' to None."""
+        resolved = {}
+        for key, func_spec in func_dict.items():
+            if isinstance(func_spec, str) and func_spec.strip().lower() == 'none':
+                resolved[key] = None
+            else:
+                resolved[key] = self.function_resolver.resolve_function(func_spec)
+        return resolved
+
+    def _resolve_functions(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve function specifications to callables in configuration.
+
+        Extends the base class resolution with exact_solutions and
+        exact_solution_derivatives sections, where the special value
+        ``'none'`` resolves to ``None`` (no exact solution available).
+        """
+        resolved_config = super()._resolve_functions(config)
+
+        for section in ['exact_solutions', 'exact_solution_derivatives']:
+            if section in resolved_config:
+                resolved_config[section] = self._resolve_optional_function_dict(
+                    resolved_config[section]
+                )
+
+        return resolved_config
+
     def load_config(self, config_file: Optional[str] = None) -> Dict[str, Any]:
         """
         Load configuration with problem type validation.

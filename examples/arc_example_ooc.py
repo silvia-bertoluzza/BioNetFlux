@@ -19,13 +19,14 @@ from bionetflux.time_integration import TimeStepper
 from bionetflux.time_integration.time_stepper import AdaptiveTimeStepper
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry, build_grid_geometry, create_maze_geometry
+from bionetflux.problems.ooc_config_manager import OoCConfigManager
 import bionetflux.geometry.domain_geometry as _geom_module
 import numpy as np
 import matplotlib.pyplot as plt
 import shutil
 import time
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 
 def _create_run_output_dir(config_file: Optional[str] = None) -> str:
@@ -50,12 +51,83 @@ def _create_run_output_dir(config_file: Optional[str] = None) -> str:
     return run_dir
 
 
-def run_evolution_with_time_stepper(config_file: Optional[str] = None):
+# Config key order matches OoC equation order (u, omega, v, phi)
+_OOC_EQ_KEYS = ['u', 'omega', 'v', 'phi']
+
+
+def _overlay_exact_solutions(
+    fig: plt.Figure,
+    plotter: LeanMatplotlibPlotter,
+    exact_solutions: Dict[str, Any],
+    current_time: float,
+) -> bool:
+    """Superpose exact solutions on an existing plot_2d_curves figure.
+
+    For each equation whose entry in *exact_solutions* is callable, the exact
+    solution is evaluated at the domain nodes at *current_time* and drawn as a
+    dashed line (same colour as the discrete curve) on the corresponding axis.
+
+    Args:
+        fig: Figure returned by :meth:`LeanMatplotlibPlotter.plot_2d_curves`.
+        plotter: The plotter instance that produced *fig*.
+        exact_solutions: Dict mapping equation keys to callables or ``None``.
+        current_time: The time at which the exact solution is evaluated.
+
+    Returns:
+        ``True`` if at least one exact solution was overlaid, ``False`` otherwise.
+    """
+    axes = fig.axes
+    coord_start = 0
+    any_drawn = False
+
+    for domain_idx in range(plotter.ndom):
+        ax = axes[domain_idx]
+        domain_info = plotter.domain_info[domain_idx]
+        n_nodes = domain_info['n_nodes']
+        domain_coords = plotter.all_coords[coord_start: coord_start + n_nodes]
+
+        domain_drawn = False
+        for eq_idx, eq_key in enumerate(_OOC_EQ_KEYS[:plotter.neq]):
+            func = exact_solutions.get(eq_key)
+            if callable(func):
+                exact_vals = func(domain_coords, current_time)
+                color = plotter.equation_colors[eq_idx % len(plotter.equation_colors)]
+                ax.plot(
+                    domain_coords, exact_vals,
+                    color=color, linewidth=1.5, linestyle='--',
+                    label=f'{plotter.equation_names[eq_idx]} (exact)',
+                    alpha=0.9,
+                )
+                domain_drawn = True
+
+        if domain_drawn:
+            ax.legend()
+            any_drawn = True
+
+        coord_start += n_nodes
+
+    return any_drawn
+
+
+def _load_exact_solutions(config_file: Optional[str]) -> Dict[str, Any]:
+    """Load the OoC config and return the resolved ``exact_solutions`` dict."""
+    cfg_manager = OoCConfigManager()
+    config = cfg_manager.load_config(config_file)
+    return config.get('exact_solutions', {})
+
+
+def run_evolution_with_time_stepper(
+    config_file: Optional[str] = None,
+    arc_number: int = 3,
+    arc_length: float = 500.0,
+):
     """
     Main function demonstrating time evolution with the new TimeStepper module.
-    
+
     Args:
         config_file: Optional TOML configuration file path
+        arc_number: Number of arcs in the sequence geometry (N parameter)
+        arc_length: Length of each arc in the sequence geometry
     """
     print("="*80)
     print("EVOLUTION + PLOTTING EXAMPLE WITH TIME STEPPER")
@@ -73,7 +145,7 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     
     print("Step 1: Setting up solver...")
     
-    geometry = build_arc_sequence_geometry(N=5, length=500.0)
+    geometry = build_arc_sequence_geometry(N=arc_number, length=arc_length)
     # _geom_dir = os.path.dirname(_geom_module.__file__)
     # geometry = create_maze_geometry(
     #     data_dir=os.path.join(_geom_dir, "maze_3_data"),
@@ -268,15 +340,23 @@ def run_evolution_with_time_stepper(config_file: Optional[str] = None):
     # ============================================================================
     
     print(f"\nStep 6: Creating final visualization...")
-    
-    plotter.plot_2d_curves(
+
+    fig_final = plotter.plot_2d_curves(
         final_traces,
         title=f"Final 2D Curves at t={current_time:.2f}",
         save_filename="final_2d_curves.png",
     )
-    
+
+    # Superpose exact solution if available
+    exact_solutions = _load_exact_solutions(config_file)
+    if _overlay_exact_solutions(fig_final, plotter, exact_solutions, current_time):
+        save_path = plotter._get_save_path("final_2d_curves.png")
+        if save_path:
+            fig_final.savefig(save_path, dpi=300, bbox_inches='tight')
+        print("✓ Exact solution overlay added")
+
     # Evolution comparison
- 
+
     print("✓ Final visualization completed")
     
     # ============================================================================
@@ -306,6 +386,8 @@ def run_evolution_with_adaptive_time_stepper(
     dt_min: Optional[float] = None,
     dt_max: Optional[float] = None,
     safety_factor: float = 0.8,
+    arc_number: int = 3,
+    arc_length: float = 500.0,
 ):
     """Time evolution using the AdaptiveTimeStepper.
 
@@ -321,6 +403,8 @@ def run_evolution_with_adaptive_time_stepper(
         dt_min: Minimum allowed time step (default: dt_config * 1e-4).
         dt_max: Maximum allowed time step (default: dt_config).
         safety_factor: Safety factor for time step adjustment.
+        arc_number: Number of arcs in the sequence geometry (N parameter).
+        arc_length: Length of each arc in the sequence geometry.
 
     Returns:
         (setup, time_stepper, solution_history, time_history, dt_history)
@@ -344,7 +428,7 @@ def run_evolution_with_adaptive_time_stepper(
 
     print("Step 1: Setting up solver...")
 
-    geometry = build_arc_sequence_geometry(N=3, length=500.0)
+    geometry = build_arc_sequence_geometry(N=arc_number, length=arc_length)
 
     try:
         setup = quick_setup(
@@ -499,31 +583,20 @@ def run_evolution_with_adaptive_time_stepper(
     # STEP 6: FINAL VISUALIZATION
     # ====================================================================
 
-    print(f"\nStep 6: Creating visualizations (3 intermediate + final)...")
-
-    # --- Intermediate 2D curve snapshots at T/4, T/2, 3T/4 ---
-    snapshot_fractions = [0.25, 0.50, 0.75]
-    t_arr_hist = np.array(time_history)
-
-    for frac in snapshot_fractions:
-        t_target = frac * T
-        idx = int(np.argmin(np.abs(t_arr_hist - t_target)))
-        t_snap = time_history[idx]
-        snap_traces, _ = setup.extract_domain_solutions(solution_history[idx])
-        label = f"{frac:.0%}".replace("%", "pct")
-        plotter.plot_2d_curves(
-            snap_traces,
-            title=f"2D Curves at t={t_snap:.2f}",
-            save_filename=f"curves_2d_t{label}.png",
-        )
-        print(f"  \u2713 Snapshot at t = {t_snap:.2f} (target {t_target:.2f})")
+    print(f"\nStep 6: Creating final visualization...")
 
     # --- Final 2D curves ---
-    plotter.plot_2d_curves(
+    exact_solutions = _load_exact_solutions(config_file)
+    fig_final = plotter.plot_2d_curves(
         final_traces,
         title=f"Final 2D Curves at t={current_time:.2f}",
         save_filename="final_2d_curves.png",
     )
+    if _overlay_exact_solutions(fig_final, plotter, exact_solutions, current_time):
+        save_path = plotter._get_save_path("final_2d_curves.png")
+        if save_path:
+            fig_final.savefig(save_path, dpi=300, bbox_inches='tight')
+        print(f"  \u2713 Exact solution overlay added")
     print(f"  \u2713 Final snapshot at t = {current_time:.2f}")
 
     # ====================================================================
@@ -545,7 +618,8 @@ def run_evolution_with_adaptive_time_stepper(
         fig_dt.savefig(dt_plot_path, dpi=150)
         print(f"\u2713 dt evolution plot saved to {dt_plot_path}")
 
-    # Close all figures
+    # Display all figures, then close
+    plt.show()
     plotter.close_all()
     plt.close('all')
     print(f"\n\u2713 All figures saved to {run_dir} and closed.")
@@ -613,6 +687,7 @@ if __name__ == "__main__":
     Usage:
         python evolution_example_ooc.py [config.toml]              # fixed dt
         python evolution_example_ooc.py --adaptive [config.toml]   # adaptive dt
+        python evolution_example_ooc.py --arc-number 5 --arc-length 300.0 [config.toml]
     """
 
     # Parse a simple --adaptive flag
@@ -621,6 +696,24 @@ if __name__ == "__main__":
     if "--adaptive" in args:
         use_adaptive = True
         args.remove("--adaptive")
+
+    # Parse --arc-number and --arc-length flags
+    arc_number = 3
+    arc_length = 500.0
+    for flag, attr, conv in (
+        ("--arc-number", "arc_number", int),
+        ("--arc-length", "arc_length", float),
+    ):
+        if flag in args:
+            idx = args.index(flag)
+            if idx + 1 >= len(args):
+                print(f"Error: {flag} requires a value")
+                sys.exit(1)
+            if flag == "--arc-number":
+                arc_number = conv(args[idx + 1])
+            else:
+                arc_length = conv(args[idx + 1])
+            del args[idx:idx + 2]
 
     # Check for config file argument
     config_file = None
@@ -642,7 +735,9 @@ if __name__ == "__main__":
     
     try:
         if use_adaptive:
-            result = run_evolution_with_adaptive_time_stepper(config_file)
+            result = run_evolution_with_adaptive_time_stepper(
+                config_file, arc_number=arc_number, arc_length=arc_length
+            )
 
             if result[0] is None:
                 print(f"\n🛑 Stopping execution due to configuration error")
@@ -650,7 +745,9 @@ if __name__ == "__main__":
 
             setup, time_stepper, sol_history, time_hist, dt_hist = result
         else:
-            result = run_evolution_with_time_stepper(config_file)
+            result = run_evolution_with_time_stepper(
+                config_file, arc_number=arc_number, arc_length=arc_length
+            )
 
             if result[0] is None:
                 print(f"\n🛑 Stopping execution due to configuration error")

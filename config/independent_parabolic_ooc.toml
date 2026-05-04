@@ -1,0 +1,96 @@
+# OrganOnChip Problem Configuration
+# Physical parameters from MATLAB TestProblem.m
+
+[problem]
+name = "OoC_Arc_Problem"
+neq = 4
+problem_type = "ooc"  # Config validation type (NOT the same as StaticCondensation problem_type)
+
+
+[time_parameters]
+T = 1.0   # Final time
+dt = 0.1  # Time step
+
+[physical_parameters.viscosity]
+nu = 1.0      # D_M: diffusivity of immune cells
+mu = 1.0      # D_phi: diffusivity of chemoattractant phi
+epsilon = 1.0 # D_omega: diffusivity of chemoactractant omega
+sigma = 1.0     # D_T: diffusivity of tumor cells (56.0)
+
+[physical_parameters.reaction]
+a = 1.0       # beta_phi: consumption rate of phi
+c = 1.0      # beta_omega: consumption rate of omega
+
+[physical_parameters.coupling]
+b = 0.0       # alpha_phi: production rate of phi
+d = 0.0       # alpha_omega: production rate of omega
+
+# Chemotaxis: chi(x) = k1 / (k2 + x)^2
+[physical_parameters.chemotaxis]
+type = "receptor_saturation"  # Type of chemotaxis function
+k1 = 0     # cellular drift velocity
+k2 = 5.0e-6     # receptor dissociation constant
+
+# Tumor suppression: lambda(x) = m1 / (m2 + x)
+[physical_parameters.tumor_suppression]
+m1 = 0.0  # k_omega1: killing efficiency of omega on tumor cells
+m2 = 1.0  # k_omega2: dissociation constant
+
+[discretization]
+n_elements = 10    # Used when h is absent; ignored when h is provided
+# h = 15.0         # Target mesh size — n_elements computed per domain (even, >= 4)
+tau = [0.5, 0.5, 0.5, 0.5]
+
+[initial_conditions]
+u = "zeros"      # Default: zero initial condition
+omega = "zeros"  # Default: zero initial condition  
+v = "zeros"      # Default: zero initial condition
+phi = "zeros"    # Default: zero initial condition
+
+[force_functions]
+u = "s"      # Default: zero force
+omega = "zeros"  # Default: zero force
+v = "zeros"      # Default: zero force
+phi = "zeros"    # Default: zero force
+
+# Domain-specific overrides for initial conditions
+# Format: "domain_<id>_<equation_name>" = "function_name"
+[domain_initial_conditions]
+# domain_0_v = "100 + 0.0*s"     # Domain 0, equation v -> exponential function  
+# domain_2_u = "100 + 0.0*s"     # Domain 5, equation u -> constant function
+
+# Domain-specific overrides for force functions
+# Format: "domain_<id>_<equation_name>" = "function_name"  
+[domain_force_functions]
+# No domain-specific forces by default
+# domain_1_omega = "sin_2pi"  # Example: Domain 1, equation omega -> sin_2pi function
+
+# Exact solutions for error analysis (set to a function name or expression if known,
+# leave as "none" if no analytical solution is available).
+[exact_solutions]
+u = "t * s"
+omega = "zero"
+v = "zero"
+phi = "zero"
+
+# Pointwise derivatives of the exact solutions (used for flux/gradient error norms).
+# Set to "none" if not available.
+[exact_solution_derivatives]
+u = "none"
+omega = "none"
+v = "none"
+phi = "none"
+
+# Boundary condition overrides (per B-point, per equation)
+# Keys: "<point_name>_<equation_name>"
+# Values: { type = "dirichlet|neumann|robin", data = "function_name", ... }
+# Default (when omitted): homogeneous Neumann on every boundary for every equation
+#
+[boundary_conditions]
+B0_u   = { type = "dirichlet", data = "zeros" }
+B1_u   = { type = "dirichlet", data = "t*s" }
+# B1_u   = { type = "dirichlet", data = "zeros" }
+# B2_phi = { type = "neumann",   data = "150.0+0.0*t" }
+# B0_u   = { type = "robin", alpha = 1.0, beta = -1.0, data = "zeros" }
+# B1_v   = { type = "neumann", data = "500.0+0.0*t" }
+
