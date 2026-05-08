@@ -227,9 +227,9 @@ def run_evolution_with_time_stepper(
     print("\nPlotting geometry...")
     
     setup.compute_geometry_from_problems()
-    plotter.plot_geometry_with_indices(geometry=setup.geometry,
-                                       save_filename="geometry_with_indices.png")
-    print("✓ Geometry plot created")
+    # plotter.plot_geometry_with_indices(geometry=setup.geometry,
+    #                                    save_filename="geometry_with_indices.png")
+    # print("✓ Geometry plot created")
     
     # # Plot initial state
     # initial_traces, _ = setup.extract_domain_solutions(current_solution)
@@ -489,10 +489,10 @@ def run_evolution_with_adaptive_time_stepper(
     print(f"\u2713 Plotter initialized for {plotter.ndom} domains, {plotter.neq} equations")
 
     setup.compute_geometry_from_problems()
-    plotter.plot_geometry_with_indices(
-        geometry=setup.geometry, save_filename="geometry_with_indices.png"
-    )
-    print("\u2713 Geometry plot created")
+    # plotter.plot_geometry_with_indices(
+    #     geometry=setup.geometry, save_filename="geometry_with_indices.png"
+    # )
+    # print("\u2713 Geometry plot created")
 
     # ====================================================================
     # STEP 4: TIME EVOLUTION (ADAPTIVE)

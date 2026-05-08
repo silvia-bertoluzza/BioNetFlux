@@ -37,7 +37,7 @@ m1 = 0.0  # k_omega1: killing efficiency of omega on tumor cells
 m2 = 1.0  # k_omega2: dissociation constant
 
 [discretization]
-n_elements = 10    # Used when h is absent; ignored when h is provided
+n_elements = 40    # Used when h is absent; ignored when h is provided
 # h = 15.0         # Target mesh size — n_elements computed per domain (even, >= 4)
 tau = [0.5, 0.5, 0.5, 0.5]
 
