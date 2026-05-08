@@ -230,3 +230,130 @@ class TestApplyBoundaryOverridesErrors:
         overrides = {"B1_u": "dirichlet"}
         with pytest.raises(ValueError, match="must be a table/dict"):
             apply_boundary_overrides(cm, overrides, bpm, eqn)
+
+
+# ===========================================================================
+#  Geometry builder boundary_point_map tests
+# ===========================================================================
+
+class TestGeometryBoundaryPointMap:
+    """Verify that geometry builder functions populate boundary_point_map
+    in their global metadata so that apply_boundary_overrides can consume it.
+    """
+
+    @pytest.mark.unit
+    def test_build_arc_sequence_geometry_two_boundary_points(self):
+        """build_arc_sequence_geometry always has exactly 2 exterior boundary
+        points regardless of N: B0 at the inlet and B1 at the outlet."""
+        from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry
+
+        for N in (1, 2, 4):
+            geometry = build_arc_sequence_geometry(N=N, start=0.0, length=1.0)
+            bpm = geometry.get_global_metadata().get("boundary_point_map", {})
+            assert len(bpm) == 2, f"Expected 2 boundary points for N={N}, got {len(bpm)}"
+            assert "B0" in bpm, "B0 (inlet) missing from boundary_point_map"
+            assert "B1" in bpm, "B1 (outlet) missing from boundary_point_map"
+            # B0 is at the inlet of domain 0
+            b0_domain, b0_pos = bpm["B0"]
+            assert b0_domain == 0
+            assert abs(b0_pos - 0.0) < 1e-12
+            # B1 is at the outlet of domain N-1
+            b1_domain, b1_pos = bpm["B1"]
+            assert b1_domain == N - 1
+            assert abs(b1_pos - float(N)) < 1e-12
+
+    @pytest.mark.unit
+    def test_build_arc_sequence_geometry_custom_start_and_length(self):
+        """Boundary positions follow start + N*length even for non-default values."""
+        from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry
+
+        geometry = build_arc_sequence_geometry(N=3, start=10.0, length=50.0)
+        bpm = geometry.get_global_metadata()["boundary_point_map"]
+        _, b0_pos = bpm["B0"]
+        _, b1_pos = bpm["B1"]
+        assert abs(b0_pos - 10.0) < 1e-12
+        assert abs(b1_pos - 160.0) < 1e-12  # 10 + 3*50
+
+    @pytest.mark.unit
+    def test_build_grid_geometry_eight_boundary_points(self):
+        """build_grid_geometry (default N=4) must expose B0..B7 — two boundary
+        points per vertical segment (S1, S2, S3, S4)."""
+        from bionetflux.geometry.domain_geometry import build_grid_geometry
+
+        geometry = build_grid_geometry()
+        bpm = geometry.get_global_metadata().get("boundary_point_map", {})
+        expected_keys = {f"B{i}" for i in range(8)}
+        assert expected_keys == set(bpm.keys()), (
+            f"Expected keys {sorted(expected_keys)}, got {sorted(bpm.keys())}"
+        )
+        # Every entry must be a (domain_id, position) pair
+        for key, value in bpm.items():
+            assert isinstance(value, tuple) and len(value) == 2, (
+                f"{key} must be a (domain_id, position) tuple"
+            )
+            domain_id, position = value
+            assert isinstance(domain_id, int)
+            assert isinstance(position, float)
+
+    @pytest.mark.unit
+    def test_build_T_junction_geometry_three_boundary_points(self):
+        """build_T_junction_geometry must expose B0, B1, B2 — two endpoints of
+        the main channel and one end of the branch."""
+        from bionetflux.problems.ooc_problem import build_T_junction_geometry
+
+        geometry = build_T_junction_geometry()
+        bpm = geometry.get_global_metadata().get("boundary_point_map", {})
+        assert set(bpm.keys()) == {"B0", "B1", "B2"}, (
+            f"Expected B0/B1/B2, got {sorted(bpm.keys())}"
+        )
+        # B0: main_channel (domain 0) at -500
+        assert bpm["B0"] == (0, -500.0)
+        # B1: main_channel (domain 0) at +500
+        assert bpm["B1"] == (0, 500.0)
+        # B2: branch (domain 1) at 0
+        assert bpm["B2"] == (1, 0.0)
+
+    @pytest.mark.integration
+    def test_grid_geometry_override_replaces_neumann_with_dirichlet(self):
+        """End-to-end: build grid geometry, set up default Neumann constraints,
+        apply a Dirichlet override for B0, and verify the result."""
+        from bionetflux.geometry.domain_geometry import build_grid_geometry
+        from bionetflux.problems.ooc_problem import setup_constraints_from_geometry
+
+        geometry = build_grid_geometry()
+        neq = 4
+        # setup_constraints_from_geometry only requires geometry and neq
+        # (the problems list is only used for printing; we pass an empty stub)
+        cm = setup_constraints_from_geometry(geometry, [], neq)
+
+        bpm = geometry.get_global_metadata()["boundary_point_map"]
+        equation_names = ["u", "omega", "v", "phi"]
+
+        # Override B0_u → Dirichlet
+        overrides = {"B0_u": {"type": "dirichlet", "data": "zeros"}}
+        apply_boundary_overrides(
+            cm, overrides, bpm, equation_names, _FakeFunctionResolver()
+        )
+
+        # Find the constraint that now lives at B0 for eq u
+        b0_domain, b0_pos = bpm["B0"]
+        eq_u = 0
+        indices = cm.find_constraints(
+            domain_index=b0_domain,
+            equation_index=eq_u,
+            constraint_type=ConstraintType.DIRICHLET,
+            position=b0_pos,
+        )
+        assert len(indices) == 1
+        assert cm.constraints[indices[0]].type == ConstraintType.DIRICHLET
+
+        # All other boundary constraints at B0 (eq omega, v, phi) stay Neumann
+        for eq_idx in (1, 2, 3):
+            idx_list = cm.find_constraints(
+                domain_index=b0_domain,
+                equation_index=eq_idx,
+                constraint_type=ConstraintType.NEUMANN,
+                position=b0_pos,
+            )
+            assert len(idx_list) == 1
+            assert cm.constraints[idx_list[0]].type == ConstraintType.NEUMANN

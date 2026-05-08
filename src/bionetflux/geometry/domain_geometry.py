@@ -1287,6 +1287,14 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
             parameter2=s3_param     # Corresponding point on S3
         )
     
+    # Build boundary_point_map: sequential keys B0, B1, ... in add_exterior_boundary call order.
+    # This enables TOML [boundary_conditions] overrides via apply_boundary_overrides.
+    boundary_point_map = {
+        f"B{k}": (conn.domain1_id, conn.parameter1)
+        for k, conn in enumerate(geometry.get_boundary_connections())
+    }
+    geometry.set_global_metadata(boundary_point_map=boundary_point_map)
+
     print(f"✓ Default grid geometry created:")
     print(f"  - 4 vertical segments (S1, S2, S3, S4)")
     print(f"  - {2*N} lower horizontal connectors (-0.9 < y < -0.2)")
@@ -1295,7 +1303,8 @@ def build_grid_geometry(N: int = 4, length: float = 1.0):
     print(f"  - Total connections: {geometry.num_connections()}")
     print(f"    - Boundary connections: {len(geometry.get_boundary_connections())}")
     print(f"    - Interior connections: {len(geometry.get_interior_connections())}")
-    
+    print(f"  - Boundary point map: {list(boundary_point_map.keys())}")
+
     return geometry
 
 def build_arc_sequence_geometry(N: int = 2, start: float = 0.0, length: float = 1.0):
@@ -1375,6 +1384,14 @@ def build_arc_sequence_geometry(N: int = 2, start: float = 0.0, length: float = 
             connection_type="trace_continuity"
         )
     
+    # Build boundary_point_map: B0 = inlet (domain 0), B1 = outlet (domain N-1).
+    # This enables TOML [boundary_conditions] overrides via apply_boundary_overrides.
+    boundary_point_map = {
+        f"B{k}": (conn.domain1_id, conn.parameter1)
+        for k, conn in enumerate(geometry.get_boundary_connections())
+    }
+    geometry.set_global_metadata(boundary_point_map=boundary_point_map)
+
     print(f"✓ Arc sequence geometry created:")
     print(f"  - {N} aligned segments along y=0.5")
     print(f"  - Each segment: length={length}, parameter space [0, 1]")
@@ -1383,7 +1400,8 @@ def build_arc_sequence_geometry(N: int = 2, start: float = 0.0, length: float = 
     print(f"  - Total connections: {geometry.num_connections()}")
     print(f"    - Boundary connections: {len(geometry.get_boundary_connections())}")
     print(f"    - Interior connections: {len(geometry.get_interior_connections())}")
-    
+    print(f"  - Boundary point map: {list(boundary_point_map.keys())}")
+
     return geometry
 
 def build_labyrinth_geometry(n_cols: int = 3, n_rows: int = 8, cell_size: float = 1.0):
