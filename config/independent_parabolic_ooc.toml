@@ -9,7 +9,7 @@ problem_type = "ooc"  # Config validation type (NOT the same as StaticCondensati
 
 [time_parameters]
 T = 1.0   # Final time
-dt = 0.1  # Time step
+dt = 0.025 # Time step
 
 [physical_parameters.viscosity]
 nu = 1.0      # D_M: diffusivity of immune cells
@@ -48,7 +48,7 @@ v = "zeros"      # Default: zero initial condition
 phi = "zeros"    # Default: zero initial condition
 
 [force_functions]
-u = "sin(s) + t * sin(s)"      # Default: zero force
+u = "sin(s + 2*t) + 2 * t * cos(s+2*t) + t * sin(s + 2*t)"      # Default: zero force
 omega = "zeros"  # Default: zero force
 v = "zeros"      # Default: zero force
 phi = "zeros"    # Default: zero force
@@ -68,7 +68,7 @@ phi = "zeros"    # Default: zero force
 # Exact solutions for error analysis (set to a function name or expression if known,
 # leave as "none" if no analytical solution is available).
 [exact_solutions]
-u = "t * sin(s)"
+u = "t * sin(s + 2*t)"  # Example: u(s,t) = t * sin(s + 2*t)
 omega = "zero"
 v = "zero"
 phi = "zero"
@@ -87,8 +87,8 @@ phi = "none"
 # Default (when omitted): homogeneous Neumann on every boundary for every equation
 #
 [boundary_conditions]
-B0_u   = { type = "neumann", data = "-t * cos(s)" }
-B1_u   = { type = "neumann", data = "t * cos(s)" }
+B0_u   = { type = "dirichlet", data = "t * sin(s + 2*t)" }
+B1_u   = { type = "neumann", data = "t * cos(s + 2*t)" }
 # B1_u   = { type = "dirichlet", data = "zeros" }
 # B2_phi = { type = "neumann",   data = "150.0+0.0*t" }
 # B0_u   = { type = "robin", alpha = 1.0, beta = -1.0, data = "zeros" }

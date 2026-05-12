@@ -60,14 +60,6 @@ class StaticCondensationOOC(StaticCondensationBase):
         self.chi_func = self.problem.chi
         self.dchi_func = self.problem.dchi
 
-        # --- DEBUG CHECK 1: verify chi is set and evaluates as expected ---
-        assert self.chi_func is not None, "[DEBUG] chi not set on problem before build_matrices — call problem.set_chemotaxis() first"
-        assert self.dchi_func is not None, "[DEBUG] dchi not set on problem before build_matrices — call problem.set_chemotaxis() first"
-        _test_phi = 1.0
-        print(f"[DEBUG build_matrices] chi({_test_phi}) = {self.chi_func(_test_phi):.6e}")
-        print(f"[DEBUG build_matrices] dchi({_test_phi}) = {self.dchi_func(_test_phi):.6e}")
-        # --- END DEBUG CHECK 1 ---
-
         # Get lambda function and its derivative
         self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
         self.dlambda_func = getattr(self.problem, 'dlambda_function', lambda x: np.zeros_like(x))
@@ -301,16 +293,6 @@ class StaticCondensationOOC(StaticCondensationBase):
         barchi = self.chi_func(barphi)
         dbarchi = self.dchi_func(barphi)
 
-        # --- DEBUG CHECK 2: inspect chi term magnitude vs diffusion term ---
-        if not hasattr(self, '_debug_sc_call_count'):
-            self._debug_sc_call_count = 0
-        self._debug_sc_call_count += 1
-        if self._debug_sc_call_count <= 3:  # print only first 3 calls to avoid flooding
-            print(f"[DEBUG static_condensation call #{self._debug_sc_call_count}]")
-            print(f"  barphi={barphi:.4e}  barchi={barchi:.4e}  dbarchi={dbarchi:.4e}")
-            print(f"  u1={u1.flatten()}  u4={u4.flatten()}")
-        # --- END DEBUG CHECK 2 (pre-JAC part; full term printed below) ---
-
         # Compute Jacobian for Newton method
         # Initialize JAC following MATLAB logic
         JAC = np.zeros((8, 8))
@@ -338,16 +320,6 @@ class StaticCondensationOOC(StaticCondensationBase):
         
         # Construction of j and dj (Q is multiplied by barchi at runtime)
         j = hB4 @ hU + barchi * tJ.T @ Q @ U
-
-        # --- DEBUG CHECK 2 (continued): compare chi term vs base diffusion term ---
-        if self._debug_sc_call_count <= 3:
-            _chi_term = (barchi * tJ.T @ Q @ U).item() if np.ndim(barchi * tJ.T @ Q @ U) > 0 else float(barchi * tJ.T @ Q @ U)
-            _diff_term = (hB4 @ hU).item() if np.ndim(hB4 @ hU) > 0 else float(hB4 @ hU)
-            print(f"  tJ (phi block tJ[4:6]) = {tJ[4:6].flatten()}")
-            print(f"  Q@U (nonzero rows 4:6) = {(Q @ U)[4:6].flatten()}")
-            print(f"  barchi * tJ^T Q U = {_chi_term:.4e}  (chi term in j)")
-            print(f"  hB4 @ hU           = {_diff_term:.4e}  (diffusion term in j)")
-        # --- END DEBUG CHECK 2 ---
 
         # WARNING: the formula for dbarphi_dhU needs to be checked against the theory
         dbarphi_dhU = Av @ R[3] @ JAC                           # (1, 8)
