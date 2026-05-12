@@ -343,7 +343,7 @@ class StaticCondensationOOC(StaticCondensationBase):
         # Return in expected format
         bulk_solution = U.reshape(-1, 1)
         
-        flux = None  # Placeholder if needed
+        flux = np.concatenate([j.flatten(), tJ.flatten()])
         
         return bulk_solution, flux, flux_jump, jacobian
 
