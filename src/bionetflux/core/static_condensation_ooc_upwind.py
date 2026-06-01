@@ -1,0 +1,361 @@
+import numpy as np
+from typing import Dict, Tuple
+
+from .problem import Problem
+from .static_condensation_base import StaticCondensationBase
+
+# sys.path hack — commented out, use pip install -e . instead
+# import sys, os
+# current_dir = os.path.dirname(os.path.abspath(__file__))
+# python_port_dir = os.path.dirname(os.path.dirname(current_dir))
+# if python_port_dir not in sys.path:
+#     sys.path.insert(0, python_port_dir)
+    
+class StaticCondensationOOCUpwind(StaticCondensationBase):
+    """
+    Static condensation implementation for OrganOnChip problems.
+    Python port from MATLAB reference implementation.
+    
+    Implements the 4-equation OrganOnChip system:
+    - u: primary variable (equation 1)
+    - omega: auxiliary variable (equation 2) 
+    - v: auxiliary variable (equation 3)
+    - phi: primary variable (equation 4)
+
+    Flux polynomial orders:
+        - Equation 0 (u): P0 flux (1 DOF per element)
+        - Equation 1 (ω): P1 flux (2 DOFs per element)
+        - Equation 2 (v): P1 flux (2 DOFs per element)
+        - Equation 3 (φ): P1 flux (2 DOFs per element)
+    """
+
+    def __init__(self, problem, global_disc, elementary_matrices, ipb=0):
+        super().__init__(problem, global_disc, elementary_matrices, ipb)
+        self.flux_orders = [0, 1, 1, 1]  # P0 for u, P1 for ω, v, φ
+    
+    def build_matrices(self):
+        """
+        Build static condensation matrices for OrganOnChip problem.
+        Python port from MATLAB scBlocks.m
+        
+        Returns:
+            Dict containing all static condensation matrices
+        """
+        h = self.discretization.element_length
+        
+        # Get chi and dchi as callables from problem (set via set_chemotaxis)
+        self.chi_func = self.problem.chi
+        self.dchi_func = self.problem.dchi
+
+        # Get lambda function and its derivative
+        self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
+        self.dlambda_func = getattr(self.problem, 'dlambda_function', lambda x: np.zeros_like(x))
+        
+        # Initialize sc_matrices storage
+        self.sc_matrices = {}
+        
+        
+        # Get elementary matrices
+        M = h * self.elementary_matrices.get_matrix('M')
+        Gb = self.elementary_matrices.get_matrix('Gb')
+        T = self.elementary_matrices.get_matrix('T')
+        D = self.elementary_matrices.get_matrix('D')
+        IM = self.elementary_matrices.get_matrix('IM') / h
+        Av = self.elementary_matrices.get_matrix('Av')
+        Nhat = self.elementary_matrices.get_matrix('Nhat')
+        QUAD = h * self.elementary_matrices.get_matrix('QUAD')
+        
+        # Store basic matrices
+        self.sc_matrices.update({
+            'M': M,
+            'D': D,
+            'Gb': Gb,
+            'T': T,
+            'IM': IM,
+            'Av': Av,
+            'QUAD': QUAD
+        })
+        
+        # Compute derived matrices
+        R = IM @ D # Checked
+        Rhat = IM @ Nhat # Checked
+        self.sc_matrices.update({'R': R, 'Rhat': Rhat})
+        
+        return self.sc_matrices
+
+    def static_condensation(self, local_trace, local_source=None, **kwargs):
+        """
+        Perform OrganOnChip static condensation step.
+        Python port from MATLAB StaticC.m
+        
+        Args:
+            local_trace: hU = [hu1; homega; hv; hphi] (8x1)
+            local_source: rhs = [g1; g2; g3; g4] (8x1)  
+            
+        Returns:
+            Tuple (bulk_solution, flux_jump, jacobian)
+        """
+        
+        # Handle None local_source
+        if local_source is None:
+            local_source = np.zeros(8)
+        
+        # Ensure proper shapes
+        if local_trace.ndim == 1:
+            local_trace = local_trace.reshape(-1, 1)
+        if local_source.ndim == 1:
+            local_source = local_source.reshape(-1, 1)
+            
+        # Validate dimensions
+        if local_trace.shape[0] != 8:
+            raise ValueError(f"local_trace must be 8x1 for OrganOnChip (4 eqs), got {local_trace.shape}")
+        if local_source.shape[0] != 8:
+            raise ValueError(f"local_source must be 8x1 for OrganOnChip (4 eqs), got {local_source.shape}")
+        
+        # Extract components following MATLAB StaticC.m
+        hu = [local_trace[2*i:2*i+2] for i in range(4)]
+        g = [local_source[2*i:2*i+2] for i in range(4)]
+        dt = self.dt
+
+        # Extract OrganOnChip parameters following MATLAB order
+        nu = self.problem.parameters[0]      # viscosity
+        mu = self.problem.parameters[1]      # viscosity
+        epsilon = self.problem.parameters[2] # viscosity
+        sigma = self.problem.parameters[3]   # viscosity
+        a = self.problem.parameters[4]       # reaction parameter
+        b = self.problem.parameters[5]       # coupling parameter
+        c = self.problem.parameters[6]       # reaction parameter
+        d = self.problem.parameters[7]     # coupling parameter
+
+        beta = 1 / mu
+
+        h = self.discretization.element_length
+
+        # Get stabilization parameters
+        tau = self.discretization.tau if hasattr(self.discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
+        tu = tau[0] / h  # tau for u
+        to = tau[1]      # tau for omega
+        tv = tau[2]      # tau for v
+        tp = tau[3]      # tau for phi
+        
+        # Get basic cached matrices
+        M, D = self.sc_matrices['M'], self.sc_matrices['D']
+        Gb, T = self.sc_matrices['Gb'], self.sc_matrices['T']
+        Av = self.sc_matrices['Av']
+        Rmat, Rhat = self.sc_matrices['R'], self.sc_matrices['Rhat']
+
+        # Get elementary matrices needed for local static-condensation block assembly
+        Mb = self.elementary_matrices.get_matrix('Mb')
+        Ntil = self.elementary_matrices.get_matrix('Ntil')
+        Nhat = self.elementary_matrices.get_matrix('Nhat')
+
+        normali = np.array([-1.0, 1.0])
+        Z = np.zeros((2, 2))
+
+        # Step 1: Matrix for u equation
+        A1 = M + dt * tu * Mb
+        L1 = np.linalg.inv(A1)
+        H1 = dt * tu * Gb
+        B1 = L1 @ H1
+
+        # Step 2: Matrices for omega equation
+        E1 = dt * (Ntil - D) @ Rmat
+        E1hat = dt * (Ntil - D) @ Rhat
+
+        A2 = M + epsilon * E1 + dt * to * Mb + dt * c * M
+        L2 = np.linalg.inv(A2)
+        H2 = dt * d * M @ B1
+        K2 = epsilon * E1hat + to * dt * Gb
+        # ATTENTION - B2 and C2 were switched with respect to notes / now fixed
+        B2 = L2 @ K2
+        C2 = L2 @ H2
+
+        # Step 3: Matrices for v equation
+        A3 = M + sigma * E1 + dt * tv * Mb
+        S3 = dt * M
+        H3 = sigma * E1hat + dt * tv * Gb
+
+        # Step 4: Matrices for phi equation
+        A4 = M + mu * E1 + dt * tp * Mb + dt * a * M
+        H4 = mu * E1hat + dt * tp * Gb
+        K4 = dt * b * M
+        L4 = np.linalg.inv(A4)
+        # ATTENTION - B4 and C4 were switched with respect to notes / now fixed
+        B4 = L4 @ H4
+        C4 = L4 @ K4
+
+        # Matrices for flux jump construction
+        D1 = np.block([
+            [Z, epsilon * Rmat, Z, Z],
+            [Z, Z, sigma * Rmat, Z],
+            [Z, Z, Z, mu * Rmat]
+        ])
+
+        D2 = np.block([
+            [Z, epsilon * Rhat, Z, Z],
+            [Z, Z, sigma * Rhat, Z],
+            [Z, Z, Z, mu * Rhat]
+        ])
+
+        # Matrices for j construction
+        hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h
+
+        Q = -nu * beta * np.block([
+            [Z, Z, Z, Z],
+            [Z, Z, Z, Z],
+            [M, Z, Z, Z]
+        ]) / h
+
+        # Matrices for final flux jump assembly
+        # B5 = -nu * normali / h
+        B5 = normali  # 1 x 2 matrix
+        B6 = tu * T @ np.block([np.eye(2), Z, Z, Z])
+        B7 = -tu * np.block([np.eye(2), Z, Z, Z])
+
+        hatB0 = np.block([
+            [Nhat.T, Z, Z],
+            [Z, Nhat.T, Z],
+            [Z, Z, Nhat.T]
+        ])
+
+        tau_diag = np.diag([to, to, tv, tv, tp, tp])
+        hatB1 = tau_diag @ np.block([
+            [Z, T, Z, Z],
+            [Z, Z, T, Z],
+            [Z, Z, Z, T]
+        ])
+
+        hatB2 = tau_diag @ np.block([
+            [Z, np.eye(2), Z, Z],
+            [Z, Z, np.eye(2), Z],
+            [Z, Z, Z, np.eye(2)]
+        ])
+        
+        # Step 1: Compute u
+        y1 = L1 @ g[0]
+        u1 = B1 @ hu[0] + y1
+        
+        # Step 2: Compute omega  
+        y2 = L2 @ (g[1] + self.dt * d * M @ y1)
+        u2 = C2 @ hu[0] + B2 @ hu[1] + y2
+        
+        # Step 3: Compute average omega and lambda values
+        bar_omega = Av @ u2
+        bar_lambda = self.lambda_func(bar_omega)
+        dbar_lambda = self.dlambda_func(bar_omega)
+        
+        # Step 4: Compute v (omega-dependent)
+        L3 = np.linalg.inv(A3 + bar_lambda * S3)
+        y3 = L3 @ g[2]
+        B3 = L3 @ H3
+        u3 = B3 @ hu[2] + y3
+        
+        # Step 5: Compute phi
+        u4 = B4 @ hu[3] + C4 @ u3 + L4 @ g[3]
+        
+        # Assemble bulk solution U = [u1; u2; u3; u4]
+        U = np.concatenate([u1, u2, u3, u4])
+        
+        # Step 5b: Compute average phi and evaluate chi
+        barphi = (Av @ u4).item()
+        barchi = self.chi_func(barphi)
+        dbarchi = self.dchi_func(barphi)
+
+        # Compute Jacobian for Newton method
+        # Initialize JAC following MATLAB logic
+        JAC = np.zeros((8, 8))
+        
+        # Restriction matrices
+        R = [np.zeros((2, 8)) for _ in range(4)]
+        for i in range(4):
+            R[i][:, 2*i:2*i+2] = np.eye(2)
+        
+        # Build Jacobian following MATLAB StaticC.m
+        JAC += R[0].T @ B1 @ R[0]
+        JAC += R[1].T @ (C2 @ R[0] + B2 @ R[1])
+        
+        # Jacobian for v equation (omega-dependent)
+        J0 = L3 @ H3
+        J1 = dbar_lambda * L3 @ S3 @ (H3 @ hu[2] + g[2]) @ Av
+        JAC += R[2].T @ (J0 @ R[2] + J1 @ R[2] @ JAC) # DO CHECK: was R[1] in previous version
+        
+        JAC += R[3].T @ (B4 @ R[3] + C4 @ R[2] @ JAC)
+        
+        # Compute flux jumps
+        hU = local_trace
+        tJ = D1 @ U - D2 @ hU
+        dtJ = D1 @ JAC - D2
+        
+        # Construction of j and dj (Q is multiplied by barchi at runtime)
+        j = hB4 @ hU + barchi * tJ.T @ Q @ U
+
+        # WARNING: the formula for dbarphi_dhU needs to be checked against the theory
+        dbarphi_dhU = Av @ R[3] @ JAC                           # (1, 8)
+        dj = hB4 - barchi * tJ.T @ Q @ JAC - barchi * U.T @ Q.T @ dtJ \
+             - dbarchi * (tJ.T @ Q @ U) * dbarphi_dhU            # (1, 8)
+        # Final flux jumps
+        
+        B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
+        hj = B5.T @ j + B6 @ U + B7 @ hU
+        
+        dhj = B5.T @ dj  +  B6 @ JAC + B7
+        
+        hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
+        dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2
+         
+        # Combine flux jumps 
+        flux_jump = np.concatenate([hj.flatten(), hJ_rest.flatten()])
+        
+        jacobian = np.vstack([dhj, dhJ_rest])
+
+        # Return in expected format
+        bulk_solution = U.reshape(-1, 1)
+        
+        flux = np.concatenate([j.flatten(), tJ.flatten()])
+        
+        return bulk_solution, flux, flux_jump, jacobian
+
+    def assemble_forcing_term(self, 
+                                previous_bulk_solution: np.ndarray, 
+                                external_force: np.ndarray) -> np.ndarray:
+        """
+        Assemble right-hand side for static condensation system.
+    
+        Computes: dt * external_forces + M * previous_bulk_solution
+    Args:
+        previous_bulk_solution: Bulk solution from previous time step
+        external_forces: External force terms (discrete form)
+        
+    Returns:
+        Assembled right-hand side vector
+        
+    Raises:
+        ValueError: If dimensions are incompatible
+        KeyError: If matrices haven't been built
+        """
+        
+  
+        if 'M' not in self.sc_matrices:
+            raise KeyError("Matrices not built. Call build_matrices() first.")
+        
+          
+        M = self.sc_matrices.get('M', None)
+        
+        # Validate dimensions
+        if previous_bulk_solution.shape[0] !=  4 * M.shape[1]:
+            raise ValueError(f"Incompatible dimensions: M is {M.shape}, "
+                            f"previous_bulk_solution is {previous_bulk_solution.shape}")
+
+        if external_force.shape != previous_bulk_solution.shape:
+            raise ValueError(f"Shape mismatch: external_force {external_force.shape} "
+                            f"!= previous_bulk_solution {previous_bulk_solution.shape}")
+
+             # Method 1: Using np.block (most readable)
+        Z = np.zeros_like(M)
+        M_block = np.block([[M, Z, Z, Z],
+                           [Z, M, Z, Z],
+                           [Z, Z, M, Z],
+                           [Z, Z, Z, M]])
+
+        right_hand_side = self.dt * external_force.copy() + M_block @ previous_bulk_solution
+        return right_hand_side
