@@ -7,6 +7,7 @@ import numpy as np
 import time
 from typing import List, Optional, Tuple
 from .newton_solver import NewtonSolver, NewtonResult
+from .picard_solver import PicardSolver, PicardResult
 # from .time_step_result import TimeStepResult
 
 @dataclass
@@ -63,6 +64,7 @@ class TimeStepper:
     """
     
     def __init__(self, setup, newton_solver: Optional[NewtonSolver] = None,
+                 picard_solver: Optional[PicardSolver] = None,
                  verbose: bool = True):
         """
         Initialize time stepper with solver setup and Newton solver.
@@ -70,10 +72,13 @@ class TimeStepper:
         Parameters:
             setup: SolverSetup instance with all framework components
             newton_solver: Newton solver instance (creates default if None)
+            picard_solver: Optional Picard solver instance.  When provided,
+                advance_time_step uses it instead of newton_solver.
             verbose: Whether to print progress information
         """
         self.setup = setup
         self.newton_solver = newton_solver or NewtonSolver(tolerance=1.e-7,verbose=False)
+        self.picard_solver = picard_solver
         self.verbose = verbose
         
         # Cache frequently used components
@@ -184,11 +189,13 @@ class TimeStepper:
                                             f"Forcing assembly failed: {e}",
                                             time.time() - start_time)
         
-        # Step 3: Solve nonlinear system using BioNetFlux-specific Newton solver
+        # Step 3: Solve nonlinear system (Newton or Picard depending on configuration).
+        active_solver = self.picard_solver if self.picard_solver is not None else self.newton_solver
+        solver_name = "Picard" if self.picard_solver is not None else "Newton"
         if self.verbose:
-            print(f"    Starting Newton iterations...")
+            print(f"    Starting {solver_name} iterations...")
         
-        newton_result = self.newton_solver.solve(
+        newton_result = active_solver.solve(
             initial_guess=current_solution,  # Use current_solution directly as Newton initial guess
             global_assembler=self.global_assembler,
             forcing_terms=forcing_terms,
@@ -198,7 +205,7 @@ class TimeStepper:
         
         if not newton_result.converged:
             if self.verbose:
-                print(f"    ✗ Newton solver failed to converge")
+                print(f"    ✗ {solver_name} solver failed to converge")
             return TimeStepResult(
                 converged=False,
                 iterations=newton_result.iterations,
@@ -382,7 +389,7 @@ class AdaptiveTimeStepper(TimeStepper):
                     value from the configuration file)
             safety_factor: Factor for time step adjustment
         """
-        super().__init__(setup, newton_solver, verbose)
+        super().__init__(setup, newton_solver=newton_solver, verbose=verbose)
         dt_config = setup.global_discretization.dt
         self.dt_min = dt_min if dt_min is not None else dt_config * 1e-4
         self.dt_max = dt_max if dt_max is not None else dt_config

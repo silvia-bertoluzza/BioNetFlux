@@ -7,7 +7,9 @@ def domain_flux_jump(
     forcing_term: np.ndarray,
     problem, # dummy placeholder for backwards compatibility
     discretization, # dummy placeholder for backwards compatibility
-    static_condensation
+    static_condensation,
+    prev_U: np.ndarray = None,
+    prev_J: np.ndarray = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Compute the local contribution to the flux balance equation for a domain.
@@ -21,6 +23,12 @@ def domain_flux_jump(
         problem: Problem instance containing boundary conditions
         discretization: Discretization parameters
         static_condensation: Static condensation implementation
+        prev_U: Optional (2*neq)×N matrix of bulk solutions from the previous iteration.
+                If provided, column k is passed to static_condensation as kwarg
+                ``prev_local_solution`` for element k.  Used by Picard linearisation.
+        prev_J: Optional (total_flux_dofs_per_element)×N matrix of flux coefficients from
+                the previous iteration.  If provided, column k is passed to
+                static_condensation as kwarg ``prev_flux`` for element k.
         
     Returns:
         tuple: (U, J, F, JF) where:
@@ -74,8 +82,14 @@ def domain_flux_jump(
         
         # Apply static condensation
         try:
+            sc_kwargs = {}
+            if prev_U is not None:
+                sc_kwargs['prev_local_solution'] = prev_U[:, k]
+            if prev_J is not None:
+                sc_kwargs['prev_flux'] = prev_J[:, k]
+
             local_solution, flux, flux_trace, jacobian = static_condensation.static_condensation(
-                local_trace, gk)
+                local_trace, gk, **sc_kwargs)
             flux_trace = flux_trace.reshape(-1, 1)  # Ensure column vector
             local_solution = local_solution.reshape(-1,)  # Ensure column vector
             

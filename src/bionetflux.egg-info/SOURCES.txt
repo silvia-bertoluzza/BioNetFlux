@@ -24,6 +24,7 @@ src/bionetflux/core/static_condensation_base.py
 src/bionetflux/core/static_condensation_factory.py
 src/bionetflux/core/static_condensation_keller_segel.py
 src/bionetflux/core/static_condensation_ooc.py
+src/bionetflux/core/static_condensation_ooc_upwind.py
 src/bionetflux/geometry/__init__.py
 src/bionetflux/geometry/domain_geometry.py
 src/bionetflux/problems/__init__.py
@@ -32,10 +33,12 @@ src/bionetflux/problems/ks_config_manager.py
 src/bionetflux/problems/ks_problem.py
 src/bionetflux/problems/ooc_config_manager.py
 src/bionetflux/problems/ooc_problem.py
+src/bionetflux/problems/ooc_problem_upwind.py
 src/bionetflux/problems/test_problem.py
 src/bionetflux/problems/test_problem2.py
 src/bionetflux/time_integration/__init__.py
 src/bionetflux/time_integration/newton_solver.py
+src/bionetflux/time_integration/picard_solver.py
 src/bionetflux/time_integration/time_stepper.py
 src/bionetflux/utils/config_manager.py
 src/bionetflux/utils/elementary_matrices.py
@@ -57,6 +60,7 @@ tests/test_lean_global_assembly.py
 tests/test_lean_setup.py
 tests/test_mass_monitoring.py
 tests/test_maze_geometry.py
+tests/test_picard_flux_threading.py
 tests/test_problem.py
 tests/test_robin_jacobian.py
 tests/test_sample.py

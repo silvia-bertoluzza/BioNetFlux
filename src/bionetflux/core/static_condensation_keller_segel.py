@@ -177,6 +177,13 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         Args:
             local_trace: Local trace vector of length 2*neq for element k
             local_source: Source term vector (optional, defaults to zero)
+            prev_local_solution: Optional 4-entry array [u1(2), phi(2)] from the
+                previous Picard iteration.  When provided, chi is frozen at
+                chi(phi_avg_prev) instead of being evaluated at the current phi_avg,
+                and the dchi contribution to the Jacobian is dropped.
+            prev_flux: Optional flux array from the previous Picard iteration
+                (accepted but not used by this implementation; present for interface
+                consistency with domain_flux_jump).
             
         Returns:
             tuple: (local_solution, flux, flux_trace, jacobian)
@@ -232,11 +239,27 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         # Step 2: Compute average phi for chemotaxis
         # .item() converts single-element array to scalar
         phi_avg = float((Av @ local_solution).item())
-        
-        # Get chi value at average phi
-        chi_val = (self.problem.chi(phi_avg) if 
-                   hasattr(self.problem, 'chi') else 1.0) # Default chi=1.0 if not defined
-        
+
+        # Picard mode: freeze chi at the previous iterate's phi_avg.
+        # prev_local_solution has 4 entries [u1(2), phi(2)]; Av has zero weight
+        # on the psi block so phi_avg_prev can be recovered without psi.
+        prev_local_solution = kwargs.get('prev_local_solution')
+        if prev_local_solution is not None:
+            prev_flat = np.asarray(prev_local_solution).flatten()
+            # Extend to the full 6-vector expected by Av (psi entries zeroed).
+            prev_full = np.concatenate([prev_flat, np.zeros(2)])
+            phi_avg_for_chi = float((Av @ prev_full).item())
+            picard_chi_val = (self.problem.chi(phi_avg_for_chi)
+                              if hasattr(self.problem, 'chi') else 1.0)
+        else:
+            picard_chi_val = None
+
+        if picard_chi_val is not None:
+            chi_val = picard_chi_val
+        else:
+            chi_val = (self.problem.chi(phi_avg) if
+                       hasattr(self.problem, 'chi') else 1.0)
+
         # Step 3: Compute flux
         linear_flux = B4 @ local_trace
         nonlinear_flux = chi_val * (local_solution.T @ Q @ local_solution)
@@ -247,8 +270,11 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
                       B2hat @ local_solution +
                       B3hat @ local_trace)
 
-        # Step 5: Compute Jacobian for Newton's method
-        jacobian = self._compute_jacobian(local_trace, local_solution, phi_avg)
+        # Step 5: Compute Jacobian.
+        # In Picard mode chi is frozen, so the dchi contribution is dropped.
+        jacobian = self._compute_jacobian(
+            local_trace, local_solution, phi_avg, picard_chi_val=picard_chi_val
+        )
         
         # Reorganize output: append last two entries of local_solution to flux
         # and truncate local_solution to remove last two entries
@@ -259,9 +285,18 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
         
         return new_local_solution, new_flux, flux_trace, jacobian
     
-    def _compute_jacobian(self, local_trace, local_solution, phi_avg):
+    def _compute_jacobian(
+            self,
+            local_trace,
+            local_solution,
+            phi_avg,
+            picard_chi_val: float = None,
+    ):
         """
         Compute Jacobian matrix for Newton's method.
+
+        In Picard mode (picard_chi_val is not None) chi is treated as a frozen
+        constant so the dchi contribution is dropped (dchi_val = 0).
         
         MATLAB equivalent:
         BU5 = barchi * U'* (scMatrices.Q + scMatrices.Q')... 
@@ -271,11 +306,16 @@ class KellerSegelStaticCondensation(StaticCondensationBase):
                       + scMatrices.B3hat
         """
         
-        # Get chi and dchi values
-        chi_val = (self.problem.chi(phi_avg) if 
-                   hasattr(self.problem, 'chi') else 1.0)
-        dchi_val = (self.problem.dchi(phi_avg) if 
-                    hasattr(self.problem, 'dchi') else 0.0)
+        if picard_chi_val is not None:
+            # Picard mode: frozen chi, no dchi contribution.
+            chi_val = picard_chi_val
+            dchi_val = 0.0
+        else:
+            # Newton mode.
+            chi_val = (self.problem.chi(phi_avg) if
+                       hasattr(self.problem, 'chi') else 1.0)
+            dchi_val = (self.problem.dchi(phi_avg) if
+                        hasattr(self.problem, 'dchi') else 0.0)
             
         # Get matrices for Jacobian computation
         Av = self.sc_matrices['Av']

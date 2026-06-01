@@ -87,7 +87,10 @@ class GlobalAssembler:
                                      global_solution: np.ndarray,
                                      forcing_terms: List[np.ndarray],
                                      static_condensations: List,
-                                     time: float) -> Tuple[np.ndarray, np.ndarray]:
+                                     time: float,
+                                     prev_U_list: Optional[List[np.ndarray]] = None,
+                                     prev_J_list: Optional[List[np.ndarray]] = None,
+                                     capture_flux: bool = False):
         """
         Assemble global residual and Jacobian from domain flux jumps and constraints.
         If we put the nonlinear static condensation equation in the form F(U;F_ext) = 0,
@@ -100,9 +103,17 @@ class GlobalAssembler:
             forcing_terms: List of forcing term arrays for each domain (already computed)
             static_condensations: List of static condensation objects for flux jump computation
             time: Current time (for constraint evaluation)
+            prev_U_list: Optional list of (2*neq)×N bulk solution arrays from the previous
+                iteration (one per domain).  Passed to domain_flux_jump for Picard use.
+            prev_J_list: Optional list of (total_flux_dofs)×N flux arrays from the previous
+                iteration (one per domain).  Passed to domain_flux_jump for Picard use.
+            capture_flux: When True, also return (U_list, J_list) of the current iteration
+                as additional outputs.  Used by PicardSolver to build prev_U_list/prev_J_list
+                for the next iteration.
             
         Returns:
-            tuple: (residual, jacobian) - Global residual vector and Jacobian matrix
+            If capture_flux is False: (residual, jacobian)
+            If capture_flux is True:  (residual, jacobian, captured_U_list, captured_J_list)
         """
         # Validate inputs
         if len(forcing_terms) != self.n_domains:
@@ -118,6 +129,8 @@ class GlobalAssembler:
         # Initialize global residual and Jacobian
         residual = np.zeros(self.total_dofs)
         jacobian = np.zeros((self.total_dofs, self.total_dofs))
+        captured_U_list: List[np.ndarray] = []
+        captured_J_list: List[Optional[np.ndarray]] = []
         
         # Assemble domain contributions
         for i in range(self.n_domains):
@@ -127,13 +140,22 @@ class GlobalAssembler:
             if forcing_terms[i].shape != (expected_rows, expected_cols):
                 raise ValueError(f"Domain {i} forcing term shape {forcing_terms[i].shape} != expected ({expected_rows}, {expected_cols})")
             
+            # Previous-iteration data for this domain (None on first iteration)
+            prev_U_i = prev_U_list[i] if prev_U_list is not None else None
+            prev_J_i = prev_J_list[i] if prev_J_list is not None else None
+
             # Compute domain flux jump using static condensation
             U, J, F, JF = domain_flux_jump(
                 trace_solutions[i].reshape(-1, 1),
                 forcing_terms[i],
                 None, None,
-                static_condensations[i]
+                static_condensations[i],
+                prev_U=prev_U_i,
+                prev_J=prev_J_i,
             )
+
+            captured_U_list.append(U)
+            captured_J_list.append(J)
             
             # Add domain residual to global residual
             start_idx = self.domain_trace_offsets[i]
@@ -202,6 +224,8 @@ class GlobalAssembler:
                 jacobian, trace_solutions, multipliers, time
             )
         
+        if capture_flux:
+            return residual, jacobian, captured_U_list, captured_J_list
         return residual, jacobian
 
     def bulk_by_static_condensation(self, 

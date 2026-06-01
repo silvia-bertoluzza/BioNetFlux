@@ -7,5 +7,7 @@ in time using implicit Euler with Newton iteration.
 
 from .time_stepper import TimeStepper, TimeStepResult
 from .newton_solver import NewtonSolver, NewtonResult
+from .picard_solver import PicardSolver, PicardResult
 
-__all__ = ['TimeStepper', 'NewtonSolver', 'NewtonResult', 'TimeStepResult']
+__all__ = ['TimeStepper', 'NewtonSolver', 'NewtonResult', 'TimeStepResult',
+           'PicardSolver', 'PicardResult']

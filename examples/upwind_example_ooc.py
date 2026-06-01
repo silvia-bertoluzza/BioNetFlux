@@ -16,6 +16,7 @@ import os
 
 from setup_solver import quick_setup, SolverSetup
 from bionetflux.time_integration import TimeStepper
+from bionetflux.time_integration.picard_solver import PicardSolver
 from bionetflux.time_integration.time_stepper import AdaptiveTimeStepper
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry, build_grid_geometry, create_maze_geometry
@@ -194,8 +195,9 @@ def run_evolution_with_time_stepper(
     
     print("\nStep 2: Initializing time stepper...")
     
-    # Create time stepper with Newton solver configuration
-    time_stepper = TimeStepper(setup, verbose=True)
+    # Create Picard solver and pass it to the time stepper
+    picard_solver = PicardSolver(tolerance=1.e-7, max_iterations=50, verbose=False)
+    time_stepper = TimeStepper(setup, picard_solver=picard_solver, verbose=True)
     
     # Initialize solution at t=0 (replaces Steps 3-4 and lines 226-233 from original)
     current_solution, current_bulk_data = time_stepper.initialize_solution()
@@ -289,7 +291,7 @@ def run_evolution_with_time_stepper(
         # Handle result
         if result.converged:
             print(f"  ✓ Time step successful!")
-            print(f"    Newton iterations: {result.iterations}")
+            print(f"    Picard iterations: {result.iterations}")
             print(f"    Final residual norm: {result.final_residual_norm:.6e}")
             print(f"    Computation time: {result.computation_time:.4f}s")
             
