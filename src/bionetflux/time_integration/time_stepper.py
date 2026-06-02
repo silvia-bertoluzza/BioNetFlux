@@ -364,7 +364,8 @@ class TimeStepper:
         """
         return AdaptiveTimeStepper(
             self.setup, self.newton_solver, self.verbose,
-            dt_min, dt_max, safety_factor
+            dt_min, dt_max, safety_factor,
+            picard_solver=self.picard_solver
         )
 
 
@@ -376,7 +377,8 @@ class AdaptiveTimeStepper(TimeStepper):
     """
     
     def __init__(self, setup, newton_solver=None, verbose=True,
-                 dt_min=None, dt_max=None, safety_factor=0.8):
+                 dt_min=None, dt_max=None, safety_factor=0.8,
+                 picard_solver=None):
         """
         Initialize adaptive time stepper.
         
@@ -388,8 +390,11 @@ class AdaptiveTimeStepper(TimeStepper):
             dt_max: Maximum time step  (default: dt_config, i.e. the
                     value from the configuration file)
             safety_factor: Factor for time step adjustment
+            picard_solver: Optional Picard solver instance.  When provided,
+                advance_time_step uses it instead of newton_solver.
         """
-        super().__init__(setup, newton_solver=newton_solver, verbose=verbose)
+        super().__init__(setup, newton_solver=newton_solver,
+                         picard_solver=picard_solver, verbose=verbose)
         dt_config = setup.global_discretization.dt
         self.dt_min = dt_min if dt_min is not None else dt_config * 1e-4
         self.dt_max = dt_max if dt_max is not None else dt_config

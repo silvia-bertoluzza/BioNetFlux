@@ -90,11 +90,20 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         
         Args:
             local_trace: hU = [hu1; homega; hv; hphi] (8x1)
-            local_source: rhs = [g1; g2; g3; g4] (8x1)  
-            
+            local_source: rhs = [g1; g2; g3; g4] (8x1)
+            prev_local_solution: Optional 8-entry array [u1(2), u2(2), u3(2), u4(2)]
+                from the previous Picard iteration.  When provided, bar_lambda and
+                barchi are frozen at their values from the previous iterate, and their
+                derivative contributions to the Jacobian are dropped.
+            prev_flux: Optional flux array from the previous Picard iteration
+                (accepted but not used by this implementation; present for interface
+                consistency with domain_flux_jump).
+
         Returns:
-            Tuple (bulk_solution, flux_jump, jacobian)
+            Tuple (bulk_solution, flux, flux_jump, jacobian)
         """
+
+        prev_flux = kwargs.get('prev_flux')  # shape: (total_flux_dofs_per_element,) or None on first iteration
         
         # Handle None local_source
         if local_source is None:
@@ -231,6 +240,22 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             [Z, Z, Z, np.eye(2)]
         ])
         
+        # Picard mode: read previous-iterate bulk solution to freeze nonlinear
+        # coefficients.  prev_local_solution is the 8-entry U from iteration k,
+        # structured as [u1(2), u2(2), u3(2), u4(2)].
+        prev_local_solution = kwargs.get('prev_local_solution')
+        if prev_local_solution is not None:
+            prev_flat = np.asarray(prev_local_solution).flatten()
+            u2_prev = prev_flat[2:4]
+            u4_prev = prev_flat[6:8]
+            bar_omega_prev = (Av @ u2_prev).item()
+            barphi_prev = (Av @ u4_prev).item()
+            bar_lambda_frozen = self.lambda_func(bar_omega_prev)
+            barchi_frozen = self.chi_func(barphi_prev)
+        else:
+            bar_lambda_frozen = None
+            barchi_frozen = None
+
         # Step 1: Compute u
         y1 = L1 @ g[0]
         u1 = B1 @ hu[0] + y1
@@ -239,10 +264,15 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         y2 = L2 @ (g[1] + self.dt * d * M @ y1)
         u2 = C2 @ hu[0] + B2 @ hu[1] + y2
         
-        # Step 3: Compute average omega and lambda values
+        # Step 3: Compute average omega and lambda values.
+        # In Picard mode bar_lambda is frozen from the previous iterate.
         bar_omega = Av @ u2
-        bar_lambda = self.lambda_func(bar_omega)
-        dbar_lambda = self.dlambda_func(bar_omega)
+        if bar_lambda_frozen is not None:
+            bar_lambda = bar_lambda_frozen
+            dbar_lambda = 0.0
+        else:
+            bar_lambda = self.lambda_func(bar_omega)
+            dbar_lambda = self.dlambda_func(bar_omega)
         
         # Step 4: Compute v (omega-dependent)
         L3 = np.linalg.inv(A3 + bar_lambda * S3)
@@ -256,10 +286,15 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         # Assemble bulk solution U = [u1; u2; u3; u4]
         U = np.concatenate([u1, u2, u3, u4])
         
-        # Step 5b: Compute average phi and evaluate chi
+        # Step 5b: Compute average phi and evaluate chi.
+        # In Picard mode barchi is frozen from the previous iterate.
         barphi = (Av @ u4).item()
-        barchi = self.chi_func(barphi)
-        dbarchi = self.dchi_func(barphi)
+        if barchi_frozen is not None:
+            barchi = barchi_frozen
+            dbarchi = 0.0
+        else:
+            barchi = self.chi_func(barphi)
+            dbarchi = self.dchi_func(barphi)
 
         # Compute Jacobian for Newton method
         # Initialize JAC following MATLAB logic
