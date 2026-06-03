@@ -189,6 +189,7 @@ class TimeStepper:
                                             f"Forcing assembly failed: {e}",
                                             time.time() - start_time)
         
+        
         # Step 3: Solve nonlinear system (Newton or Picard depending on configuration).
         active_solver = self.picard_solver if self.picard_solver is not None else self.newton_solver
         solver_name = "Picard" if self.picard_solver is not None else "Newton"
@@ -258,7 +259,7 @@ class TimeStepper:
         
         if self.verbose:
             print(f"    ✓ Time step completed successfully in {total_time:.4f}s")
-            print(f"    ✓ Newton converged in {newton_result.iterations} iterations")
+            print(f"    ✓ {solver_name} converged in {newton_result.iterations} iterations")
             print(f"    ✓ Final residual norm: {newton_result.final_residual_norm:.6e}")
         
         return TimeStepResult(

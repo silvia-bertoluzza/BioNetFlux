@@ -296,16 +296,16 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
 
         # Matrices for j construction
         hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h
-        hOut = np.block([Out, Z, Z, Z],
+        hOut = np.block([[Out, Z, Z, Z],
                         [Z, Z, Z, Z],
                         [Z, Z, Z, Z],
-                        [Z, Z, Z, Z]
+                        [Z, Z, Z, Z]]
                     )
         
-        hIn = np.block([In, Z, Z, Z],
+        hIn = np.block([[In, Z, Z, Z],
                         [Z, Z, Z, Z],
                         [Z, Z, Z, Z],
-                        [Z, Z, Z, Z]
+                        [Z, Z, Z, Z]]
                 )
 
         Q = -nu * beta * np.block([
@@ -368,8 +368,8 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
              - dbarchi * (tJ.T @ Q @ U) * dbarphi_dhU            # (1, 8)
         # Final flux jumps
         
-        B6 =  np.diag(gamma) * T @ np.block([np.eye(2), Z, Z, Z])
-        B7 = -np.diag(gamma) * np.block([np.eye(2), Z, Z, Z])
+        B6 =  np.diag(gamma) @ T @ np.block([np.eye(2), Z, Z, Z])
+        B7 = -np.diag(gamma) @ np.block([np.eye(2), Z, Z, Z])
         
         B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2 / B5 = normali, but we need it as a 1x2 matrix for the multiplication below
         hj = B5.T @ j + B6 @ U + B7 @ hU
