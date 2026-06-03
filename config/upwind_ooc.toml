@@ -22,18 +22,18 @@ a = 1.0       # beta_phi: consumption rate of phi
 c = 1.0      # beta_omega: consumption rate of omega
 
 [physical_parameters.coupling]
-b = 0.0       # alpha_phi: production rate of phi
-d = 0.0       # alpha_omega: production rate of omega
+b = 1.0       # alpha_phi: production rate of phi
+d = 1.0       # alpha_omega: production rate of omega
 
 # Chemotaxis: chi(x) = k1 / (k2 + x)^2
 [physical_parameters.chemotaxis]
 type = "receptor_saturation"  # Type of chemotaxis function
-k1 = 0     # cellular drift velocity
+k1 = 1     # cellular drift velocity
 k2 = 5.0e-6     # receptor dissociation constant
 
 # Tumor suppression: lambda(x) = m1 / (m2 + x)
 [physical_parameters.tumor_suppression]
-m1 = 0.0  # k_omega1: killing efficiency of omega on tumor cells
+m1 = 1.0  # k_omega1: killing efficiency of omega on tumor cells
 m2 = 1.0  # k_omega2: dissociation constant
 
 [discretization]

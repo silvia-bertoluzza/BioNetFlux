@@ -104,7 +104,10 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         """
 
         prev_flux = kwargs.get('prev_flux')  # shape: (total_flux_dofs_per_element,) or None on first iteration
+        # flux layout: [j(1), tJ_eq2(2), tJ_eq3(2), tJ_eq4(2)] -> eq4 occupies indices 5:7
         
+        prev_psi = prev_flux[5:7] if prev_flux is not None else None
+
         # Handle None local_source
         if local_source is None:
             local_source = np.zeros(8)
@@ -147,6 +150,8 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         tv = tau[2]      # tau for v
         tp = tau[3]      # tau for phi
         
+        
+        
         # Get basic cached matrices
         M, D = self.sc_matrices['M'], self.sc_matrices['D']
         Gb, T = self.sc_matrices['Gb'], self.sc_matrices['T']
@@ -161,13 +166,57 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         normali = np.array([-1.0, 1.0])
         Z = np.zeros((2, 2))
 
-        # Step 1: Matrix for u equation
-        A1 = M + dt * tu * Mb
-        L1 = np.linalg.inv(A1)
-        H1 = dt * tu * Gb
-        B1 = L1 @ H1
+        # Build 2x2 upwind selector matrix O:
+        # O(i,i) = 0 if normali(i) * prev_psi(i) >= 0, else 1
+        if prev_psi is not None:
+            out_diag = np.where(normali * prev_psi >= 0, 0.0, 1.0)
+        else:
+            out_diag = np.zeros(2)
+        Out = np.diag(out_diag) # outflow selector
+        In = np.eye(2) - Out # inflow selector
 
-        # Step 2: Matrices for omega equation
+        # gamma(i) = max(-prev_psi(i) * normali(i), 0) + tu
+        if prev_psi is not None:
+            gamma = np.maximum(-prev_psi * normali, 0.0) + tu
+        else:
+            gamma = np.full(2, tu)
+
+        # tMb(i,j) = sum_k gamma(k)*T(k,i)*T(k,j)  =>  T.T @ diag(gamma) @ T
+        tMb = T.T @ np.diag(gamma) @ T
+        # tGb(i,j) = gamma(j)*T(j,i)  =>  tGb = T.T * gamma (broadcast gamma over columns)
+        tGb = T.T * gamma
+
+        
+       
+        
+        # Picard mode: read previous-iterate bulk solution to freeze nonlinear
+        # coefficients.  prev_local_solution is the 8-entry U from iteration k,
+        # structured as [u1(2), u2(2), u3(2), u4(2)].
+        prev_local_solution = kwargs.get('prev_local_solution')
+        if prev_local_solution is not None:
+            prev_flat = np.asarray(prev_local_solution).flatten()
+            u2_prev = prev_flat[2:4]
+            u4_prev = prev_flat[6:8]
+            bar_omega_prev = (Av @ u2_prev).item()
+            barphi_prev = (Av @ u4_prev).item()
+            bar_lambda_frozen = self.lambda_func(bar_omega_prev)
+            barchi_frozen = self.chi_func(barphi_prev)
+        else:
+            bar_lambda_frozen = None
+            barchi_frozen = None
+
+        # Step 1: Compute u
+        # Matrix for u equation
+        A1 = M + dt * tMb
+        L1 = np.linalg.inv(A1)
+        H1 = dt * tGb
+        B1 = L1 @ H1
+ 
+        y1 = L1 @ g[0]
+        u1 = B1 @ hu[0] + y1
+        
+        # Step 2: Compute omega  
+        # Matrices for omega equation
         E1 = dt * (Ntil - D) @ Rmat
         E1hat = dt * (Ntil - D) @ Rhat
 
@@ -179,12 +228,32 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         B2 = L2 @ K2
         C2 = L2 @ H2
 
+        y2 = L2 @ (g[1] + self.dt * d * M @ y1)
+        u2 = C2 @ hu[0] + B2 @ hu[1] + y2
+        
+        # Step 3: Compute average omega and lambda values.
+        # In Picard mode bar_lambda is frozen from the previous iterate.
+        bar_omega = Av @ u2
+        if bar_lambda_frozen is not None:
+            bar_lambda = bar_lambda_frozen
+            dbar_lambda = 0.0
+        else:
+            bar_lambda = self.lambda_func(bar_omega)
+            dbar_lambda = self.dlambda_func(bar_omega)
+        
+        # Step 4: Compute v (omega-dependent)
         # Step 3: Matrices for v equation
         A3 = M + sigma * E1 + dt * tv * Mb
         S3 = dt * M
         H3 = sigma * E1hat + dt * tv * Gb
 
-        # Step 4: Matrices for phi equation
+        L3 = np.linalg.inv(A3 + bar_lambda * S3)
+        y3 = L3 @ g[2]
+        B3 = L3 @ H3
+        u3 = B3 @ hu[2] + y3
+        
+        # Step 5: Compute phi
+        # Matrices for phi equation
         A4 = M + mu * E1 + dt * tp * Mb + dt * a * M
         H4 = mu * E1hat + dt * tp * Gb
         K4 = dt * b * M
@@ -192,8 +261,26 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         # ATTENTION - B4 and C4 were switched with respect to notes / now fixed
         B4 = L4 @ H4
         C4 = L4 @ K4
+        
+        u4 = B4 @ hu[3] + C4 @ u3 + L4 @ g[3]
+        
+        # Assemble bulk solution U = [u1; u2; u3; u4]
+        U = np.concatenate([u1, u2, u3, u4])
+        
+        # Step 5b: Compute average phi and evaluate chi.
+        # In Picard mode barchi is frozen from the previous iterate.
+        barphi = (Av @ u4).item()
+        if barchi_frozen is not None:
+            barchi = barchi_frozen
+            dbarchi = 0.0
+        else:
+            barchi = self.chi_func(barphi)
+            dbarchi = self.dchi_func(barphi)
 
-        # Matrices for flux jump construction
+        # Compute Jacobian for Newton method
+        # Initialize JAC following MATLAB logic
+        JAC = np.zeros((8, 8))
+         # Matrices for flux jump construction
         D1 = np.block([
             [Z, epsilon * Rmat, Z, Z],
             [Z, Z, sigma * Rmat, Z],
@@ -206,8 +293,20 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             [Z, Z, Z, mu * Rhat]
         ])
 
+
         # Matrices for j construction
         hB4 = -nu * np.concatenate([normali, np.zeros(6)]).reshape(1, -1) / h
+        hOut = np.block([Out, Z, Z, Z],
+                        [Z, Z, Z, Z],
+                        [Z, Z, Z, Z],
+                        [Z, Z, Z, Z]
+                    )
+        
+        hIn = np.block([In, Z, Z, Z],
+                        [Z, Z, Z, Z],
+                        [Z, Z, Z, Z],
+                        [Z, Z, Z, Z]
+                )
 
         Q = -nu * beta * np.block([
             [Z, Z, Z, Z],
@@ -218,8 +317,7 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         # Matrices for final flux jump assembly
         # B5 = -nu * normali / h
         B5 = normali  # 1 x 2 matrix
-        B6 = tu * T @ np.block([np.eye(2), Z, Z, Z])
-        B7 = -tu * np.block([np.eye(2), Z, Z, Z])
+
 
         hatB0 = np.block([
             [Nhat.T, Z, Z],
@@ -239,67 +337,6 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             [Z, Z, np.eye(2), Z],
             [Z, Z, Z, np.eye(2)]
         ])
-        
-        # Picard mode: read previous-iterate bulk solution to freeze nonlinear
-        # coefficients.  prev_local_solution is the 8-entry U from iteration k,
-        # structured as [u1(2), u2(2), u3(2), u4(2)].
-        prev_local_solution = kwargs.get('prev_local_solution')
-        if prev_local_solution is not None:
-            prev_flat = np.asarray(prev_local_solution).flatten()
-            u2_prev = prev_flat[2:4]
-            u4_prev = prev_flat[6:8]
-            bar_omega_prev = (Av @ u2_prev).item()
-            barphi_prev = (Av @ u4_prev).item()
-            bar_lambda_frozen = self.lambda_func(bar_omega_prev)
-            barchi_frozen = self.chi_func(barphi_prev)
-        else:
-            bar_lambda_frozen = None
-            barchi_frozen = None
-
-        # Step 1: Compute u
-        y1 = L1 @ g[0]
-        u1 = B1 @ hu[0] + y1
-        
-        # Step 2: Compute omega  
-        y2 = L2 @ (g[1] + self.dt * d * M @ y1)
-        u2 = C2 @ hu[0] + B2 @ hu[1] + y2
-        
-        # Step 3: Compute average omega and lambda values.
-        # In Picard mode bar_lambda is frozen from the previous iterate.
-        bar_omega = Av @ u2
-        if bar_lambda_frozen is not None:
-            bar_lambda = bar_lambda_frozen
-            dbar_lambda = 0.0
-        else:
-            bar_lambda = self.lambda_func(bar_omega)
-            dbar_lambda = self.dlambda_func(bar_omega)
-        
-        # Step 4: Compute v (omega-dependent)
-        L3 = np.linalg.inv(A3 + bar_lambda * S3)
-        y3 = L3 @ g[2]
-        B3 = L3 @ H3
-        u3 = B3 @ hu[2] + y3
-        
-        # Step 5: Compute phi
-        u4 = B4 @ hu[3] + C4 @ u3 + L4 @ g[3]
-        
-        # Assemble bulk solution U = [u1; u2; u3; u4]
-        U = np.concatenate([u1, u2, u3, u4])
-        
-        # Step 5b: Compute average phi and evaluate chi.
-        # In Picard mode barchi is frozen from the previous iterate.
-        barphi = (Av @ u4).item()
-        if barchi_frozen is not None:
-            barchi = barchi_frozen
-            dbarchi = 0.0
-        else:
-            barchi = self.chi_func(barphi)
-            dbarchi = self.dchi_func(barphi)
-
-        # Compute Jacobian for Newton method
-        # Initialize JAC following MATLAB logic
-        JAC = np.zeros((8, 8))
-        
         # Restriction matrices
         R = [np.zeros((2, 8)) for _ in range(4)]
         for i in range(4):
@@ -322,15 +359,19 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         dtJ = D1 @ JAC - D2
         
         # Construction of j and dj (Q is multiplied by barchi at runtime)
-        j = hB4 @ hU + barchi * tJ.T @ Q @ U
-
+        # j = hB4 @ hU + barchi * tJ.T @ Q @ U
+        j = hB4 @ hIn @ hU + hB4 @ hOut @ U + barchi * tJ.T @ Q @ U
+        
         # WARNING: the formula for dbarphi_dhU needs to be checked against the theory
         dbarphi_dhU = Av @ R[3] @ JAC                           # (1, 8)
-        dj = hB4 - barchi * tJ.T @ Q @ JAC - barchi * U.T @ Q.T @ dtJ \
+        dj = hB4 @ (hIn + hOut @ R[0].T @ B1 @ R[0]) - barchi * tJ.T @ Q @ JAC - barchi * U.T @ Q.T @ dtJ \
              - dbarchi * (tJ.T @ Q @ U) * dbarphi_dhU            # (1, 8)
         # Final flux jumps
         
-        B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
+        B6 =  np.diag(gamma) * T @ np.block([np.eye(2), Z, Z, Z])
+        B7 = -np.diag(gamma) * np.block([np.eye(2), Z, Z, Z])
+        
+        B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2 / B5 = normali, but we need it as a 1x2 matrix for the multiplication below
         hj = B5.T @ j + B6 @ U + B7 @ hU
         
         dhj = B5.T @ dj  +  B6 @ JAC + B7
