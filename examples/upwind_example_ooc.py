@@ -460,14 +460,22 @@ def run_evolution_with_adaptive_time_stepper(
     # ====================================================================
 
     print("\nStep 2: Initializing adaptive time stepper...")
+    
+    # Create Picard solver and pass it to the time stepper
+    picard_solver = PicardSolver(tolerance=1.e-7, max_iterations=50, verbose=False)
+    time_stepper = AdaptiveTimeStepper(setup, picard_solver=picard_solver, verbose=True,
+                               dt_min=dt_min,
+                               dt_max=dt_max,
+                               safety_factor=safety_factor,)
+    
 
-    time_stepper = AdaptiveTimeStepper(
-        setup,
-        verbose=True,
-        dt_min=dt_min,
-        dt_max=dt_max,
-        safety_factor=safety_factor,
-    )
+    # time_stepper = AdaptiveTimeStepper(
+    #     setup,
+    #     verbose=True,
+    #     dt_min=dt_min,
+    #     dt_max=dt_max,
+    #     safety_factor=safety_factor,
+    # )
 
     current_solution, current_bulk_data = time_stepper.initialize_solution()
     print(f"\u2713 Adaptive time stepper initialized "

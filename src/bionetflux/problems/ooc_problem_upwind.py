@@ -275,6 +275,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     d = coupling['d']
     
     # Chemotaxis parameters
+    chemotaxis_type = chemotaxis_params['type']
     k1 = chemotaxis_params['k1']
     k2 = chemotaxis_params['k2']
     
@@ -303,8 +304,15 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # Constructed from TOML parameters k1, k2
     # The chemotactic function is rescaled by viscority, as it was implemented in a rescaled version in the code
     # Later it would be better to rescale nu in the static condensation module.
-    chi_func = lambda x: k1 / (nu * (k2 + x)**2)
-    dchi_func = lambda x: -2.0 * k1 / (nu * (k2 + x)**3)
+    
+    if chemotaxis_type == "receptor_saturation":    
+        chi_func = lambda x: k1 / (nu * (k2 + x)**2)
+        dchi_func = lambda x: -2.0 * k1 / (nu * (k2 + x)**3)
+    elif chemotaxis_type == "constant":
+        chi_func = lambda x: k1 + 0.0 * x
+        dchi_func = lambda x: 0.0 * x
+    else:
+        raise ValueError(f"Unsupported chemotaxis type: {chemotaxis_type}")
     
     lambda_func = lambda omega: m1 / (m2 + omega)  # Tumor suppression function 
     dlambda_func = lambda omega: -m1 / (m2 + omega)**2  # Derivative of tumor suppression function

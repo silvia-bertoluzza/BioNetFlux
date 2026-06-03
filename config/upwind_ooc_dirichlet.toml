@@ -22,14 +22,14 @@ a = 1.0       # beta_phi: consumption rate of phi
 c = 1.0      # beta_omega: consumption rate of omega
 
 [physical_parameters.coupling]
-b = 1.0       # alpha_phi: production rate of phi
-d = 1.0       # alpha_omega: production rate of omega
+b = 0.0       # alpha_phi: production rate of phi
+d = 0.0       # alpha_omega: production rate of omega
 
 # Chemotaxis: chi(x) = k1 / (k2 + x)^2
 [physical_parameters.chemotaxis]
 # type = "receptor_saturation"  # Type of chemotaxis function
 type = "constant"  # Type of chemotaxis function
-k1 = 0.0    # cellular drift velocity
+k1 = 1.0    # cellular drift velocity
 k2 = 5.0e-6     # receptor dissociation constant
 
 # Tumor suppression: lambda(x) = m1 / (m2 + x)
@@ -43,14 +43,14 @@ n_elements = 40    # Used when h is absent; ignored when h is provided
 tau = [0.5, 0.5, 0.5, 0.5]
 
 [initial_conditions]
-u = "s+2*t"      # Default: zero initial condition
+u = "s"      # Default: zero initial condition
 omega = "zeros"  # Default: zero initial condition  
 v = "zeros"      # Default: zero initial condition
-phi = "s+t"    # Default: zero initial condition
+phi = "s"    # Default: zero initial condition
 
 [force_functions]
-u = "2.0 + 0.0*s"      # Default: zero force
-omega = "-(s+2*t)"  # Default: zero force
+u = "3.0 + 0.0*s"      # Default: zero force
+omega = "zeros"  # Default: zero force
 v = "zeros"      # Default: zero force
 phi = "s + t + 1"    # Default: zero force
 
@@ -88,8 +88,8 @@ phi = "none"
 # Default (when omitted): homogeneous Neumann on every boundary for every equation
 #
 [boundary_conditions]
-B0_u   = { type = "neumann", data = "0*s - 1" }
-B1_u   = { type = "neumann", data = "1.0 - 0.0*s" }
+B0_u   = { type = "dirichlet", data = "s + 2*t" }
+B1_u   = { type = "dirichlet", data = "s + 2*t" }
 B0_phi = { type = "neumann", data = "-1.0 - 0.0*s" }
 B1_phi = { type = "neumann", data = "1.0+0.0*s" }
 # B1_u   = { type = "dirichlet", data = "zeros" }
