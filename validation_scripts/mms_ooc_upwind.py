@@ -61,6 +61,38 @@ def _str(expr) -> str:
     return str(expr)
 
 
+def _chi_expr(chi_type: str, k1: float, k2: float, nu: float, phi_ms):
+    """Symbolic chemotaxis sensitivity chi(phi) for the MMS forcing.
+
+    Mirrors the solver definition in
+    src/bionetflux/problems/ooc_problem_upwind.py:
+        constant:            chi(phi) = k1
+        receptor_saturation: chi(phi) = k1 / (nu * (k2 + phi)**2)
+    The expression is evaluated at the manufactured chemoattractant phi.
+
+    Args:
+        chi_type: Chemotaxis model, "constant" or "receptor_saturation".
+        k1: Cellular drift velocity coefficient.
+        k2: Receptor dissociation constant.
+        nu: Immune-cell diffusivity (rescaling factor in the solver).
+        phi_ms: Manufactured chemoattractant expression in (s, t).
+
+    Returns:
+        The sympy chi(phi) expression, or None when k1 == 0 (chi vanishes),
+        which reproduces the legacy chemotaxis-free forcing exactly.
+
+    Raises:
+        ValueError: If chi_type is not a supported chemotaxis model.
+    """
+    if k1 == 0:
+        return None
+    if chi_type == "constant":
+        return sp.Float(k1)
+    if chi_type == "receptor_saturation":
+        return sp.Float(k1) / (sp.Float(nu) * (sp.Float(k2) + phi_ms) ** 2)
+    raise ValueError(f"Unsupported chemotaxis type: {chi_type}")
+
+
 # ---------------------------------------------------------------------------
 # MMS computation
 # ---------------------------------------------------------------------------
@@ -271,6 +303,18 @@ CASES = [
     {'name': 'all_sin',           'params': _COUPLED,  'u': _sin,  'omega': _sin,  'v': _sin,  'phi': _sin},
     {'name': 'all_mixed',         'params': _COUPLED,  'u': _lin,  'omega': _sin,  'v': _quad, 'phi': _sin},
     {'name': 'silvia_1',          'params': _DECOUPLED, 'u': _sin, 'omega': sp.sin(t+s), 'v': t*sp.sin(s), 'phi': t**2*sp.sin(s+2*t)},
+    # --- Group 7: chemotaxis-coupled (u <-> phi via chi(phi)) ---
+    # chi is active only when both u and phi are nonzero. For
+    # receptor_saturation, k2=2 keeps (k2 + phi) >= 1 (phi = sin in [-1,1]),
+    # avoiding any singularity in chi(phi) = k1/(nu*(k2+phi)^2).
+    {'name': 'chemo_const_sin',         'params': _DECOUPLED, 'u': _sin, 'omega': ZERO, 'v': ZERO, 'phi': _sin,
+     'chi_type': 'constant',            'k1': 1.0, 'k2': 1.0},
+    {'name': 'chemo_satur_sin',         'params': _DECOUPLED, 'u': _sin, 'omega': ZERO, 'v': ZERO, 'phi': _sin,
+     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
+    {'name': 'fully_coupled_chi_const', 'params': _COUPLED,   'u': _sin, 'omega': _sin, 'v': _sin, 'phi': _sin,
+     'chi_type': 'constant',            'k1': 1.0, 'k2': 1.0},
+    {'name': 'fully_coupled_chi_satur', 'params': _COUPLED,   'u': _sin, 'omega': _sin, 'v': _sin, 'phi': _sin,
+     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
 ]
 for _c in CASES:
     _c.setdefault('T', 1.0);         _c.setdefault('dt', 0.025)
@@ -314,10 +358,15 @@ def main():
     for case in cases_to_run:
         name = case['name']
         print(f"  {name} ...", end=' ', flush=True)
+        chi_ms = _chi_expr(
+            case['chi_type'], case['k1'], case['k2'],
+            case['params']['nu'], case['phi'],
+        )
         mms = compute_mms(
             u_ms=case['u'], omega_ms=case['omega'],
             v_ms=case['v'], phi_ms=case['phi'],
             params=case['params'],
+            chi_ms=chi_ms,
         )
         toml_str = generate_toml(case, mms, n_elements=args.n_elements)
         if args.dry_run:
