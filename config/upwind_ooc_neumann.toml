@@ -41,6 +41,7 @@ m2 = 1.0  # k_omega2: dissociation constant
 n_elements = 80    # Used when h is absent; ignored when h is provided
 # h = 15.0         # Target mesh size — n_elements computed per domain (even, >= 4)
 tau = [0.5, 0.5, 0.5, 0.5]
+gam = 0.5   # Upwinding parameter for static condensation (0.0 = no upwind)
 
 [initial_conditions]
 u = "s"      # Default: zero initial condition

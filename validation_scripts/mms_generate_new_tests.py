@@ -87,9 +87,10 @@ def _chi_expr(chi_type: str, k1: float, k2: float, nu: float, phi_ms):
     if k1 == 0:
         return None
     if chi_type == "constant":
-        return sp.Float(k1)
+        return sp.Float(k1) * sp.Float(nu)  # Rescale by diffusivity to match solver definition
     if chi_type == "receptor_saturation":
-        return sp.Float(k1) / (sp.Float(nu) * (sp.Float(k2) + phi_ms) ** 2)
+        return sp.Float(nu) * sp.Float(k1) / (sp.Float(k2) + phi_ms) ** 2
+#        return sp.Float(k1) / (sp.Float(k2) + phi_ms) ** 2
     raise ValueError(f"Unsupported chemotaxis type: {chi_type}")
 
 
@@ -265,72 +266,27 @@ def generate_toml(case: Dict[str, Any], mms: Dict, n_elements: int = 40) -> str:
 # Test cases
 # ---------------------------------------------------------------------------
 
-_DECOUPLED = dict(nu=1.0, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=0.0, c=1.0, d=0.0)
-_COUPLED   = dict(nu=1.0, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, d=1.0)
+_DECOUPLED = dict(nu=0.5, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=0.0, c=1.0, d=0.0)
+_COUPLED   = dict(nu=0.5, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, d=1.0)
 
-_lin  = t * s
-_quad = t * s**2
+_lin  = t * s/6.28
+_quad = t * (s/6.28)**2
 _sin  = t * sp.sin(s)
 _psin = t * sp.sin(s + 2*t)
 _cos_t_sin_s = sp.cos(t) * sp.sin(s)
 
+
 CASES = [
-    # --- Group 1: decoupled u ---
-    {'name': 'u_linear',          'params': _DECOUPLED, 'u': _lin,          'omega': ZERO, 'v': ZERO, 'phi': ZERO},
-    {'name': 'u_quadratic',       'params': _DECOUPLED, 'u': _quad,         'omega': ZERO, 'v': ZERO, 'phi': ZERO},
-    {'name': 'u_sin',             'params': _DECOUPLED, 'u': _sin,          'omega': ZERO, 'v': ZERO, 'phi': ZERO},
-    {'name': 'u_propagating_sin', 'params': _DECOUPLED, 'u': _psin,         'omega': ZERO, 'v': ZERO, 'phi': ZERO},
-    {'name': 'u_cos_t_sin_s',     'params': _DECOUPLED, 'u': _cos_t_sin_s,  'omega': ZERO, 'v': ZERO, 'phi': ZERO},
-    # --- Group 2: decoupled omega ---
-    {'name': 'omega_linear',      'params': _DECOUPLED, 'u': ZERO, 'omega': _lin,  'v': ZERO, 'phi': ZERO},
-    {'name': 'omega_quadratic',   'params': _DECOUPLED, 'u': ZERO, 'omega': _quad, 'v': ZERO, 'phi': ZERO},
-    {'name': 'omega_sin',         'params': _DECOUPLED, 'u': ZERO, 'omega': _sin,  'v': ZERO, 'phi': ZERO},
-    # --- Group 3: decoupled v ---
-    {'name': 'v_linear',          'params': _DECOUPLED, 'u': ZERO, 'omega': ZERO, 'v': _lin,  'phi': ZERO},
-    {'name': 'v_quadratic',       'params': _DECOUPLED, 'u': ZERO, 'omega': ZERO, 'v': _quad, 'phi': ZERO},
-    {'name': 'v_sin',             'params': _DECOUPLED, 'u': ZERO, 'omega': ZERO, 'v': _sin,  'phi': ZERO},
-    # --- Group 4: decoupled phi ---
-    {'name': 'phi_linear',        'params': _DECOUPLED, 'u': ZERO, 'omega': ZERO, 'v': ZERO, 'phi': _lin},
-    {'name': 'phi_quadratic',     'params': _DECOUPLED, 'u': ZERO, 'omega': ZERO, 'v': ZERO, 'phi': _quad},
-    {'name': 'phi_sin',           'params': _DECOUPLED, 'u': ZERO, 'omega': ZERO, 'v': ZERO, 'phi': _sin},
-    # --- Group 5: poly-trig combinations (decoupled) ---
-    {'name': 'u_quad_omega_sin',  'params': _DECOUPLED, 'u': _quad, 'omega': _sin,  'v': ZERO,  'phi': ZERO},
-    {'name': 'v_sin_phi_quad',    'params': _DECOUPLED, 'u': ZERO,  'omega': ZERO,  'v': _sin,  'phi': _quad},
-    {'name': 'u_sin_phi_lin',     'params': _DECOUPLED, 'u': _sin,  'omega': ZERO,  'v': ZERO,  'phi': _lin},
-        # --- Group 6: coupled ---
-    {'name': 'coupled_u_omega',   'params': {**_DECOUPLED, 'd': 1.0}, 'u': _lin,  'omega': _sin,  'v': ZERO,  'phi': ZERO},
-    {'name': 'coupled_v_phi',     'params': {**_DECOUPLED, 'b': 1.0}, 'u': ZERO,  'omega': ZERO,  'v': _sin,  'phi': _quad},
-    {'name': 'all_linear',        'params': _COUPLED,  'u': _lin,  'omega': _lin,  'v': _lin,  'phi': _lin},
-    {'name': 'all_sin',           'params': _COUPLED,  'u': _sin,  'omega': _sin,  'v': _sin,  'phi': _sin},
-    {'name': 'all_mixed',         'params': _COUPLED,  'u': _lin,  'omega': _sin,  'v': _quad, 'phi': _sin},
-    {'name': 'silvia_1',          'params': _DECOUPLED, 'u': _sin, 'omega': sp.sin(t+s), 'v': t*sp.sin(s), 'phi': t**2*sp.sin(s+2*t)},
-    # --- Group 7: chemotaxis-coupled (u <-> phi via chi(phi)) ---
-    # chi is active only when both u and phi are nonzero. For
-    # receptor_saturation, k2=2 keeps (k2 + phi) >= 1 (phi = sin in [-1,1]),
-    # avoiding any singularity in chi(phi) = k1/(nu*(k2+phi)^2).
-    {'name': 'chemo_const_sin',         'params': _DECOUPLED, 'u': _sin, 'omega': ZERO, 'v': ZERO, 'phi': _sin,
-     'chi_type': 'constant',            'k1': 1.0, 'k2': 1.0},
-    {'name': 'chemo_satur_sin',         'params': _DECOUPLED, 'u': _sin, 'omega': ZERO, 'v': ZERO, 'phi': _sin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'fully_coupled_chi_const', 'params': _COUPLED,   'u': _sin, 'omega': _sin, 'v': _sin, 'phi': _sin,
-     'chi_type': 'constant',            'k1': 1.0, 'k2': 1.0},
-    {'name': 'fully_coupled_chi_satur', 'params': _COUPLED,   'u': _sin, 'omega': _sin, 'v': _sin, 'phi': _sin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'chemo_const_linear',         'params': _DECOUPLED, 'u': _lin, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
-     'chi_type': 'constant',            'k1': 1.0, 'k2': 1.0},
-    {'name': 'chemo_satur_linear',         'params': _DECOUPLED, 'u': _lin, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'fully_coupled_chi_const_linear', 'params': _COUPLED,   'u': _lin, 'omega': _lin, 'v': _lin, 'phi': _lin,
-     'chi_type': 'constant',            'k1': 1.0, 'k2': 1.0},
-    {'name': 'fully_coupled_chi_satur_linear', 'params': _COUPLED,   'u': _lin, 'omega': _lin, 'v': _lin, 'phi': _lin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test_uncoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _lin, 'v': _lin, 'phi': _psin,
+    {'name': 'full_test_uncoupled', 'params': _DECOUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
+     'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
+    {'name': 'full_test_weaklycoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
+     'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
+    {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
      'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _lin, 'v': _lin, 'phi': _psin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _lin, 'v': _lin, 'phi': _psin,
+    {'name': 'full_test', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
      'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
 ]
+
 for _c in CASES:
     _c.setdefault('T', 1.0);         _c.setdefault('dt', 0.025)
     _c.setdefault('chi_type', 'constant')

@@ -390,6 +390,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     h = disc_params.get('h', None)
     n_elements_fixed = disc_params['n_elements']  # fallback when h is absent
     tau_values = disc_params['tau']
+    gam = disc_params.get('gam', 0.0)  # Upwinding parameter for static condensation
 
     if h is not None:
         from bionetflux.core.discretization import compute_n_elements_from_h
@@ -452,6 +453,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
 
         # Set stabilization parameters from config
         discretization.set_tau(tau_values)
+        discretization.set_upwind_parameter(gam)
         discretizations.append(discretization)
 
     # Apply domain-specific initial condition overrides

@@ -76,6 +76,12 @@ class Discretization:
         self.tau = np.array(tau_values)
         if len(self.tau) == 0:
             raise ValueError("Tau values list cannot be empty.")
+        
+    def set_upwind_parameter(self, gam: float):
+        """Set the upwinding parameter for static condensation."""
+        if gam < 0.0:
+            raise ValueError(f"Upwinding parameter gam must be non-negative, got {gam}")
+        self.gam = gam
 
 class GlobalDiscretization:
     """

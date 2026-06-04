@@ -48,6 +48,7 @@
     [discretization]
     n_elements = 40
     tau = [0.5, 0.5, 0.5, 0.5]
+    gam = 1.0   # Upwinding parameter for static condensation (0.0 = no upwind)
 
     [initial_conditions]
     u     = "sin(s)"

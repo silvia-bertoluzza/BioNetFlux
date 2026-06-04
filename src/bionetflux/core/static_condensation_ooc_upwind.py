@@ -150,6 +150,7 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         tv = tau[2]      # tau for v
         tp = tau[3]      # tau for phi
         
+        gam = self.discretization.gam if hasattr(self.discretization, 'gam') else 0.0  # Upwinding parameter
         
         
         # Get basic cached matrices
@@ -174,10 +175,15 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             out_diag = np.zeros(2)
         Out = np.diag(out_diag) # outflow selector
         In = np.eye(2) - Out # inflow selector
+        
+        # Disactivate upwind choice of uhat
+        Out = np.zeros((2, 2))
+        In = np.eye(2)
 
+       
         # gamma(i) = max(-prev_psi(i) * normali(i), 0) + tu
         if prev_psi is not None:
-            gamma = np.maximum(-prev_psi * normali, 0.0) + tu
+            gamma = gam * np.maximum(-prev_psi * normali, 0.0) + tu
         else:
             gamma = np.full(2, tu)
 
@@ -359,8 +365,8 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         dtJ = D1 @ JAC - D2
         
         # Construction of j and dj (Q is multiplied by barchi at runtime)
-        # j = hB4 @ hU + barchi * tJ.T @ Q @ U
-        j = hB4 @ hIn @ hU + hB4 @ hOut @ U + barchi * tJ.T @ Q @ U
+        j = hB4 @ hU + barchi * tJ.T @ Q @ U
+        # j = hB4 @ hIn @ hU + hB4 @ hOut @ U + barchi * tJ.T @ Q @ U
         
         # WARNING: the formula for dbarphi_dhU needs to be checked against the theory
         dbarphi_dhU = Av @ R[3] @ JAC                           # (1, 8)
