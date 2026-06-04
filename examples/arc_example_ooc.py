@@ -17,6 +17,7 @@ import os
 from setup_solver import quick_setup, SolverSetup
 from bionetflux.time_integration import TimeStepper
 from bionetflux.time_integration.time_stepper import AdaptiveTimeStepper
+from bionetflux.time_integration.picard_solver import PicardSolver
 from bionetflux.visualization.lean_matplotlib_plotter import LeanMatplotlibPlotter
 from bionetflux.geometry.domain_geometry import build_arc_sequence_geometry, build_grid_geometry, create_maze_geometry
 from bionetflux.problems.ooc_config_manager import OoCConfigManager
@@ -116,10 +117,37 @@ def _load_exact_solutions(config_file: Optional[str]) -> Dict[str, Any]:
     return config.get('exact_solutions', {})
 
 
+def build_optional_picard_solver(solver_type: str) -> Optional[PicardSolver]:
+    """Return a PicardSolver when solver_type == 'picard', else None (Newton default).
+
+    The TimeStepper selects Picard when a picard_solver is provided and Newton
+    otherwise (see time_stepper.py), so returning None keeps the default Newton
+    behavior.
+
+    Args:
+        solver_type: Either "newton" or "picard".
+
+    Returns:
+        A configured PicardSolver for "picard"; None for "newton" (TimeStepper
+        then uses its default Newton solver).
+
+    Raises:
+        ValueError: If solver_type is not "newton" or "picard".
+    """
+    if solver_type == "newton":
+        return None
+    if solver_type == "picard":
+        return PicardSolver(tolerance=1.e-7, max_iterations=50, verbose=False)
+    raise ValueError(
+        f"Unknown solver_type {solver_type!r}; expected 'newton' or 'picard'."
+    )
+
+
 def run_evolution_with_time_stepper(
     config_file: Optional[str] = None,
     arc_number: int = 3,
     arc_length: float = 500.0,
+    solver_type: str = "newton",
 ):
     """
     Main function demonstrating time evolution with the new TimeStepper module.
@@ -128,6 +156,7 @@ def run_evolution_with_time_stepper(
         config_file: Optional TOML configuration file path
         arc_number: Number of arcs in the sequence geometry (N parameter)
         arc_length: Length of each arc in the sequence geometry
+        solver_type: Nonlinear solver to use, "newton" (default) or "picard".
     """
     print("="*80)
     print("EVOLUTION + PLOTTING EXAMPLE WITH TIME STEPPER")
@@ -194,8 +223,11 @@ def run_evolution_with_time_stepper(
     
     print("\nStep 2: Initializing time stepper...")
     
-    # Create time stepper with Newton solver configuration
-    time_stepper = TimeStepper(setup, verbose=True)
+    # Create time stepper. solver_type selects Newton (default) or Picard;
+    # passing picard_solver=None keeps the TimeStepper's default Newton solver.
+    picard_solver = build_optional_picard_solver(solver_type)
+    print(f"  Nonlinear solver: {solver_type}")
+    time_stepper = TimeStepper(setup, picard_solver=picard_solver, verbose=True)
     
     # Initialize solution at t=0 (replaces Steps 3-4 and lines 226-233 from original)
     current_solution, current_bulk_data = time_stepper.initialize_solution()
@@ -388,6 +420,7 @@ def run_evolution_with_adaptive_time_stepper(
     safety_factor: float = 0.8,
     arc_number: int = 3,
     arc_length: float = 500.0,
+    solver_type: str = "newton",
 ):
     """Time evolution using the AdaptiveTimeStepper.
 
@@ -405,6 +438,7 @@ def run_evolution_with_adaptive_time_stepper(
         safety_factor: Safety factor for time step adjustment.
         arc_number: Number of arcs in the sequence geometry (N parameter).
         arc_length: Length of each arc in the sequence geometry.
+        solver_type: Nonlinear solver to use, "newton" (default) or "picard".
 
     Returns:
         (setup, time_stepper, solution_history, time_history, dt_history)
@@ -459,12 +493,17 @@ def run_evolution_with_adaptive_time_stepper(
 
     print("\nStep 2: Initializing adaptive time stepper...")
 
+    # solver_type selects Newton (default) or Picard; picard_solver=None keeps
+    # the AdaptiveTimeStepper's default Newton solver.
+    picard_solver = build_optional_picard_solver(solver_type)
+    print(f"  Nonlinear solver: {solver_type}")
     time_stepper = AdaptiveTimeStepper(
         setup,
         verbose=True,
         dt_min=dt_min,
         dt_max=dt_max,
         safety_factor=safety_factor,
+        picard_solver=picard_solver,
     )
 
     current_solution, current_bulk_data = time_stepper.initialize_solution()
@@ -687,6 +726,7 @@ if __name__ == "__main__":
     Usage:
         python evolution_example_ooc.py [config.toml]              # fixed dt
         python evolution_example_ooc.py --adaptive [config.toml]   # adaptive dt
+        python evolution_example_ooc.py --solver picard [config.toml]  # Picard solver
         python evolution_example_ooc.py --arc-number 5 --arc-length 300.0 [config.toml]
     """
 
@@ -696,6 +736,19 @@ if __name__ == "__main__":
     if "--adaptive" in args:
         use_adaptive = True
         args.remove("--adaptive")
+
+    # Parse --solver newton|picard flag (default: newton)
+    solver_type = "newton"
+    if "--solver" in args:
+        idx = args.index("--solver")
+        if idx + 1 >= len(args):
+            print("Error: --solver requires a value (newton or picard)")
+            sys.exit(1)
+        solver_type = args[idx + 1]
+        if solver_type not in ("newton", "picard"):
+            print(f"Error: unknown solver '{solver_type}'; expected 'newton' or 'picard'")
+            sys.exit(1)
+        del args[idx:idx + 2]
 
     # Parse --arc-number and --arc-length flags
     arc_number = 3
@@ -736,7 +789,8 @@ if __name__ == "__main__":
     try:
         if use_adaptive:
             result = run_evolution_with_adaptive_time_stepper(
-                config_file, arc_number=arc_number, arc_length=arc_length
+                config_file, arc_number=arc_number, arc_length=arc_length,
+                solver_type=solver_type
             )
 
             if result[0] is None:
@@ -746,7 +800,8 @@ if __name__ == "__main__":
             setup, time_stepper, sol_history, time_hist, dt_hist = result
         else:
             result = run_evolution_with_time_stepper(
-                config_file, arc_number=arc_number, arc_length=arc_length
+                config_file, arc_number=arc_number, arc_length=arc_length,
+                solver_type=solver_type
             )
 
             if result[0] is None:
