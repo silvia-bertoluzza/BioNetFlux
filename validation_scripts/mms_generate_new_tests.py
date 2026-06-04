@@ -271,9 +271,9 @@ _COUPLED   = dict(nu=0.25, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, 
 
 _lin  = t * s/6.28
 _quad = t * (s/6.28)**2
-_sin  = t * sp.sin(s)
-_psin = t * sp.sin(s + 2*t)
-_cos_t_sin_s = sp.cos(t) * sp.sin(s)
+_sin  = t * sp.sin(s) + 1.0
+_psin = t * sp.sin(s + 2*t) + 1.0
+_cos_t_sin_s = sp.cos(t) * sp.sin(s) + 1.0
 
 
 CASES = [
@@ -282,7 +282,7 @@ CASES = [
     {'name': 'full_test_weaklycoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
      'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
     {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
-     'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
+     'chi_type': 'constant', 'k1': 20.0, 'k2': 2.0},
     {'name': 'full_test_lin_phi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _psin, 'phi': _lin,
      'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
     {'name': 'full_test', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _psin, 'phi': _sin,
