@@ -266,8 +266,8 @@ def generate_toml(case: Dict[str, Any], mms: Dict, n_elements: int = 40) -> str:
 # Test cases
 # ---------------------------------------------------------------------------
 
-_DECOUPLED = dict(nu=0.5, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=0.0, c=1.0, d=0.0)
-_COUPLED   = dict(nu=0.5, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, d=1.0)
+_DECOUPLED = dict(nu=0.25, mu=0.25, epsilon=0.25, sigma=0.25, a=1.0, b=0.0, c=1.0, d=0.0)
+_COUPLED   = dict(nu=0.25, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, d=1.0)
 
 _lin  = t * s/6.28
 _quad = t * (s/6.28)**2
@@ -283,7 +283,9 @@ CASES = [
      'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
     {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
      'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
+    {'name': 'full_test_lin_phi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _psin, 'phi': _lin,
+     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
+    {'name': 'full_test', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _psin, 'phi': _sin,
      'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
 ]
 
