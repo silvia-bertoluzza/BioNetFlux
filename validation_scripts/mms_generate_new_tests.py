@@ -89,7 +89,7 @@ def _chi_expr(chi_type: str, k1: float, k2: float, nu: float, phi_ms):
     if chi_type == "constant":
         return sp.Float(k1) * sp.Float(nu)  # Rescale by diffusivity to match solver definition
     if chi_type == "receptor_saturation":
-        return sp.Float(nu) * sp.Float(k1) / (sp.Float(k2) + phi_ms) ** 2
+        return sp.Float(k1) * sp.Float(nu) / (sp.Float(k2) + phi_ms) ** 2
 #        return sp.Float(k1) / (sp.Float(k2) + phi_ms) ** 2
     raise ValueError(f"Unsupported chemotaxis type: {chi_type}")
 
@@ -266,27 +266,32 @@ def generate_toml(case: Dict[str, Any], mms: Dict, n_elements: int = 40) -> str:
 # Test cases
 # ---------------------------------------------------------------------------
 
-_DECOUPLED = dict(nu=0.25, mu=0.25, epsilon=0.25, sigma=0.25, a=1.0, b=0.0, c=1.0, d=0.0)
-_COUPLED   = dict(nu=0.25, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, d=1.0)
+_DECOUPLED = dict(nu=2.0, mu=0.25, epsilon=0.25, sigma=0.25, a=1.0, b=0.0, c=1.0, d=0.0)
+_COUPLED   = dict(nu=2.0, mu=1.0, epsilon=1.0, sigma=1.0, a=1.0, b=1.0, c=1.0, d=1.0)
 
-_lin  = t * s/6.28
-_quad = t * (s/6.28)**2
+_linu  = 0.5 * t * s + 0.5
+_lin  = t * s
+_quad = t * (s/10.0)**2 + 0.5
 _sin  = t * sp.sin(s) + 1.0
 _psin = t * sp.sin(s + 2*t) + 1.0
 _cos_t_sin_s = sp.cos(t) * sp.sin(s) + 1.0
-
+_costante = 1.0 + 0.0 * s 
 
 CASES = [
-    {'name': 'full_test_uncoupled', 'params': _DECOUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
+    {'name': 'full_test_uncoupled', 'params': _DECOUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
      'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
-    {'name': 'full_test_weaklycoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
+    {'name': 'full_test_weaklycoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
      'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
-    {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _lin, 'phi': _psin,
-     'chi_type': 'constant', 'k1': 20.0, 'k2': 2.0},
-    {'name': 'full_test_lin_phi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _psin, 'phi': _lin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': _quad, 'v': _psin, 'phi': _sin,
-     'chi_type': 'receptor_saturation', 'k1': 1.0, 'k2': 2.0},
+    {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
+     'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
+    {'name': 'full_test_const_chi_lin', 'params': _COUPLED,   'u': _linu, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+     'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
+    {'name': 'full_test_lin_phi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+     'chi_type': 'receptor_saturation', 'k1': 50.0, 'k2': 2.0},
+    {'name': 'full_test_linear', 'params': _COUPLED,   'u': _linu, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+     'chi_type': 'receptor_saturation', 'k1': 50.0, 'k2': 2.0},
+    {'name': 'full_test', 'params': _COUPLED,  'u': _costante, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+     'chi_type': 'receptor_saturation', 'k1': 2.0, 'k2': 1.0},
 ]
 
 for _c in CASES:

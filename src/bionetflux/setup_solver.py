@@ -68,6 +68,13 @@ class SolverSetup:
         self.problems, self.global_discretization, self.constraint_manager, self.problem_name = results
         self.constraints = self.constraint_manager  # Alias for backward compatibility
         
+        # DEBUG
+        chi = getattr(self.problems[0], 'chi', lambda x: None)
+        print(f"DEBUG: in setup.initialize: chi(1)={chi(1.0) if callable(chi) else 'N/A'}")
+        forza = self.problems[0].force[0]
+        print(f"DEBUG: in setup.initialize: fu(0.0, 1.0)={forza(0.0, 1.0) if callable(forza) else 'N/A'}")       
+        # End DEBUG
+        
         self._initialized = True
     
     @property
@@ -521,6 +528,7 @@ def quick_setup(problem_module: str = "bionetflux.problems.test_problem2",
         ValueError: If config file problem type doesn't match problem module
         ImportError: If config file cannot be loaded
     """
+
     print(f"Quick setup: problem_module='{problem_module}', config_file='{config_file}'")
     
     # Validate config compatibility BEFORE creating setup

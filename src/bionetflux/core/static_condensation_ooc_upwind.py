@@ -46,6 +46,8 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         # Get chi and dchi as callables from problem (set via set_chemotaxis)
         self.chi_func = self.problem.chi
         self.dchi_func = self.problem.dchi
+        
+        print(f"DEBUG: build_matrices: chi(1)={self.chi_func(1.0) if callable(self.chi_func) else 'N/A'}")
 
         # Get lambda function and its derivative
         self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
@@ -102,7 +104,8 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         Returns:
             Tuple (bulk_solution, flux, flux_jump, jacobian)
         """
-
+        print(f"DEBUG1: in static_condensation: chi(1)={self.chi_func(1.0) if callable(self.chi_func) else 'N/A'}")
+     
         prev_flux = kwargs.get('prev_flux')  # shape: (total_flux_dofs_per_element,) or None on first iteration
         # flux layout: [j(1), tJ_eq2(2), tJ_eq3(2), tJ_eq4(2)] -> eq4 occupies indices 5:7
         

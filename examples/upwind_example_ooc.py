@@ -276,7 +276,7 @@ def run_evolution_with_time_stepper(
     # TIME EVOLUTION LOOP - SIMPLIFIED TO ONE LINE PER TIME STEP!
     time_step = 0
     
-    while current_time + dt <= T and time_step < max_time_steps:
+    while current_time + dt <= T + 1e-12 and time_step <= max_time_steps:
         time_step += 1
         print(f"\n--- Time Step {time_step}: t = {current_time:.6f} → {current_time + dt:.6f} ---")
         
@@ -347,6 +347,7 @@ def run_evolution_with_time_stepper(
         final_traces,
         title=f"Final 2D Curves at t={current_time:.2f}",
         save_filename="final_2d_curves.png",
+        bulk_solutions=current_bulk_data
     )
 
     # Superpose exact solution if available
@@ -434,7 +435,7 @@ def run_evolution_with_adaptive_time_stepper(
 
     try:
         setup = quick_setup(
-            problem_module="bionetflux.problems.ooc_problem",
+            problem_module="bionetflux.problems.ooc_problem_upwind",
             validate=True,
             config_file=config_file,
             geometry=geometry,
@@ -601,7 +602,11 @@ def run_evolution_with_adaptive_time_stepper(
         final_traces,
         title=f"Final 2D Curves at t={current_time:.2f}",
         save_filename="final_2d_curves.png",
+        bulk_solutions=current_bulk_data
     )
+    
+    print(f"Current time: {current_time:.6f}")
+    
     if _overlay_exact_solutions(fig_final, plotter, exact_solutions, current_time):
         save_path = plotter._get_save_path("final_2d_curves.png")
         if save_path:
@@ -613,20 +618,20 @@ def run_evolution_with_adaptive_time_stepper(
     # STEP 7: DT EVOLUTION PLOT
     # ====================================================================
 
-    if dt_history:
-        print("\nStep 7: Plotting dt evolution...")
-        fig_dt, ax_dt = plt.subplots(figsize=(10, 4))
-        # Each dt_history[i] was used for the step ending at time_history[i+1]
-        ax_dt.step(time_history[1:], dt_history, where='pre', color='tab:blue')
-        ax_dt.set_xlabel("Time")
-        ax_dt.set_ylabel("dt")
-        ax_dt.set_yscale("log")
-        ax_dt.set_title("Adaptive time step size")
-        ax_dt.grid(True, alpha=0.3)
-        fig_dt.tight_layout()
-        dt_plot_path = os.path.join(run_dir, "dt_evolution.png")
-        fig_dt.savefig(dt_plot_path, dpi=150)
-        print(f"\u2713 dt evolution plot saved to {dt_plot_path}")
+    # if dt_history:
+    #     print("\nStep 7: Plotting dt evolution...")
+    #     fig_dt, ax_dt = plt.subplots(figsize=(10, 4))
+    #     # Each dt_history[i] was used for the step ending at time_history[i+1]
+    #     ax_dt.step(time_history[1:], dt_history, where='pre', color='tab:blue')
+    #     ax_dt.set_xlabel("Time")
+    #     ax_dt.set_ylabel("dt")
+    #     ax_dt.set_yscale("log")
+    #     ax_dt.set_title("Adaptive time step size")
+    #     ax_dt.grid(True, alpha=0.3)
+    #     fig_dt.tight_layout()
+    #     dt_plot_path = os.path.join(run_dir, "dt_evolution.png")
+    #     fig_dt.savefig(dt_plot_path, dpi=150)
+    #     print(f"\u2713 dt evolution plot saved to {dt_plot_path}")
 
     # Display all figures, then close
     plt.show()

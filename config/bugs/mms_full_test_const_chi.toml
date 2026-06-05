@@ -3,15 +3,15 @@
     #
     # Manufactured solutions:
     #   u     = sin(s)*cos(t) + 1.0
-    #   omega = 0
-    #   v     = 0
+    #   omega = 0.01*s**2*t + 0.5
+    #   v     = s*t
     #   phi   = t*sin(s + 2*t) + 1.0
     #
     # Forcing terms:
-    #   f_u     = -24.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 24.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 3.0*sin(s)*cos(t)
-    #   f_omega = -1.0*sin(s)*cos(t) - 1.0
-    #   f_v     = 0
-    #   f_phi   = 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0
+    #   f_u     = -60.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 60.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 3.0*sin(s)*cos(t)
+    #   f_omega = 0.01*s**2*t + 0.01*s**2 - 0.02*t - 1.0*sin(s)*cos(t) - 0.5
+    #   f_v     = s
+    #   f_phi   = -1.0*s*t + 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0
 
     [problem]
     name = "MMS_full_test_const_chi"
@@ -38,7 +38,7 @@
 
     [physical_parameters.chemotaxis]
     type = "constant"
-    k1   = 8.0
+    k1   = 20.0
     k2   = 2.0
 
     [physical_parameters.tumor_suppression]
@@ -52,34 +52,37 @@
 
     [initial_conditions]
     u     = "sin(s) + 1.0"
-    omega = "zeros"
+    omega = "0.500000000000000"
     v     = "zeros"
     phi   = "1.00000000000000"
 
     [force_functions]
-    u     = "-24.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 24.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 3.0*sin(s)*cos(t)"
-    omega = "-1.0*sin(s)*cos(t) - 1.0"
-    v     = "zeros"
-    phi   = "2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0"
+    u     = "-60.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 60.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 3.0*sin(s)*cos(t)"
+    omega = "0.01*s**2*t + 0.01*s**2 - 0.02*t - 1.0*sin(s)*cos(t) - 0.5"
+    v     = "s"
+    phi   = "-1.0*s*t + 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0"
 
     [exact_solutions]
     u     = "sin(s)*cos(t) + 1.0"
-    omega = "zeros"
-    v     = "zeros"
+    omega = "0.01*s**2*t + 0.5"
+    v     = "s*t"
     phi   = "t*sin(s + 2*t) + 1.0"
 
     [exact_solution_derivatives]
     u     = "cos(s)*cos(t)"
-    omega = "zeros"
-    v     = "zeros"
+    omega = "0.02*s*t"
+    v     = "t"
     phi   = "t*cos(s + 2*t)"
 
     [boundary_conditions]
     # Dirichlet at B0 (left, s=0), Neumann at B1 (right).
     # Neumann data = outward normal flux = +flux at right.
     B0_u = { type = "dirichlet", data = "sin(s)*cos(t) + 1.0" }
-B1_u = { type = "neumann",   data = "-24.0*t*(sin(s)*cos(t) + 1)*cos(s + 2*t) + 3.0*cos(s)*cos(t)" }
-# omega: exact solution zero — homogeneous Neumann by default
-# v: exact solution zero — homogeneous Neumann by default
+    B1_u = { type = "dirichlet", data = "sin(s)*cos(t) + 1.0" }
+# B1_u = { type = "neumann",   data = "-60.0*t*(sin(s)*cos(t) + 1)*cos(s + 2*t) + 3.0*cos(s)*cos(t)" }
+B0_omega = { type = "dirichlet", data = "0.01*s**2*t + 0.5" }
+B1_omega = { type = "neumann",   data = "0.02*s*t" }
+B0_v = { type = "dirichlet", data = "s*t" }
+B1_v = { type = "neumann",   data = "1.0*t" }
 B0_phi = { type = "dirichlet", data = "t*sin(s + 2*t) + 1.0" }
 B1_phi = { type = "neumann",   data = "1.0*t*cos(s + 2*t)" }

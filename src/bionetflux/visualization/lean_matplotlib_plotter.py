@@ -183,22 +183,30 @@ class LeanMatplotlibPlotter:
         # Otherwise, use filename as-is (current working directory)
         return filename
     
-    def plot_2d_curves(self, 
+    def plot_2d_curves(self,
                       trace_solutions: List[np.ndarray],
                       title: str = "2D Solution Curves",
                       show_bounding_box: bool = True,
                       show_mesh_points: bool = True,
-                      save_filename: Optional[str] = None) -> plt.Figure:
+                      save_filename: Optional[str] = None,
+                      bulk_solutions: Optional[List] = None) -> plt.Figure:
         """
         Plot solutions as 2D curves: z = f(x) with separate subplots for each domain.
-        
+
         Args:
             trace_solutions: List of trace solutions for each domain
             title: Plot title
             show_bounding_box: Whether to show domain boundaries
             show_mesh_points: Whether to show dots at mesh points
             save_filename: Optional filename for saving (can be just filename if output_dir is set)
-            
+            bulk_solutions: Optional list (one entry per domain) of discontinuous
+                Galerkin bulk solutions to overlay on the trace curves. Each entry is
+                either a BulkData object or a numpy array of shape (2*neq, n_elements);
+                element ``m`` of equation ``eq`` is drawn as a solid segment from
+                ``(nodes[m], data[2*eq, m])`` to ``(nodes[m+1], data[2*eq+1, m])``.
+                Segments are drawn per element, so jumps between elements show as
+                genuine discontinuities (no vertical connecting lines).
+
         Returns:
             Matplotlib Figure object
         """
@@ -226,11 +234,20 @@ class LeanMatplotlibPlotter:
                 eq_end = eq_start + n_nodes
                 eq_solution = trace[eq_start:eq_end]
                 domain_solutions[eq_idx] = eq_solution
-            
-            # Find solution range for this domain
+
+            # Optional discontinuous-Galerkin bulk data for this domain
+            bulk_arr = None
+            if bulk_solutions is not None:
+                bd = bulk_solutions[domain_idx]
+                print(f"DEBUG: Received bulk solution for domain {domain_idx} with shape {bd.data.shape if hasattr(bd, 'data') else bd.shape}")
+                bulk_arr = bd.data if hasattr(bd, 'data') else bd  # Support both BulkData and raw array
+
+            # Find solution range for this domain (include bulk so it is not clipped)
             all_domain_values = []
             for eq_idx in range(self.neq):
                 all_domain_values.extend(domain_solutions[eq_idx])
+            if bulk_arr is not None:
+                all_domain_values.extend(bulk_arr.ravel().tolist())
             z_min, z_max = np.min(all_domain_values), np.max(all_domain_values)
             z_range = z_max - z_min
             z_padding = z_range * 0.1 if z_range > 0 else 1.0;
@@ -241,14 +258,33 @@ class LeanMatplotlibPlotter:
                 eq_name = self.equation_names[eq_idx]
                 
                 # Plot curve
-                ax.plot(domain_coords, domain_solutions[eq_idx], 
-                       color=color, linewidth=2, label=eq_name, alpha=0.8)
+                # ax.plot(domain_coords, domain_solutions[eq_idx], 
+                #       color=color, linewidth=2, label=eq_name, alpha=0.8)
                 
                 # Plot mesh points if requested
                 if show_mesh_points:
-                    ax.scatter(domain_coords, domain_solutions[eq_idx], 
+                    ax.scatter(domain_coords, domain_solutions[eq_idx],
                               color=color, s=30, alpha=0.7, zorder=5)
-            
+
+            # Overlay discontinuous-Galerkin bulk solution, one solid segment per
+            # element. Each element is plotted independently so jumps between
+            # elements appear as genuine discontinuities (no vertical connectors,
+            # no markers).
+            if bulk_arr is not None:
+                nodes = self.discretizations[domain_idx].nodes
+                n_elements = bulk_arr.shape[1]
+                for eq_idx in range(self.neq):
+                    color = self.equation_colors[eq_idx % len(self.equation_colors)]
+                    eq_name = self.equation_names[eq_idx]
+                    for elem_idx in range(n_elements):
+                        x_left = nodes[elem_idx]
+                        x_right = nodes[elem_idx + 1]
+                        c_left = bulk_arr[2 * eq_idx, elem_idx]
+                        c_right = bulk_arr[2 * eq_idx + 1, elem_idx]
+                        ax.plot([x_left, x_right], [c_left, c_right],
+                                color=color, linewidth=2, alpha=0.9,
+                                label=f"{eq_name} (bulk)" if elem_idx == 0 else None)
+
             # Add domain boundaries
             if show_bounding_box:
                 ax.axvline(x=domain_info['start'], color='gray', linestyle='--', 

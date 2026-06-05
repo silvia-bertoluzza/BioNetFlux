@@ -3,15 +3,15 @@
     #
     # Manufactured solutions:
     #   u     = sin(s)*cos(t) + 1.0
-    #   omega = 0.0253559982149377*s**2*t
-    #   v     = 0.159235668789809*s*t
+    #   omega = 0
+    #   v     = 0
     #   phi   = t*sin(s + 2*t) + 1.0
     #
     # Forcing terms:
-    #   f_u     = (-sin(t) + 0.25*cos(t))*sin(s)
-    #   f_omega = 0.0253559982149377*s**2*t + 0.0253559982149377*s**2 - 0.0507119964298754*t - 1.0*sin(s)*cos(t) - 1.0
-    #   f_v     = 0.159235668789809*s
-    #   f_phi   = -0.159235668789809*s*t + 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0
+    #   f_u     = (-sin(t) + 3.0*cos(t))*sin(s)
+    #   f_omega = -1.0*sin(s)*cos(t) - 1.0
+    #   f_v     = 0
+    #   f_phi   = 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0
 
     [problem]
     name = "MMS_full_test_weaklycoupled"
@@ -23,7 +23,7 @@
     dt = 0.025
 
     [physical_parameters.viscosity]
-    nu      = 0.25
+    nu      = 3.0
     mu      = 1.0
     epsilon = 1.0
     sigma   = 1.0
@@ -57,31 +57,29 @@
     phi   = "1.00000000000000"
 
     [force_functions]
-    u     = "(-sin(t) + 0.25*cos(t))*sin(s)"
-    omega = "0.0253559982149377*s**2*t + 0.0253559982149377*s**2 - 0.0507119964298754*t - 1.0*sin(s)*cos(t) - 1.0"
-    v     = "0.159235668789809*s"
-    phi   = "-0.159235668789809*s*t + 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0"
+    u     = "(-sin(t) + 3.0*cos(t))*sin(s)"
+    omega = "-1.0*sin(s)*cos(t) - 1.0"
+    v     = "zeros"
+    phi   = "2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0"
 
     [exact_solutions]
     u     = "sin(s)*cos(t) + 1.0"
-    omega = "0.0253559982149377*s**2*t"
-    v     = "0.159235668789809*s*t"
+    omega = "zeros"
+    v     = "zeros"
     phi   = "t*sin(s + 2*t) + 1.0"
 
     [exact_solution_derivatives]
     u     = "cos(s)*cos(t)"
-    omega = "0.0507119964298754*s*t"
-    v     = "0.159235668789809*t"
+    omega = "zeros"
+    v     = "zeros"
     phi   = "t*cos(s + 2*t)"
 
     [boundary_conditions]
     # Dirichlet at B0 (left, s=0), Neumann at B1 (right).
     # Neumann data = outward normal flux = +flux at right.
     B0_u = { type = "dirichlet", data = "sin(s)*cos(t) + 1.0" }
-B1_u = { type = "neumann",   data = "0.25*cos(s)*cos(t)" }
-B0_omega = { type = "dirichlet", data = "0.0253559982149377*s**2*t" }
-B1_omega = { type = "neumann",   data = "0.0507119964298754*s*t" }
-B0_v = { type = "dirichlet", data = "0.159235668789809*s*t" }
-B1_v = { type = "neumann",   data = "0.159235668789809*t" }
+B1_u = { type = "neumann",   data = "3.0*cos(s)*cos(t)" }
+# omega: exact solution zero — homogeneous Neumann by default
+# v: exact solution zero — homogeneous Neumann by default
 B0_phi = { type = "dirichlet", data = "t*sin(s + 2*t) + 1.0" }
 B1_phi = { type = "neumann",   data = "1.0*t*cos(s + 2*t)" }
