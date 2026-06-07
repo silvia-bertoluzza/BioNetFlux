@@ -309,7 +309,7 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         chi_func = lambda x: k1 / (nu * (k2 + x)**2)
         dchi_func = lambda x: -2.0 * k1 / (nu * (k2 + x)**3)
     elif chemotaxis_type == "constant":
-        chi_func = lambda x: k1 + 0.0 * x
+        chi_func = lambda x: k1 / nu + 0.0 * x
         dchi_func = lambda x: 0.0 * x
     else:
         raise ValueError(f"Unsupported chemotaxis type: {chemotaxis_type}")

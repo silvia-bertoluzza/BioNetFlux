@@ -47,8 +47,6 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         self.chi_func = self.problem.chi
         self.dchi_func = self.problem.dchi
         
-        print(f"DEBUG: build_matrices: chi(1)={self.chi_func(1.0) if callable(self.chi_func) else 'N/A'}")
-
         # Get lambda function and its derivative
         self.lambda_func = getattr(self.problem, 'lambda_function', lambda x: np.ones_like(x))
         self.dlambda_func = getattr(self.problem, 'dlambda_function', lambda x: np.zeros_like(x))
@@ -104,7 +102,6 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         Returns:
             Tuple (bulk_solution, flux, flux_jump, jacobian)
         """
-        print(f"DEBUG1: in static_condensation: chi(1)={self.chi_func(1.0) if callable(self.chi_func) else 'N/A'}")
      
         prev_flux = kwargs.get('prev_flux')  # shape: (total_flux_dofs_per_element,) or None on first iteration
         # flux layout: [j(1), tJ_eq2(2), tJ_eq3(2), tJ_eq4(2)] -> eq4 occupies indices 5:7
@@ -170,34 +167,6 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         normali = np.array([-1.0, 1.0])
         Z = np.zeros((2, 2))
 
-        # Build 2x2 upwind selector matrix O:
-        # O(i,i) = 0 if normali(i) * prev_psi(i) >= 0, else 1
-        if prev_psi is not None:
-            out_diag = np.where(normali * prev_psi >= 0, 0.0, 1.0)
-        else:
-            out_diag = np.zeros(2)
-        Out = np.diag(out_diag) # outflow selector
-        In = np.eye(2) - Out # inflow selector
-        
-        # Disactivate upwind choice of uhat
-        Out = np.zeros((2, 2))
-        In = np.eye(2)
-
-       
-        # gamma(i) = max(-prev_psi(i) * normali(i), 0) + tu
-        if prev_psi is not None:
-            gamma = gam * np.maximum(-prev_psi * normali, 0.0) + tu
-        else:
-            gamma = np.full(2, tu)
-
-        # tMb(i,j) = sum_k gamma(k)*T(k,i)*T(k,j)  =>  T.T @ diag(gamma) @ T
-        tMb = T.T @ np.diag(gamma) @ T
-        # tGb(i,j) = gamma(j)*T(j,i)  =>  tGb = T.T * gamma (broadcast gamma over columns)
-        tGb = T.T * gamma
-
-        
-       
-        
         # Picard mode: read previous-iterate bulk solution to freeze nonlinear
         # coefficients.  prev_local_solution is the 8-entry U from iteration k,
         # structured as [u1(2), u2(2), u3(2), u4(2)].
@@ -213,6 +182,34 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         else:
             bar_lambda_frozen = None
             barchi_frozen = None
+
+        # Build 2x2 upwind selector matrix O:
+        # O(i,i) = 0 if normali(i) * prev_psi(i) >= 0, else 1
+        if prev_psi is not None:
+            out_diag = np.where(normali * prev_psi >= 0, 0.0, 1.0)
+        else:
+            out_diag = np.zeros(2)
+        Out = np.diag(out_diag) # outflow selector
+        In = np.eye(2) - Out # inflow selector
+        
+        # Disactivate upwind choice of uhat
+        # Out = np.zeros((2, 2))
+        # In = np.eye(2)
+
+       
+        # gamma(i) = max(-prev_psi(i) * normali(i), 0) + tu
+        if prev_psi is not None:
+            gamma = gam * np.maximum(barchi_frozen * prev_psi * normali *(-1.0), 0.0) + tu 
+        else:
+            gamma = np.full(2, tu)
+
+
+        # tMb(i,j) = sum_k gamma(k)*T(k,i)*T(k,j)  =>  T.T @ diag(gamma) @ T
+        tMb = T.T @ np.diag(gamma) @ T
+        # tGb(i,j) = gamma(j)*T(j,i)  =>  tGb = T.T * gamma (broadcast gamma over columns)
+        tGb = T.T * gamma
+
+        # print(f"DEBUG: tMb=\n{tMb}, tGb=\n{tGb}")  # Debug statement
 
         # Step 1: Compute u
         # Matrix for u equation

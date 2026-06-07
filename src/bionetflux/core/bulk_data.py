@@ -91,8 +91,6 @@ class BulkData:
     def _integrate_from_functions(self, functions: List[Callable], time: float, quad_matrix: np.ndarray, quad_nodes: np.ndarray):
         """Integrate from a list of functions using quadrature."""
         
-        print(f"DEBUG: righthandside[0](0.0, 1.0) = {functions[0](0.0, 1.0) if callable(functions[0]) else 'N/A'}")  # Debug statement
-        
         for k in range(self.n_elements):  
             
             element_coeffs = []
