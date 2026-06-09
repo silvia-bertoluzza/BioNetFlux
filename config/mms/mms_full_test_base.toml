@@ -8,7 +8,7 @@
     #   phi   = s*t
     #
     # Forcing terms:
-    #   f_u     = -8.0*t**2/(s*t + 1.0)**3
+    #   f_u     = -2.0*t**2/(s*t + 1.0)**3
     #   f_omega = -1.00000000000000
     #   f_v     = 0
     #   f_phi   = s*(1.0*t + 1)
@@ -20,15 +20,15 @@
 
     [time_parameters]
     T  = 1.0
-    dt = 0.05
+    dt = 0.025
 
     [discretization]
-    n_elements = 20
+    n_elements = 40
     tau = [0.5, 0.5, 0.5, 0.5]
-    gam = 0.0   # Upwinding parameter for static condensation (0.0 = no upwind)
+    gam = 1.0   # Upwinding parameter for static condensation (0.0 = no upwind)
 
     [physical_parameters.viscosity]
-    nu      = 2.0
+    nu      = 1.0
     mu      = 1.0
     epsilon = 1.0
     sigma   = 1.0
@@ -43,7 +43,7 @@
 
     [physical_parameters.chemotaxis]
     type = "receptor_saturation"
-    k1   = 4.0
+    k1   = 1.0
     k2   = 1.0
 
     [physical_parameters.tumor_suppression]
@@ -57,7 +57,7 @@
     phi   = "zeros"
 
     [force_functions]
-    u     = "-8.0*t**2/(s*t + 1.0)**3"
+    u     = "-2.0*t**2/(s*t + 1.0)**3"
     omega = "-1.00000000000000"
     v     = "zeros"
     phi   = "s*(1.0*t + 1)"
@@ -78,7 +78,7 @@
     # Dirichlet at B0 (left, s=0), Neumann at B1 (right).
     # Neumann data = outward normal flux = +flux at right.
     B0_u = { type = "dirichlet", data = "1.00000000000000" }
-B1_u = { type = "neumann",   data = "-4.0*t/(s*t + 1.0)**2" }
+B1_u = { type = "neumann",   data = "-1.0*t/(s*t + 1.0)**2" }
 # omega: exact solution zero — homogeneous Neumann by default
 # v: exact solution zero — homogeneous Neumann by default
 B0_phi = { type = "dirichlet", data = "s*t" }
