@@ -39,7 +39,7 @@ class TimeStepResult:
         lines = [
             f"Time Step Result Summary:",
             f"  Status: {'CONVERGED' if self.converged else 'FAILED TO CONVERGE'}",
-            f"  Newton iterations: {self.iterations}",
+            f"  Iterations: {self.iterations}",
             f"  Final residual norm: {self.final_residual_norm:.6e}",
             f"  Computation time: {self.computation_time:.4f} seconds",
             f"  Solution vector size: {len(self.updated_solution)}",

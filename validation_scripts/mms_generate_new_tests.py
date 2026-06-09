@@ -87,9 +87,9 @@ def _chi_expr(chi_type: str, k1: float, k2: float, nu: float, phi_ms):
     if k1 == 0:
         return None
     if chi_type == "constant":
-        return sp.Float(k1) * sp.Float(nu)  # Rescale by diffusivity to match solver definition
+        return sp.Float(k1)  # Rescale by diffusivity to match solver definition
     if chi_type == "receptor_saturation":
-        return sp.Float(k1) * sp.Float(nu) / (sp.Float(k2) + phi_ms) ** 2
+        return sp.Float(k1) / (sp.Float(k2) + phi_ms) ** 2
 #        return sp.Float(k1) / (sp.Float(k2) + phi_ms) ** 2
     raise ValueError(f"Unsupported chemotaxis type: {chi_type}")
 
@@ -203,6 +203,11 @@ def generate_toml(case: Dict[str, Any], mms: Dict, n_elements: int = 40) -> str:
     T  = {T_end}
     dt = {dt_val}
 
+    [discretization]
+    n_elements = {n_elements}
+    tau = [0.5, 0.5, 0.5, 0.5]
+    gam = 1.0   # Upwinding parameter for static condensation (0.0 = no upwind)
+
     [physical_parameters.viscosity]
     nu      = {p['nu']}
     mu      = {p['mu']}
@@ -225,11 +230,6 @@ def generate_toml(case: Dict[str, Any], mms: Dict, n_elements: int = 40) -> str:
     [physical_parameters.tumor_suppression]
     m1 = {m1}
     m2 = {m2}
-
-    [discretization]
-    n_elements = {n_elements}
-    tau = [0.5, 0.5, 0.5, 0.5]
-    gam = 1.0   # Upwinding parameter for static condensation (0.0 = no upwind)
 
     [initial_conditions]
     u     = {_ic_str(mms['u'])}
@@ -277,20 +277,30 @@ _psin = t * sp.sin(s + 2*t) + 1.0
 _cos_t_sin_s = sp.cos(t) * sp.sin(s) + 1.0
 _costante = 1.0 + 0.0 * s 
 
+# CASES = [
+#     {'name': 'full_test_uncoupled', 'params': _DECOUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
+#      'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
+#     {'name': 'full_test_weaklycoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
+#      'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
+#     {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
+#      'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
+#     {'name': 'full_test_const_chi_lin', 'params': _COUPLED,   'u': _linu, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+#      'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
+#     {'name': 'full_test_lin_phi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+#      'chi_type': 'receptor_saturation', 'k1': 50.0, 'k2': 2.0},
+#     {'name': 'full_test_linear', 'params': _COUPLED,   'u': _linu, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+#      'chi_type': 'receptor_saturation', 'k1': 50.0, 'k2': 2.0},
+#     {'name': 'full_test', 'params': _COUPLED,  'u': _costante, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+#      'chi_type': 'receptor_saturation', 'k1': 2.0, 'k2': 1.0},
+# ]
+
+
 CASES = [
-    {'name': 'full_test_uncoupled', 'params': _DECOUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
-     'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
-    {'name': 'full_test_weaklycoupled', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
-     'chi_type': 'constant', 'k1': 0.0, 'k2': 2.0},
     {'name': 'full_test_const_chi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _psin,
      'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test_const_chi_lin', 'params': _COUPLED,   'u': _linu, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
-     'chi_type': 'constant', 'k1': 1.0, 'k2': 2.0},
-    {'name': 'full_test_lin_phi', 'params': _COUPLED,   'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
-     'chi_type': 'receptor_saturation', 'k1': 50.0, 'k2': 2.0},
-    {'name': 'full_test_linear', 'params': _COUPLED,   'u': _linu, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
-     'chi_type': 'receptor_saturation', 'k1': 50.0, 'k2': 2.0},
-    {'name': 'full_test', 'params': _COUPLED,  'u': _costante, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+    {'name': 'full_test_base', 'params': _COUPLED,  'u': _costante, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
+     'chi_type': 'receptor_saturation', 'k1': 2.0, 'k2': 1.0},
+    {'name': 'full_test', 'params': _COUPLED,  'u': _cos_t_sin_s, 'omega': ZERO, 'v': ZERO, 'phi': _lin,
      'chi_type': 'receptor_saturation', 'k1': 2.0, 'k2': 1.0},
 ]
 
@@ -315,6 +325,9 @@ def main():
     parser.add_argument('--list',       action='store_true', help='List case names and exit')
     parser.add_argument('--out-dir',    default='config/mms', help='Output directory (default: config/mms)')
     parser.add_argument('--n-elements', type=int, default=40, help='Elements per domain (default: 40)')
+    parser.add_argument('--nu',  type=float, default=None, help='Override nu (immune-cell diffusivity) for all selected cases')
+    parser.add_argument('--k1',  type=float, default=None, help='Override k1 (chemotaxis drift coefficient) for all selected cases')
+    parser.add_argument('--k2',  type=float, default=None, help='Override k2 (receptor dissociation constant) for all selected cases')
     args = parser.parse_args()
 
     if args.list:
@@ -335,6 +348,12 @@ def main():
 
     for case in cases_to_run:
         name = case['name']
+        if args.nu is not None:
+            case['params']['nu'] = args.nu
+        if args.k1 is not None:
+            case['k1'] = args.k1
+        if args.k2 is not None:
+            case['k2'] = args.k2
         print(f"  {name} ...", end=' ', flush=True)
         chi_ms = _chi_expr(
             case['chi_type'], case['k1'], case['k2'],

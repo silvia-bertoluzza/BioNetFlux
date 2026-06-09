@@ -68,12 +68,12 @@ class SolverSetup:
         self.problems, self.global_discretization, self.constraint_manager, self.problem_name = results
         self.constraints = self.constraint_manager  # Alias for backward compatibility
         
-        # DEBUG
-        chi = getattr(self.problems[0], 'chi', lambda x: None)
-        print(f"DEBUG: in setup.initialize: chi(1)={chi(1.0) if callable(chi) else 'N/A'}")
-        forza = self.problems[0].force[0]
-        print(f"DEBUG: in setup.initialize: fu(0.0, 1.0)={forza(0.0, 1.0) if callable(forza) else 'N/A'}")       
-        # End DEBUG
+        # # DEBUG
+        # chi = getattr(self.problems[0], 'chi', lambda x: None)
+        # print(f"DEBUG: in setup.initialize: chi(1)={chi(1.0) if callable(chi) else 'N/A'}")
+        # forza = self.problems[0].force[0]
+        # print(f"DEBUG: in setup.initialize: fu(0.0, 1.0)={forza(0.0, 1.0) if callable(forza) else 'N/A'}")       
+        # # End DEBUG
         
         self._initialized = True
     

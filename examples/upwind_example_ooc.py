@@ -549,7 +549,7 @@ def run_evolution_with_adaptive_time_stepper(
 
             print(f"  \u2713 Time step successful!")
             print(f"    dt used: {dt_used:.6e}")
-            print(f"    Newton iterations: {result.iterations}")
+            print(f"    Picard iterations: {result.iterations}")
             print(f"    Final residual norm: {result.final_residual_norm:.6e}")
             print(f"    Computation time: {result.computation_time:.4f}s")
 

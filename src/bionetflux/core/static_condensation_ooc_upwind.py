@@ -189,33 +189,35 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             out_diag = np.where(normali * prev_psi >= 0, 0.0, 1.0)
         else:
             out_diag = np.zeros(2)
-        Out = np.diag(out_diag) # outflow selector
-        In = np.eye(2) - Out # inflow selector
+        # Out = np.diag(out_diag) # outflow selector
+        # In = np.eye(2) - Out # inflow selector
         
-        # Disactivate upwind choice of uhat
-        # Out = np.zeros((2, 2))
-        # In = np.eye(2)
+        # Disactivate upwind choice of uhat in equation for u
+        Out = np.zeros((2, 2))
+        In = np.eye(2)
 
        
-        # gamma(i) = max(-prev_psi(i) * normali(i), 0) + tu
+        # tu_up(i) = max(-prev_psi(i) * normali(i), 0) + tu
         if prev_psi is not None:
-            gamma = gam * np.maximum(barchi_frozen * prev_psi * normali *(-1.0), 0.0) + tu 
+            tu_up = gam * np.maximum(barchi_frozen * prev_psi * normali *(-1.0), 0.0) + tu 
         else:
-            gamma = np.full(2, tu)
+            tu_up = np.full(2, tu)
 
 
-        # tMb(i,j) = sum_k gamma(k)*T(k,i)*T(k,j)  =>  T.T @ diag(gamma) @ T
-        tMb = T.T @ np.diag(gamma) @ T
-        # tGb(i,j) = gamma(j)*T(j,i)  =>  tGb = T.T * gamma (broadcast gamma over columns)
-        tGb = T.T * gamma
+        # tMb(i,j) = sum_k tu_up(k)*T(k,i)*T(k,j)  =>  T.T @ diag(tu_up) @ T
+        tMb = T.T @ np.diag(tu_up) @ T
+        # tGb(i,j) = tu_up(j)*T(j,i)  =>  tGb = T.T * tu_up (broadcast tu_up over columns)
+        tGb = T.T * tu_up
 
         # print(f"DEBUG: tMb=\n{tMb}, tGb=\n{tGb}")  # Debug statement
 
         # Step 1: Compute u
         # Matrix for u equation
         A1 = M + dt * tMb
+        # A1 = M + dt * Mb
         L1 = np.linalg.inv(A1)
         H1 = dt * tGb
+        # H1 = dt * Gb
         B1 = L1 @ H1
  
         y1 = L1 @ g[0]
@@ -374,14 +376,15 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
              - dbarchi * (tJ.T @ Q @ U) * dbarphi_dhU            # (1, 8)
         # Final flux jumps
         
-        B6 =  np.diag(gamma) @ T @ np.block([np.eye(2), Z, Z, Z])
-        B7 = -np.diag(gamma) @ np.block([np.eye(2), Z, Z, Z])
+        B6 =  np.diag(tu_up) @ T @ np.block([np.eye(2), Z, Z, Z])
+        B7 = -np.diag(tu_up) @ np.block([np.eye(2), Z, Z, Z])
         
         B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2 / B5 = normali, but we need it as a 1x2 matrix for the multiplication below
         hj = B5.T @ j + B6 @ U + B7 @ hU
         
         dhj = B5.T @ dj  +  B6 @ JAC + B7
         
+        # hJ_rest: numerical flux contribution from equations 2-4 (omega, v, phi)
         hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
         dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2
          
