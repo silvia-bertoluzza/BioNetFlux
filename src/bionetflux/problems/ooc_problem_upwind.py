@@ -306,10 +306,12 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
     # Later it would be better to rescale nu in the static condensation module.
     
     if chemotaxis_type == "receptor_saturation":    
-        chi_func = lambda x: k1 / (nu * (k2 + x)**2)
+        chi_func = lambda x: k1 / (nu * (k2 + x)**2) # Saturation function for chemotaxis
+        zeta_func = lambda x: - k1 / (nu * (k1 + x))  
         dchi_func = lambda x: -2.0 * k1 / (nu * (k2 + x)**3)
     elif chemotaxis_type == "constant":
-        chi_func = lambda x: k1 / nu + 0.0 * x
+        chi_func = lambda x: k1 / nu + 0.0 * x # Constant saturation function for chemotaxis
+        zeta_func = lambda x: k1 * x / nu 
         dchi_func = lambda x: 0.0 * x
     else:
         raise ValueError(f"Unsupported chemotaxis type: {chemotaxis_type}")
@@ -432,6 +434,8 @@ def create_global_framework(geometry: Optional[DomainGeometry] = None,
         problem.set_function('lambda_function', lambda_func)  
         problem.set_function('dlambda_function', dlambda_func)
         
+        # Set sigma function for upwind stabilization
+        problem.set_function('zeta_function', zeta_func)
         
         # Set 2D coordinates for visualization from geometry
         problem.set_extrema(domain_info.extrema_start, domain_info.extrema_end)
