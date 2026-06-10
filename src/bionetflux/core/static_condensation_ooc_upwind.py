@@ -295,6 +295,22 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             chi_frozen = np.array([[0.0], [0.0]])  # Default to chi at phi=0 if not provided
             grad_phi_frozen = 1.0
 
+        # Retrieve zeta function for exponential upwinding, if defined
+        zeta_func = getattr(self.problem, 'zeta', None)
+        if zeta_func is not None:  
+            # Compute zeta based on the previous iterate's solution, if available
+            if prev_local_solution is not None:
+                zeta_value = zeta_func(u4_prev)
+            else:
+                zeta_value = zeta_func(np.zeros(2))  # Default to zero input if no previous solution
+            
+            
+            # Adjust matrices for upwinding using zeta_value
+            # This is a placeholder; the actual adjustment depends on how zeta modifies the fluxes
+            # For example, it might modify the D1 and D2 matrices or the B matrices
+            # Here we just print it for demonstration
+            print(f"Zeta value for upwinding: {zeta_value}")
+
         # Debugging: print shapes of previous iterate values
         # print(f"DEBUG: prev_local_solution shape: {prev_local_solution.shape if prev_local_solution  is not None else 'None'}")
         # print(f"DEBUG: local_solution values: {prev_local_solution.flatten() if prev_local_solution is not None else 'None'}")
