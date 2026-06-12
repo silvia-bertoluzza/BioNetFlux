@@ -66,7 +66,7 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         
         # Get stabilization parameters
         tau = self.discretization.tau if hasattr(self.discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
-        tu = tau[0]/h    # tau for u
+        tu = nu * tau[0]/h    # tau for u
         to = tau[1]    # tau for omega  
         tv = tau[2]    # tau for v
         tp = tau[3]    # tau for phi
@@ -236,8 +236,15 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
             Tuple (bulk_solution, flux_jump, jacobian)
         """
         
-        nu = self.problem.parameters[0]      # viscosity
+        tau = self.discretization.tau if hasattr(self.discretization, 'tau') else [1.0, 1.0, 1.0, 1.0]
+
+        to = tau[1]    # tau for omega  
+        tv = tau[2]    # tau for v
+        tp = tau[3]    # tau for phi
         
+        nu = self.problem.parameters[0]      # viscosity
+        normali = np.array([-1.0, 1.0])
+         
         # Handle None local_source
         if local_source is None:
             local_source = np.zeros(8)
@@ -256,6 +263,8 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         
         h = self.discretization.element_length
         
+        tu = nu * tau[0] / h    # tau for u
+        
         # Extract components following MATLAB StaticC.m
         hu = [local_trace[2*i:2*i+2] for i in range(4)]
         g = [local_source[2*i:2*i+2] for i in range(4)]
@@ -263,6 +272,7 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         d = self.problem.parameters[7]     # coupling parameter
         
         # Get matrices
+        T = self.sc_matrices['T']
         L1, B1 = self.sc_matrices['L1'], self.sc_matrices['B1']
         L2, B2, C2 = self.sc_matrices['L2'], self.sc_matrices['B2'], self.sc_matrices['C2']
         L4, B4, C4 = self.sc_matrices['L4'], self.sc_matrices['B4'], self.sc_matrices['C4']
@@ -380,10 +390,21 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         dj = hB4 + grad_phi_frozen * chi_frozen.T @ Q
         # Final flux jumps
         
-        B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
-        hj = B5.T @ j + B6 @ U + B7 @ hU
         
-        dhj = B5.T @ dj  +  B6 @ JAC + B7
+        # print(f"DEBUG: chi_frozen shape: {chi_frozen.shape}, chi_frozen[0,0]: {chi_frozen[0,0]}, chi_frozen[1,0]: {chi_frozen[1,0]}")
+        
+          
+        # Initialization Upwind stabilization matrix
+        Tau_Upwind = np.zeros((2, 2))
+        Tau_Upwind[0, 0] = tu - min(0, chi_frozen[0, 0] * grad_phi_frozen * normali[0])  # Upwind stabilization for node 00
+        Tau_Upwind[1, 1] = tu - min(0, chi_frozen[1, 0] * grad_phi_frozen * normali[1])  # Upwind stabilization for node 01
+        
+        
+        
+        B5 = B5.reshape(1, -1)  # Ensure B5 is 1x2
+        hj = B5.T @ j + Tau_Upwind @ (T @ R[0] @ U - R[0] @ hU)
+        
+        dhj = B5.T @ dj  +  Tau_Upwind @ T @ R[0] @ JAC - Tau_Upwind @ R[0]  # Derivative of upwind term w.r.t. hU is -Tau_Upwind @ R[0]
         
         hJ_rest = hatB0 @ tJ + hatB1 @ U - hatB2 @ hU
         dhJ_rest = hatB0 @ dtJ + hatB1 @ JAC - hatB2
