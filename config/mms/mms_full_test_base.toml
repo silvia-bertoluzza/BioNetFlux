@@ -28,7 +28,7 @@
     gam = 1.0   # Upwinding parameter for static condensation (0.0 = no upwind)
 
     [physical_parameters.viscosity]
-    nu      = 0.5
+    nu      = 0.1
     mu      = 1.0
     epsilon = 1.0
     sigma   = 1.0

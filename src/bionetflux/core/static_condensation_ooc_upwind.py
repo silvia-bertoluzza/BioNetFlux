@@ -392,12 +392,19 @@ class StaticCondensationOOCUpwind(StaticCondensationBase):
         
         
         # print(f"DEBUG: chi_frozen shape: {chi_frozen.shape}, chi_frozen[0,0]: {chi_frozen[0,0]}, chi_frozen[1,0]: {chi_frozen[1,0]}")
-        
+        # Old version without proper chi scaling:
+        # Tau_Upwind = np.zeros((2, 2))
+        # Tau_Upwind[0, 0] = tu - min(0, chi_frozen[0, 0] * grad_phi_frozen * normali[0])
+        # Tau_Upwind[1, 1] = tu - min(0, chi_frozen[1, 0] * grad_phi_frozen * normali[1])
           
-        # Initialization Upwind stabilization matrix
+        # Initialization Upwind stabilization matrix.
+        # Physical chemotaxis advection velocity  w = chi_true * d_s phi = nu * chi_code * d_s phi.
+        # chi_frozen holds the rescaled chi_code (= chi_true/nu), so multiply by nu to recover
+        # the physical velocity, matching the chi_true scaling already used in the flux j.
+        w_chemo = nu * grad_phi_frozen * chi_frozen[:, 0]
         Tau_Upwind = np.zeros((2, 2))
-        Tau_Upwind[0, 0] = tu - min(0, chi_frozen[0, 0] * grad_phi_frozen * normali[0])  # Upwind stabilization for node 00
-        Tau_Upwind[1, 1] = tu - min(0, chi_frozen[1, 0] * grad_phi_frozen * normali[1])  # Upwind stabilization for node 01
+        Tau_Upwind[0, 0] = tu - min(0, w_chemo[0] * normali[0])  # Upwind stabilization for node 00
+        Tau_Upwind[1, 1] = tu - min(0, w_chemo[1] * normali[1])  # Upwind stabilization for node 01
         
         
         

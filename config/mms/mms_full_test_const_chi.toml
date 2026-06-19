@@ -8,7 +8,7 @@
     #   phi   = t*sin(s + 2*t) + 1.0
     #
     # Forcing terms:
-    #   f_u     = -2.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 2.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 0.5*sin(s)*cos(t)
+    #   f_u     = -2.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 2.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 0.1*sin(s)*cos(t)
     #   f_omega = -1.0*sin(s)*cos(t) - 1.0
     #   f_v     = 0
     #   f_phi   = 2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0
@@ -28,7 +28,7 @@
     gam = 1.0   # Upwinding parameter for static condensation (0.0 = no upwind)
 
     [physical_parameters.viscosity]
-    nu      = 0.5
+    nu      = 0.1
     mu      = 1.0
     epsilon = 1.0
     sigma   = 1.0
@@ -57,7 +57,7 @@
     phi   = "1.00000000000000"
 
     [force_functions]
-    u     = "-2.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 2.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 0.5*sin(s)*cos(t)"
+    u     = "-2.0*t*(sin(s)*cos(t) + 1)*sin(s + 2*t) + 2.0*t*cos(s)*cos(t)*cos(s + 2*t) - sin(s)*sin(t) + 0.1*sin(s)*cos(t)"
     omega = "-1.0*sin(s)*cos(t) - 1.0"
     v     = "zeros"
     phi   = "2.0*t*sin(s + 2*t) + 2*t*cos(s + 2*t) + sin(s + 2*t) + 1.0"
@@ -78,7 +78,7 @@
     # Dirichlet at B0 (left, s=0), Neumann at B1 (right).
     # Neumann data = outward normal flux = +flux at right.
     B0_u = { type = "dirichlet", data = "sin(s)*cos(t) + 1.0" }
-B1_u = { type = "neumann",   data = "-2.0*t*(sin(s)*cos(t) + 1)*cos(s + 2*t) + 0.5*cos(s)*cos(t)" }
+B1_u = { type = "neumann",   data = "-2.0*t*(sin(s)*cos(t) + 1)*cos(s + 2*t) + 0.1*cos(s)*cos(t)" }
 # omega: exact solution zero — homogeneous Neumann by default
 # v: exact solution zero — homogeneous Neumann by default
 B0_phi = { type = "dirichlet", data = "t*sin(s + 2*t) + 1.0" }
